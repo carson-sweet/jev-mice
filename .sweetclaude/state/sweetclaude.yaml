@@ -1,0 +1,100 @@
+schema_version: 1
+project:
+  name: jev-mice
+  type: new
+  version_stage: PROTOTYPE
+  safety_snapshot: ''
+framework:
+  installed_version: 4.5.2
+  setup_complete: true
+  migrated_at: null
+  migrated_from: null
+  migration_status: null
+  hook_last_ran: null
+  consistency:
+    last_checked: null
+    status: ok
+    drift: []
+    check_error: null
+  update:
+    available: null
+    last_checked: null
+    declined: false
+    check_error: null
+session:
+  deference_level: guided
+  default_action: null
+work:
+  last_item_id: WI-001
+  active:
+    id: WI-001
+    type: net-new-feature
+    workflow:
+    - DISCOVER
+    - DEFINE
+    - DESIGN
+    - PLAN
+    - IMPLEMENT
+    - VERIFY
+    - SHIP
+    phase: DEFINE
+    title: Jev-driven mice, cats, traps, and food ecology simulation as a browser
+      app with configurable starting conditions and full telemetry
+    started: '2026-09-19'
+    entry_category: cold-start
+features:
+  product_milestones:
+    status: active
+    offered_at: '2026-09-19T19:48:19+00:00'
+    decided_at: '2026-09-19T19:48:19+00:00'
+    defer_until: null
+  product_backlog:
+    status: active
+    offered_at: '2026-09-19T19:48:19+00:00'
+    decided_at: '2026-09-19T19:48:19+00:00'
+    defer_until: null
+  product_personas:
+    status: declined
+    offered_at: '2026-09-19T19:48:19+00:00'
+    decided_at: '2026-09-19T19:48:19+00:00'
+    defer_until: null
+  product_stories:
+    status: active
+    offered_at: '2026-09-19T19:48:19+00:00'
+    decided_at: '2026-09-19T19:48:19+00:00'
+    defer_until: null
+  document_corpus:
+    status: declined
+    offered_at: '2026-09-19T19:48:19+00:00'
+    decided_at: '2026-09-19T19:48:19+00:00'
+    defer_until: null
+  usage_tracking:
+    status: active
+    offered_at: '2026-09-19T19:48:19+00:00'
+    decided_at: '2026-09-19T19:48:19+00:00'
+    defer_until: null
+  behavioral_regression:
+    status: declined
+    offered_at: '2026-09-19T19:48:19+00:00'
+    decided_at: '2026-09-19T19:48:19+00:00'
+    defer_until: null
+  work_item_artifacts:
+    status: active
+    offered_at: '2026-09-19T19:48:19+00:00'
+    decided_at: '2026-09-19T19:48:19+00:00'
+    defer_until: null
+health:
+  last_checked: null
+  artifacts:
+    milestones: not_configured
+    backlog: not_configured
+    personas: not_configured
+    stories: not_configured
+    corpus: not_configured
+work_history:
+- id: WI-001
+  event: phase_transition
+  from: DISCOVER
+  to: DEFINE
+  at: '2026-09-19T20:36:53Z'
+learnings: []

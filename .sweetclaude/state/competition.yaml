@@ -1,0 +1,59 @@
+depth_run: L1
+competitors:
+  - name: "NetLogo Wolf Sheep Predation"
+    depth_analyzed: L1
+    positioning: "Canonical teaching model of predator-prey stability"
+    key_differentiators: ["Parameter sliders", "Live population plot", "Inspect any agent", "Docked agent-based vs aggregate comparison"]
+    target_market: "Agent-based modeling students and educators"
+    pricing_model: "Free, open source"
+    distribution: "NetLogo Models Library, Modeling Commons"
+  - name: "The Bibites"
+    depth_analyzed: L1
+    positioning: "Digital Life: artificial life with evolving neural-net brains"
+    key_differentiators: ["Inspect creature brain and genome", "Lineage Tree and Lineage Mesh", "Pheromone communication"]
+    target_market: "Artificial life enthusiasts, students, YouTube audience"
+    pricing_model: "Paid on Steam, free builds on itch.io"
+    distribution: "Steam, itch.io"
+  - name: "The Life Engine"
+    depth_analyzed: L1
+    positioning: "Browser cellular automaton for long-run natural selection with no fitness function"
+    key_differentiators: ["Zero install", "Instant start", "Organisms as evolving cell structures"]
+    target_market: "General audience, hobbyists"
+    pricing_model: "Free, open source"
+    distribution: "Browser, GitHub"
+  - name: "Primer"
+    depth_analyzed: L1
+    positioning: "Explainer videos with blob natural-selection sims; traits as words"
+    key_differentiators: ["One variable changed at a time", "Clear before and after", "Interactive version with MinuteLabs"]
+    target_market: "General audience"
+    pricing_model: "Free"
+    distribution: "YouTube, browser"
+  - name: "biosim4"
+    depth_analyzed: L1
+    positioning: "Genome-to-neural-net creatures in a 2D arena with configurable survival criteria"
+    key_differentiators: ["Readable genomes", "Config-file driven runs", "Movie output"]
+    target_market: "Programmers and hobbyist researchers"
+    pricing_model: "Free, open source"
+    distribution: "GitHub, browser ports"
+  - name: "Generative Agents (Smallville)"
+    depth_analyzed: L1
+    positioning: "Believable simulacra of human behavior via memory stream, reflection, and planning"
+    key_differentiators: ["Natural-language memory stream", "Reflection", "Emergent social behavior among 25 agents"]
+    target_market: "Researchers, LLM agent builders"
+    pricing_model: "Free code; LLM API costs per run"
+    distribution: "GitHub"
+  - name: "AI Town"
+    depth_analyzed: L1
+    positioning: "Deployable open-source Smallville in TypeScript"
+    key_differentiators: ["One-click deploy", "Local model support", "JavaScript ecosystem"]
+    target_market: "Web developers building LLM agents"
+    pricing_model: "Free, MIT; hosting and LLM costs"
+    distribution: "GitHub, Convex, Fly.io, Docker"
+  - name: "Project Sid"
+    depth_analyzed: L1
+    positioning: "Many-agent simulations toward AI civilization in Minecraft via PIANO"
+    key_differentiators: ["10 to 1000+ agents", "Role specialization", "Cultural transmission"]
+    target_market: "Researchers"
+    pricing_model: "Free paper and code; heavy infrastructure"
+    distribution: "arXiv, GitHub"
+features_analyzed: []

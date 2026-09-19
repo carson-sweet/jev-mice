@@ -1,0 +1,56 @@
+project_type: other
+intent: "Demo or showcase: a browser ecology simulation of mice, cats, traps, and food on a tick-based grid where TypeSafe's Jev arbitrates each animal's drives, with full telemetry for comparing outcomes across starting conditions"
+problem_summary: ""
+target_user_summary: "Carson testing the limits of Jev-driven agents; developers evaluating TypeSafe for agent-like workloads; emergence watchers and academic researchers comparing colony outcomes across starting conditions"
+depth_run: L1
+not_scope:
+  - "A game you play. No player-controlled animal; the user configures, starts, watches, and analyzes."
+  - "A validated ecology model. No claim of biological realism or predictive accuracy."
+  - "An open ecosystem editor. Fixed cast of mice, cats, traps, and food; no user-defined species, rules, or scripting."
+  - "Cross-run parameter learning. No bandit or optimizer tuning rules between runs; within-run personality inheritance is in scope."
+  - "Multi-user or shared sessions. One person, one browser, one run at a time."
+  - "Generated text or narration. Jev never writes prose; the UI shows distributions and bucketed state."
+pain_thesis_present: false
+validation_rubric_run: false
+
+segments:
+  - id: seg-1
+    name: "Jev boundary-tester"
+    description: "Carson. Wants to find where System One judgment stops looking intelligent when it drives dozens of agents at once. Cares about decision cadence, token cost, and whether blended-probability movement reads as behavior rather than noise."
+    rationale: "The only segment that will change the design based on what the sim reveals."
+  - id: seg-2
+    name: "TypeSafe evaluator"
+    description: "A developer deciding whether Jev fits an agent-like or simulation workload. Wants to see the exact state and questions sent, the probabilities returned, and cost per decision, for one animal at one moment."
+    rationale: "The segment the visible-judgment UI exists for."
+  - id: seg-3
+    name: "Emergence watcher"
+    description: "No interest in the API. Sets up a scenario, watches the colony live and die, then changes one starting condition and compares. Wants charts and replayable runs."
+    rationale: "The segment telemetry and run comparison exist for."
+  - id: seg-4
+    name: "Academic researcher"
+    description: "Uses the simulation as an experimental apparatus for studying emergent behavior or AI-driven agents. Needs reproducible seeds, exportable telemetry, and documented mechanics so a result can be cited or re-run."
+    rationale: "Added from the compliance-context user-type answer. Sharpens the telemetry requirement into reproducibility and export, which the watcher segment alone would not demand."
+
+attitudinal_axes: []
+
+jtbd_candidates: []
+
+scenarios:
+  - id: scn-1
+    persona_seed: "Emergence watcher (seg-3) who set 70 percent bold mice"
+    moment: "End of a run. Population collapsed by tick 600. Deaths-by-cause chart is dominated by traps."
+    context: "They suspect boldness fed the traps and want to test that one hypothesis."
+    pain_point: "Two runs with different seeds are not comparable, so rerunning with a different personality mix and eyeballing the result proves nothing."
+    current_workaround: "Rerun and squint, or screenshot the charts and compare by hand."
+  - id: scn-2
+    persona_seed: "TypeSafe evaluator (seg-2) considering Jev for NPC decisions"
+    moment: "Watching a hungry mouse walk past a cat that is mid-meal, toward a food pile."
+    context: "They want to know whether Jev weighed hunger against fear or a scripted heuristic did."
+    pain_point: "Agent demos hide their reasoning, and Jev produces no reasoning text at all, only probabilities. Without seeing the state sent and the distribution returned, there is nothing to believe."
+    current_workaround: "Read the source code, or trust the marketing."
+  - id: scn-3
+    persona_seed: "Carson (seg-1) on the first 60-mouse run"
+    moment: "The colony jitters like Brownian motion instead of behaving like animals."
+    context: "Something in the pipeline is wrong, and there are four candidates: Jev's judgment, the bucketing of state into words, the blend weights, or the decision cadence."
+    pain_point: "Nothing in the UI isolates which stage produced the bad movement."
+    current_workaround: "Add console logging and stare at it."

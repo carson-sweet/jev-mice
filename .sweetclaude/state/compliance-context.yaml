@@ -1,0 +1,12 @@
+schema_version: 1
+collected_at: 2026-09-19T19:36:25Z
+data_categories: []
+user_geography:
+  - us
+geography_notes: null
+user_type:
+  - b2c
+  - other
+derived_frameworks:
+  - gdpr_floor
+notes: "User type 'other' is academic researchers using the simulation as an experimental apparatus. No accounts, no personal data; telemetry describes simulated animals only. Re-run this block if accounts, sharing, or web analytics are added."

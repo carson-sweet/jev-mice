@@ -1,0 +1,14 @@
+schema_version: 1
+categories:
+  product:
+    privacy: private
+    base_path: .sweetclaude/product
+  strategy:
+    privacy: public
+    base_path: strategy
+  technical:
+    privacy: private
+    base_path: .sweetclaude/technical
+  design:
+    privacy: private
+    base_path: .sweetclaude/design

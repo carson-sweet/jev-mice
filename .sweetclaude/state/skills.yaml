@@ -1,0 +1,12 @@
+# .sweetclaude/state/skills.yaml
+# SweetClaude skills state — schema version 2
+schema_version: 2
+skills:
+  product-milestones:
+    status: active
+    last_changed_at: '2026-09-19'
+    last_changed_by: onboard
+  product-user-stories:
+    status: active
+    last_changed_at: '2026-09-19'
+    last_changed_by: onboard
