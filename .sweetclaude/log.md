@@ -85,3 +85,87 @@
 **Git:** .sweetclaude/ and .claude/ committed; cache, session-state, session-status, settings.local.json ignored
 
 **Next-phase skills surfaced:** product-brief, product-prd
+
+## 2026-09-19T20:52:59Z — product-brief (n/a)
+
+**Status:** completed (draft v1.0, awaiting review)
+
+**Produced:** .sweetclaude/product/jev-mice-product-brief-draft-v1.0-20260919.md; .sweetclaude/state/brief.yaml; symlinks in .sweetclaude/work/WI-001/
+
+**Key decisions:**
+- Eleven-section outline, bullets style, hybrid audience, nothing omitted
+- Fixed grid presets replace the screen-size cap (challenge raised and not contested)
+- Six open mechanics settled with proposed values, marked "proposed" in the tick table
+- Four-type personality catalog; percentages at spawn and birth; no inheritance in v1
+- Baseline mode and config export in scope; lineage view deferred
+- Ten true/false success criteria
+
+**Open questions:**
+- Carson's review of the proposed mechanic values, personality catalog, and success criteria thresholds
+- Whether decisions in the brief get promoted to the decision log on approval
+
+## 2026-09-19T20:59:11Z — product-brief revision v1.0 -> v1.1
+
+**Status:** completed (draft, awaiting review)
+
+**Produced:** .sweetclaude/product/jev-mice-product-brief-draft-v1.1-20260919.md; v1.0 deprecated and renamed
+
+**Changes:** minor. Removed process vocabulary in paragraphs 4, 7, 11, 72-76 and the header so the brief reads on its own for repo readers. Carson flagged "concrete moments" in [7].
+
+## 2026-09-19T21:26:39Z — product-brief approved as final v1.1
+
+**Status:** completed
+
+**Produced:** .sweetclaude/product/jev-mice-product-brief-final-v1.1-20260919.md; draft v1.1 deprecated
+
+**Key decisions:** brief decisions promoted to decision log entries 10-17; three new assumptions registered (14-16 range as numbered)
+
+**Open questions:** none for the brief
+
+## 2026-09-19T21:38:03Z — product-prd (n/a)
+
+**Status:** completed (draft v1.0, awaiting review)
+
+**Produced:** .sweetclaude/product/jev-mice-prd-draft-v1.0-20260919.md; .sweetclaude/state/prd.yaml
+
+**Key decisions:**
+- Eleven sections including a Jev decision contract at requirement level
+- 65 functional requirements in eleven groups, 11 NFRs, 10 success metrics with measurement methods, 6 epics
+- gdpr_floor applied as NFR-006 data minimization
+- New mechanics fixed at requirement level beyond the brief: one animal per cell, mice never enter a cat's cell, interrupted eating does not consume the pile, narrow escape adds a memory, 2,000 ms fallback timeout, cats never batched with mice
+
+**Open questions:** eight listed in section 10 of the document; Carson's review
+
+## 2026-09-19T22:09:54Z — product-prd revision v1.0 -> v2.0; product-brief revision v1.1 -> v1.2 draft
+
+**Status:** completed (both awaiting review)
+
+**Produced:** .sweetclaude/product/jev-mice-prd-draft-v2.0-20260919.md (74 FRs); .sweetclaude/product/jev-mice-product-brief-draft-v1.2-20260919.md; v1.0 PRD deprecated; brief v1.1 final remains current until v1.2 is approved
+
+**Key decisions:** eight open questions walked one at a time with options, pros and cons, and recommendations; seven resolved (decision log 18-24), license deferred (25). Mouseholes added at Carson's direction. Assumption 9 registered.
+
+**Open questions:** Carson's review of PRD v2.0 and brief v1.2; repository license (backlog candidate)
+
+## 2026-09-19T22:12:52Z — license closed; PRD 2.0 -> 2.1, brief 1.2 -> 1.3
+
+**Status:** completed (both drafts awaiting review)
+
+**Key decisions:** decision 26, no license, private repository. Zero open questions remain in the PRD.
+
+## 2026-09-19T22:16:14Z — brief v1.3 and PRD v2.1 approved as final
+
+**Status:** completed
+
+**Produced:** .sweetclaude/product/jev-mice-product-brief-final-v1.3-20260919.md; .sweetclaude/product/jev-mice-prd-final-v2.1-20260919.md; prior versions deprecated
+
+**Define gate self-check:** brief 11 sections, no TBD, no single-sentence sections, concrete scenarios present, out-of-scope well over three; PRD has FRs, NFRs, epics, measurable success metrics.
+
+## 2026-09-19T22:21:31Z — phase transition DEFINE -> DESIGN (WI-001)
+
+**Status:** completed
+
+**Gate:** 5 of 5 criteria met
+
+**Improvement check-in:** nothing to change (lr-004, confirmation)
+
+**Next-phase skills surfaced:** design-architecture, design-tech-spec, design-data-model, design-api-design, design-user-flows, design-wireframes, design-ux-review, design-solutioning-gate, design-manage-decisions
