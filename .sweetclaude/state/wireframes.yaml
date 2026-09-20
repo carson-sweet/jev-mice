@@ -1,0 +1,128 @@
+wireframes:
+- screen: 01-sign-in
+  title: Sign in and public arrival
+  flows:
+  - F-01
+  - F-02
+  file: .sweetclaude/work/WI-001/design/wireframes/01-sign-in.html
+  states:
+  - primary
+  - error
+  - public
+  style_source: defaults
+  last_updated: '2026-09-19'
+- screen: 02-configure
+  title: Configure a run
+  flows:
+  - F-03
+  - F-15
+  file: .sweetclaude/work/WI-001/design/wireframes/02-configure.html
+  states:
+  - default
+  - invalid
+  - quota
+  - conflict
+  - twin
+  style_source: defaults
+  last_updated: '2026-09-19'
+- screen: 03-live
+  title: Live view
+  flows:
+  - F-04
+  - F-05
+  - F-06
+  - F-12
+  - F-14
+  file: .sweetclaude/work/WI-001/design/wireframes/03-live.html
+  states:
+  - running
+  - inspector
+  - paused
+  - fallback
+  - reconnect
+  - resuming
+  - queued
+  - completed
+  style_source: defaults
+  last_updated: '2026-09-19'
+- screen: 04-library
+  title: Run library
+  flows:
+  - F-07
+  - F-16
+  file: .sweetclaude/work/WI-001/design/wireframes/04-library.html
+  states:
+  - populated
+  - empty
+  - anon
+  style_source: defaults
+  last_updated: '2026-09-19'
+- screen: 05-run-detail
+  title: Run detail
+  flows:
+  - F-07
+  - F-10
+  - F-11
+  file: .sweetclaude/work/WI-001/design/wireframes/05-run-detail.html
+  states:
+  - detail
+  - share
+  - export
+  - failed
+  style_source: defaults
+  last_updated: '2026-09-19'
+- screen: 06-replay
+  title: Replay
+  flows:
+  - F-08
+  file: .sweetclaude/work/WI-001/design/wireframes/06-replay.html
+  states:
+  - paused
+  - inspect
+  - loading
+  - chunkerr
+  style_source: defaults
+  last_updated: '2026-09-19'
+- screen: 07-compare
+  title: Compare two runs
+  flows:
+  - F-09
+  - F-15
+  file: .sweetclaude/work/WI-001/design/wireframes/07-compare.html
+  states:
+  - overlay
+  - twin
+  - mismatch
+  style_source: defaults
+  last_updated: '2026-09-19'
+- screen: 08-share
+  title: Shared run
+  flows:
+  - F-10
+  file: .sweetclaude/work/WI-001/design/wireframes/08-share.html
+  states:
+  - replay
+  - live
+  - gone
+  style_source: defaults
+  last_updated: '2026-09-19'
+- screen: 09-account
+  title: Account
+  flows:
+  - F-12
+  - F-13
+  file: .sweetclaude/work/WI-001/design/wireframes/09-account.html
+  states:
+  - account
+  - quota
+  - delete
+  - deletefail
+  style_source: defaults
+  last_updated: '2026-09-19'
+index: .sweetclaude/work/WI-001/design/wireframes/index.html
+screen_count: 9
+state_count: 37
+flows_covered: 16
+component_annotations: true
+style_source: defaults
+generated_at: '2026-09-20T02:20:51+00:00'

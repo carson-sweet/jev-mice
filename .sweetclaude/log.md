@@ -261,3 +261,15 @@
 **Status:** completed
 
 **Produced:** jev-mice-prd-final-v3.0-20260919.md; jev-mice-product-brief-final-v2.0-20260919.md. Prior finals (PRD v2.1, brief v1.3) marked superseded so exactly one current version of each exists.
+
+## 2026-09-20T02:20:51Z — design-wireframes (n/a)
+
+**Status:** completed (awaiting review)
+
+**Produced:** 9 self-contained HTML wireframes plus an index in .sweetclaude/work/WI-001/design/wireframes/, symlinked at .sweetclaude/design/wireframes/
+
+**Flows covered:** 16 of 16, across 37 states
+
+**Style source:** defaults (no visual design specification exists)
+
+**Open questions:** no visual design chosen, so wireframes are neutral; a design pass would change surface but not structure

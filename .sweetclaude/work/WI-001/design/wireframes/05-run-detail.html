@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>jev-mice wireframe 05 &mdash; Run detail</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#ffffff; --surface:#f9fafb; --surface2:#f3f4f6; --text:#1f2937; --muted:#6b7280;
+  --border:#d1d5db; --border2:#e5e7eb; --accent:#3b82f6; --accent-weak:#eff6ff;
+  --warn-bg:#fffbeb; --warn-bd:#f59e0b; --bad-bg:#fef2f2; --bad-bd:#ef4444;
+  --ok-bg:#f0fdf4; --ok-bd:#22c55e; --ph:#e5e7eb; --ph-text:#9ca3af;
+}
+html,body{margin:0;padding:0}
+body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--surface2)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:8px;top:8px;background:#fff;padding:8px;z-index:100;border:1px solid var(--border)}
+
+/* wireframe chrome */
+.wf-bar{position:sticky;top:0;z-index:50;background:#111827;color:#f9fafb;padding:8px 14px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.wf-bar h1{font-size:13px;margin:0;font-weight:600;letter-spacing:.01em}
+.wf-bar .spacer{flex:1}
+.wf-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.wf-tabs button{font:inherit;font-size:12px;padding:4px 10px;border-radius:999px;cursor:pointer;
+  background:#374151;color:#e5e7eb;border:1px solid #4b5563}
+.wf-tabs button[aria-current="true"]{background:#f9fafb;color:#111827;border-color:#f9fafb;font-weight:600}
+.wf-toggle{font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;
+  background:#374151;color:#e5e7eb;border:1px solid #4b5563}
+.wf-toggle[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.wf-note{background:#fffbeb;border-bottom:1px solid #f59e0b;padding:8px 14px;font-size:12.5px;color:#78350f}
+section[data-state]{display:none;padding:18px}
+section[data-state].on{display:block}
+.wf-caption{font-size:12px;color:var(--muted);margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em}
+
+/* annotations */
+.anno{display:none;background:#eef2ff;border:1px solid #c7d2fe;border-left:3px solid #6366f1;
+  padding:10px 12px;margin:0 0 14px;font-size:12.5px;color:#312e81;border-radius:0 4px 4px 0}
+body.anno-on .anno{display:block}
+.anno b{color:#1e1b4b}
+.anno ul{margin:6px 0 0;padding-left:18px}
+
+/* component boundaries */
+body.cmp-on [data-component]{outline:1px dashed #94a3b8;outline-offset:2px;position:relative}
+body.cmp-on [data-component]::before{content:attr(data-component);position:absolute;top:-8px;left:4px;
+  background:#475569;color:#fff;font-size:9px;line-height:1;padding:2px 5px;border-radius:3px;
+  letter-spacing:.03em;z-index:5;font-weight:600}
+
+/* app shell */
+.app{background:var(--bg);border:1px solid var(--border);border-radius:8px;overflow:hidden;
+  max-width:1280px;margin:0 auto;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.hdr{display:flex;align-items:center;gap:16px;padding:10px 16px;border-bottom:1px solid var(--border2);background:var(--bg)}
+.brand{font-weight:700;letter-spacing:-.01em}
+.nav{display:flex;gap:4px}
+.nav a{padding:5px 10px;border-radius:6px;text-decoration:none;color:var(--muted);font-size:13px}
+.nav a[aria-current="page"]{background:var(--surface2);color:var(--text);font-weight:600}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--ph);color:var(--ph-text);
+  display:grid;place-items:center;font-size:10px}
+.main{padding:16px}
+
+/* primitives */
+.btn{font:inherit;font-size:13px;padding:7px 14px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);cursor:pointer}
+.btn:hover{background:var(--surface)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn-danger{border-color:var(--bad-bd);color:#b91c1c}
+.btn-sm{padding:4px 9px;font-size:12px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+.field .hint{font-size:11.5px;color:var(--muted);margin-top:3px}
+input,select{font:inherit;font-size:13px;padding:6px 9px;border:1px solid var(--border);
+  border-radius:5px;background:var(--bg);color:var(--text);width:100%}
+.err input{border-color:var(--bad-bd);background:var(--bad-bg)}
+.err-msg{font-size:11.5px;color:#b91c1c;margin-top:3px;font-weight:600}
+.err-msg::before{content:"! ";font-weight:700}
+.card{border:1px solid var(--border2);border-radius:7px;background:var(--bg)}
+.card>h3{margin:0;padding:9px 12px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);border-bottom:1px solid var(--border2);background:var(--surface)}
+.card>.body{padding:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+  padding:7px 9px;border-bottom:1px solid var(--border)}
+td{padding:8px 9px;border-bottom:1px solid var(--border2)}
+tr:last-child td{border-bottom:0}
+
+/* status: shape + text, never colour alone */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
+  padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:var(--surface)}
+.pill::before{font-size:9px}
+.pill.running::before{content:"\25B6"}
+.pill.queued::before{content:"\231B"}
+.pill.paused::before{content:"\23F8"}
+.pill.done::before{content:"\2714"}
+.pill.failed::before{content:"\2716"}
+.pill.cancelled::before{content:"\2298"}
+.pill.running{background:var(--accent-weak);border-color:#bfdbfe}
+.pill.done{background:var(--ok-bg);border-color:#bbf7d0}
+.pill.failed{background:var(--bad-bg);border-color:#fecaca}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:1px 7px;border-radius:4px;
+  border:1px solid var(--warn-bd);background:var(--warn-bg);color:#78350f;font-weight:600}
+.badge::before{content:"\23F1";font-size:9px}
+
+.banner{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:6px;
+  font-size:12.5px;margin-bottom:12px;border:1px solid}
+.banner .ico{font-weight:700;font-size:13px;line-height:1.3}
+.banner.warn{background:var(--warn-bg);border-color:var(--warn-bd);color:#78350f}
+.banner.bad{background:var(--bad-bg);border-color:var(--bad-bd);color:#991b1b}
+.banner.info{background:var(--accent-weak);border-color:#bfdbfe;color:#1e40af}
+.banner .btn{margin-left:auto;flex:none}
+
+/* simulation grid */
+.simgrid{background:#fafafa;border:1px solid var(--border);border-radius:6px;padding:10px;
+  font:12px/1.18 ui-monospace,SFMono-Regular,Menlo,monospace;color:#374151;white-space:pre;
+  overflow:auto;display:flex;justify-content:center;letter-spacing:.09em}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:8px}
+.legend span b{color:var(--text);font-family:ui-monospace,monospace}
+
+/* chart placeholders */
+.chart{background:var(--ph);border-radius:5px;height:78px;position:relative;overflow:hidden}
+.chart svg{position:absolute;inset:0;width:100%;height:100%}
+.chart-label{font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.ph{background:var(--ph);color:var(--ph-text);display:grid;place-items:center;border-radius:5px;
+  font-size:12px;text-align:center;padding:10px}
+
+/* meter */
+.meter{display:flex;gap:18px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.meter b{display:block;color:var(--text);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:var(--border2);overflow:hidden;min-width:110px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.bar.low>i{background:var(--warn-bd)}
+
+/* key/value */
+.kv{font-size:12.5px}
+.kv div{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--border2)}
+.kv div:last-child{border-bottom:0}
+.kv dt,.kv .k{color:var(--muted)}
+.kv .v{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+pre.code{background:var(--surface);border:1px solid var(--border2);border-radius:5px;padding:9px;
+  font:11.5px/1.45 ui-monospace,Menlo,monospace;margin:0;color:#374151;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.dist{display:grid;grid-template-columns:78px 1fr 44px;gap:6px;align-items:center;font-size:12px;margin-bottom:3px}
+.dist .track{height:9px;background:var(--border2);border-radius:2px;overflow:hidden}
+.dist .track>i{display:block;height:100%;background:var(--accent)}
+.dist .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.dialog{border:1px solid var(--border);border-radius:8px;background:var(--bg);max-width:520px;
+  box-shadow:0 8px 24px rgba(0,0,0,.12);margin:0 auto}
+.dialog h3{margin:0;padding:12px 14px;font-size:14px;border-bottom:1px solid var(--border2)}
+.dialog .body{padding:14px}
+.dialog .foot{padding:10px 14px;border-top:1px solid var(--border2);display:flex;gap:8px;justify-content:flex-end;background:var(--surface)}
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+.empty h3{margin:0 0 6px;color:var(--text);font-size:15px}
+.sidebar-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border2);margin-bottom:10px}
+.sidebar-tabs button{font:inherit;font-size:12px;padding:6px 11px;background:none;border:0;
+  border-bottom:2px solid transparent;cursor:pointer;color:var(--muted)}
+.sidebar-tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+.live{display:grid;grid-template-columns:1fr 372px;gap:14px;align-items:start}
+@media(max-width:1100px){.live{grid-template-columns:1fr}}
+</style></head>
+<body class="anno-on">
+<a class="skip" href="#wf-main">Skip to wireframe</a>
+<div class="wf-bar">
+  <h1>05 &middot; Run detail</h1>
+  <div class="wf-tabs" role="group" aria-label="States"><button data-target="detail">Run detail</button><button data-target="share">Share dialog</button><button data-target="export">Export</button><button data-target="failed">Failed run</button></div>
+  <span class="spacer"></span>
+  <button class="wf-toggle" id="t-anno" aria-pressed="true">Notes</button>
+  <button class="wf-toggle" id="t-cmp" aria-pressed="false">Components</button>
+</div>
+<div class="wf-note"><b>Wireframe, not a mockup.</b> What a finished run offers, including sharing, export, and a run that failed part way. Covers F-07, F-10 and F-11. Neutral styling; no visual design has been chosen yet.</div>
+<main id="wf-main"><section data-state="detail" id="detail"><p class="wf-caption">Run detail &mdash; Run detail</p><div class="anno"><b>F-07 and F-11 &mdash; FR-105, FR-106, FR-108 to FR-110</b><ul><li>Everything needed to decide what to do with a finished run, with the five actions across the top.</li><li>The code-only twin is one click, because it is the comparison the product exists to show.</li><li>Record size is shown here so export is never a surprise.</li></ul></div><div class="app"><div class="hdr" data-component="AppHeader"><span class="brand">jev-mice</span><nav class="nav" data-component="PrimaryNav"><a href="#" aria-current="page">Runs</a><a href="#">New run</a></nav><span style="flex:1"></span><div data-component="QuotaMeter" style="text-align:right"><div style="font-size:11px;color:var(--muted)">Daily budget</div><div class="row" style="gap:6px"><span class="bar" style="width:120px"><i style="width:68%"></i></span><span style="font-size:11.5px;font-variant-numeric:tabular-nums">17.0M / 25M</span></div></div><div class="avatar" data-component="AccountMenu">CS</div></div><div class="main"><div class="spread" style="margin-bottom:12px"><div><h2 style="margin:0 0 3px;font-size:17px">Cautious 70%</h2><div style="font-size:12px;color:var(--muted)">Created yesterday &middot; 2,000 ticks &middot; $0.37</div></div><button class="btn btn-sm">Rename</button></div><div class="row" data-component="RunActions" style="margin-bottom:14px"><button class="btn btn-primary btn-sm">Replay</button><button class="btn btn-sm">Compare with&hellip;</button><button class="btn btn-sm">Run code-only twin</button><button class="btn btn-sm">Share</button><button class="btn btn-sm">Export</button><span style="flex:1"></span><button class="btn btn-sm btn-danger">Delete</button></div><div class="grid2" style="align-items:start"><div class="card" data-component="RunSummary"><h3>This run</h3><div class="body"><div class="kv"><div><span class="k">Status</span><span class="v"><span class="pill done">Completed</span></span></div><div><span class="k">Ticks</span><span class="v">2,000</span></div><div><span class="k">Preset / seed</span><span class="v">Medium &middot; 1749302811</span></div><div><span class="k">Decisions by</span><span class="v">Jev 1.13.0</span></div><div><span class="k">Requests / tokens</span><span class="v">2,911 &middot; 8.84M</span></div><div><span class="k">Cost</span><span class="v">$0.37</span></div><div><span class="k">Fell back to rules</span><span class="v">0 times</span></div><div><span class="k">Record size</span><span class="v">8 chunks &middot; 41 MB</span></div><div><span class="k">Expires</span><span class="v">in 29 days</span></div></div></div></div><div class="card" data-component="RunConfigSummary"><h3>Settings</h3><div class="body"><div class="kv"><div><span class="k">Mice</span><span class="v">30 male / 30 female</span></div><div><span class="k">Cats / traps / food</span><span class="v">4 / 8 / 20</span></div><div><span class="k">Mouseholes</span><span class="v">12</span></div><div><span class="k">Personality mix</span><span class="v">70 bold / 30 cautious</span></div><div><span class="k">Food respawn</span><span class="v">every 40 ticks</span></div><div><span class="k">Nutrition decay</span><span class="v">0.5 per tick</span></div></div><div class="row" style="margin-top:10px"><button class="btn btn-sm">Export settings and seed</button></div></div></div></div><div style="height:14px"></div><div class="card"><h3>Outcome</h3><div class="body"><div class="grid2" style="gap:12px"><div><div class="chart-label">Population by personality</div><div class="chart" role="img" aria-label="Population by personality chart"><svg viewBox="0 0 270 70" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#9ca3af" stroke-width="2" points="0,26 40,30 80,34 120,40 160,48 200,54 240,62 270,66"/></svg></div></div><div><div class="chart-label">Deaths by cause</div><div class="chart" role="img" aria-label="Deaths by cause chart"><svg viewBox="0 0 270 70" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#9ca3af" stroke-width="2" points="0,66 40,58 80,50 120,40 160,32 200,24 240,16 270,8"/></svg></div></div></div></div></div></div></div></section><section data-state="share" id="share"><p class="wf-caption">Run detail &mdash; Share dialog</p><div class="anno"><b>F-10 &mdash; FR-111, FR-112, FR-115</b><ul><li>The full link is shown exactly once; only a hash of it is stored.</li><li>The list shows a recognisable suffix and a view count, never the whole token again.</li><li>What the recipient can and cannot do is stated in the dialog, not hidden in help.</li></ul></div><div class="app"><div class="hdr" data-component="AppHeader"><span class="brand">jev-mice</span><nav class="nav" data-component="PrimaryNav"><a href="#" aria-current="page">Runs</a><a href="#">New run</a></nav><span style="flex:1"></span><div data-component="QuotaMeter" style="text-align:right"><div style="font-size:11px;color:var(--muted)">Daily budget</div><div class="row" style="gap:6px"><span class="bar" style="width:120px"><i style="width:68%"></i></span><span style="font-size:11.5px;font-variant-numeric:tabular-nums">17.0M / 25M</span></div></div><div class="avatar" data-component="AccountMenu">CS</div></div><div class="main"><div class="spread" style="margin-bottom:12px"><div><h2 style="margin:0 0 3px;font-size:17px">Cautious 70%</h2><div style="font-size:12px;color:var(--muted)">Created yesterday &middot; 2,000 ticks &middot; $0.37</div></div><button class="btn btn-sm">Rename</button></div><div class="row" data-component="RunActions" style="margin-bottom:14px"><button class="btn btn-primary btn-sm">Replay</button><button class="btn btn-sm">Compare with&hellip;</button><button class="btn btn-sm">Run code-only twin</button><button class="btn btn-sm">Share</button><button class="btn btn-sm">Export</button><span style="flex:1"></span><button class="btn btn-sm btn-danger">Delete</button></div><div class="dialog" data-component="ShareDialog" style="margin-bottom:16px"><h3>Share this run</h3><div class="body"><p style="margin:0 0 10px;font-size:12.5px;color:var(--muted)">Anyone with this link can watch and replay this run, including the decision inspector. They do not need an account. The link stops working if you delete the run or revoke the link.</p><div class="row"><input value="https://jev-mice.example/s/9fK2x7Qw4Lm1pZ8T" readonly style="flex:1"><button class="btn btn-sm btn-primary">Copy</button></div><p class="hint" style="margin-top:8px">This is the only time the full link is shown. If you lose it, revoke it and make another.</p><div style="height:12px"></div><div class="chart-label">Existing links</div><table><tbody><tr><td style="font-family:ui-monospace,monospace;font-size:12px">&hellip;4Lm1pZ8T</td><td style="font-size:12px;color:var(--muted)">created just now &middot; 0 views</td><td style="text-align:right"><button class="btn btn-sm">Revoke</button></td></tr></tbody></table></div><div class="foot"><button class="btn btn-sm">Done</button></div></div><div class="grid2" style="align-items:start"><div class="card" data-component="RunSummary"><h3>This run</h3><div class="body"><div class="kv"><div><span class="k">Status</span><span class="v"><span class="pill done">Completed</span></span></div><div><span class="k">Ticks</span><span class="v">2,000</span></div><div><span class="k">Preset / seed</span><span class="v">Medium &middot; 1749302811</span></div><div><span class="k">Decisions by</span><span class="v">Jev 1.13.0</span></div><div><span class="k">Requests / tokens</span><span class="v">2,911 &middot; 8.84M</span></div><div><span class="k">Cost</span><span class="v">$0.37</span></div><div><span class="k">Fell back to rules</span><span class="v">0 times</span></div><div><span class="k">Record size</span><span class="v">8 chunks &middot; 41 MB</span></div><div><span class="k">Expires</span><span class="v">in 29 days</span></div></div></div></div><div class="card" data-component="RunConfigSummary"><h3>Settings</h3><div class="body"><div class="kv"><div><span class="k">Mice</span><span class="v">30 male / 30 female</span></div><div><span class="k">Cats / traps / food</span><span class="v">4 / 8 / 20</span></div><div><span class="k">Mouseholes</span><span class="v">12</span></div><div><span class="k">Personality mix</span><span class="v">70 bold / 30 cautious</span></div><div><span class="k">Food respawn</span><span class="v">every 40 ticks</span></div><div><span class="k">Nutrition decay</span><span class="v">0.5 per tick</span></div></div><div class="row" style="margin-top:10px"><button class="btn btn-sm">Export settings and seed</button></div></div></div></div><div style="height:14px"></div><div class="card"><h3>Outcome</h3><div class="body"><div class="grid2" style="gap:12px"><div><div class="chart-label">Population by personality</div><div class="chart" role="img" aria-label="Population by personality chart"><svg viewBox="0 0 270 70" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#9ca3af" stroke-width="2" points="0,26 40,30 80,34 120,40 160,48 200,54 240,62 270,66"/></svg></div></div><div><div class="chart-label">Deaths by cause</div><div class="chart" role="img" aria-label="Deaths by cause chart"><svg viewBox="0 0 270 70" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#9ca3af" stroke-width="2" points="0,66 40,58 80,50 120,40 160,32 200,24 240,16 270,8"/></svg></div></div></div></div></div></div></div></section><section data-state="export" id="export"><p class="wf-caption">Run detail &mdash; Export</p><div class="anno"><b>F-11 &mdash; FR-108, FR-109, FR-110</b><ul><li>Two exports with different purposes, described by what they are for rather than by format.</li><li>The size is stated before the download begins.</li><li>The retention reminder appears here because this is where a person acts on it.</li></ul></div><div class="app"><div class="hdr" data-component="AppHeader"><span class="brand">jev-mice</span><nav class="nav" data-component="PrimaryNav"><a href="#" aria-current="page">Runs</a><a href="#">New run</a></nav><span style="flex:1"></span><div data-component="QuotaMeter" style="text-align:right"><div style="font-size:11px;color:var(--muted)">Daily budget</div><div class="row" style="gap:6px"><span class="bar" style="width:120px"><i style="width:68%"></i></span><span style="font-size:11.5px;font-variant-numeric:tabular-nums">17.0M / 25M</span></div></div><div class="avatar" data-component="AccountMenu">CS</div></div><div class="main"><div class="spread" style="margin-bottom:12px"><div><h2 style="margin:0 0 3px;font-size:17px">Cautious 70%</h2><div style="font-size:12px;color:var(--muted)">Created yesterday &middot; 2,000 ticks &middot; $0.37</div></div><button class="btn btn-sm">Rename</button></div><div class="row" data-component="RunActions" style="margin-bottom:14px"><button class="btn btn-primary btn-sm">Replay</button><button class="btn btn-sm">Compare with&hellip;</button><button class="btn btn-sm">Run code-only twin</button><button class="btn btn-sm">Share</button><button class="btn btn-sm">Export</button><span style="flex:1"></span><button class="btn btn-sm btn-danger">Delete</button></div><div class="dialog" data-component="ExportDialog" style="margin-bottom:16px"><h3>Export</h3><div class="body"><div class="card" style="margin-bottom:10px"><div class="body spread"><div><b style="font-size:13px">Settings and seed</b><div style="font-size:12px;color:var(--muted)">A small file the configuration screen can load. Reproduces the same world.</div></div><button class="btn btn-sm">Download</button></div></div><div class="card"><div class="body spread"><div><b style="font-size:13px">Full record</b><div style="font-size:12px;color:var(--muted)">Every decision, every event, all 2,000 ticks. About <b>41 MB</b> in 8 parts.</div></div><button class="btn btn-sm btn-primary">Download</button></div></div><p class="hint" style="margin-top:10px">Runs are kept for 30 days. Export anything you want to keep.</p></div><div class="foot"><button class="btn btn-sm">Close</button></div></div><div class="grid2" style="align-items:start"><div class="card" data-component="RunSummary"><h3>This run</h3><div class="body"><div class="kv"><div><span class="k">Status</span><span class="v"><span class="pill done">Completed</span></span></div><div><span class="k">Ticks</span><span class="v">2,000</span></div><div><span class="k">Preset / seed</span><span class="v">Medium &middot; 1749302811</span></div><div><span class="k">Decisions by</span><span class="v">Jev 1.13.0</span></div><div><span class="k">Requests / tokens</span><span class="v">2,911 &middot; 8.84M</span></div><div><span class="k">Cost</span><span class="v">$0.37</span></div><div><span class="k">Fell back to rules</span><span class="v">0 times</span></div><div><span class="k">Record size</span><span class="v">8 chunks &middot; 41 MB</span></div><div><span class="k">Expires</span><span class="v">in 29 days</span></div></div></div></div><div class="card" data-component="RunConfigSummary"><h3>Settings</h3><div class="body"><div class="kv"><div><span class="k">Mice</span><span class="v">30 male / 30 female</span></div><div><span class="k">Cats / traps / food</span><span class="v">4 / 8 / 20</span></div><div><span class="k">Mouseholes</span><span class="v">12</span></div><div><span class="k">Personality mix</span><span class="v">70 bold / 30 cautious</span></div><div><span class="k">Food respawn</span><span class="v">every 40 ticks</span></div><div><span class="k">Nutrition decay</span><span class="v">0.5 per tick</span></div></div><div class="row" style="margin-top:10px"><button class="btn btn-sm">Export settings and seed</button></div></div></div></div><div style="height:14px"></div><div class="card"><h3>Outcome</h3><div class="body"><div class="grid2" style="gap:12px"><div><div class="chart-label">Population by personality</div><div class="chart" role="img" aria-label="Population by personality chart"><svg viewBox="0 0 270 70" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#9ca3af" stroke-width="2" points="0,26 40,30 80,34 120,40 160,48 200,54 240,62 270,66"/></svg></div></div><div><div class="chart-label">Deaths by cause</div><div class="chart" role="img" aria-label="Deaths by cause chart"><svg viewBox="0 0 270 70" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#9ca3af" stroke-width="2" points="0,66 40,58 80,50 120,40 160,32 200,24 240,16 270,8"/></svg></div></div></div></div></div></div></div></section><section data-state="failed" id="failed"><p class="wf-caption">Run detail &mdash; Failed run</p><div class="anno"><b>F-08 &mdash; FR-096</b><ul><li>A failed run keeps everything written before the failure and is still replayable to that point.</li><li>The banner says which tick it reached and why, without jargon.</li><li>Restarting is offered as a new run with the same settings and seed, not as a repair.</li></ul></div><div class="app"><div class="hdr" data-component="AppHeader"><span class="brand">jev-mice</span><nav class="nav" data-component="PrimaryNav"><a href="#" aria-current="page">Runs</a><a href="#">New run</a></nav><span style="flex:1"></span><div data-component="QuotaMeter" style="text-align:right"><div style="font-size:11px;color:var(--muted)">Daily budget</div><div class="row" style="gap:6px"><span class="bar" style="width:120px"><i style="width:68%"></i></span><span style="font-size:11.5px;font-variant-numeric:tabular-nums">17.0M / 25M</span></div></div><div class="avatar" data-component="AccountMenu">CS</div></div><div class="main"><div class="spread" style="margin-bottom:12px"><div><h2 style="margin:0 0 3px;font-size:17px">Large sweep</h2><div style="font-size:12px;color:var(--muted)">Created yesterday &middot; 2,000 ticks &middot; $0.37</div></div><button class="btn btn-sm">Rename</button></div><div class="row" style="margin-bottom:14px"><button class="btn btn-primary btn-sm">Replay to tick 7,410</button><button class="btn btn-sm">Export</button><span style="flex:1"></span><button class="btn btn-sm btn-danger">Delete</button></div><div class="banner bad"><span class="ico">&#10006;</span><div><b>This run stopped at tick 7,410 of 20,000.</b> The simulation could not be restarted after two attempts. Everything recorded up to that tick is kept and can be replayed.</div><button class="btn btn-sm">Start again from the same seed</button></div><div class="grid2" style="align-items:start"><div class="card" data-component="RunSummary"><h3>This run</h3><div class="body"><div class="kv"><div><span class="k">Status</span><span class="v"><span class="pill done">Completed</span></span></div><div><span class="k">Ticks</span><span class="v">2,000</span></div><div><span class="k">Preset / seed</span><span class="v">Medium &middot; 1749302811</span></div><div><span class="k">Decisions by</span><span class="v">Jev 1.13.0</span></div><div><span class="k">Requests / tokens</span><span class="v">2,911 &middot; 8.84M</span></div><div><span class="k">Cost</span><span class="v">$0.37</span></div><div><span class="k">Fell back to rules</span><span class="v">0 times</span></div><div><span class="k">Record size</span><span class="v">8 chunks &middot; 41 MB</span></div><div><span class="k">Expires</span><span class="v">in 29 days</span></div></div></div></div><div class="card" data-component="RunConfigSummary"><h3>Settings</h3><div class="body"><div class="kv"><div><span class="k">Mice</span><span class="v">30 male / 30 female</span></div><div><span class="k">Cats / traps / food</span><span class="v">4 / 8 / 20</span></div><div><span class="k">Mouseholes</span><span class="v">12</span></div><div><span class="k">Personality mix</span><span class="v">70 bold / 30 cautious</span></div><div><span class="k">Food respawn</span><span class="v">every 40 ticks</span></div><div><span class="k">Nutrition decay</span><span class="v">0.5 per tick</span></div></div><div class="row" style="margin-top:10px"><button class="btn btn-sm">Export settings and seed</button></div></div></div></div><div style="height:14px"></div><div class="card"><h3>Outcome</h3><div class="body"><div class="grid2" style="gap:12px"><div><div class="chart-label">Population by personality</div><div class="chart" role="img" aria-label="Population by personality chart"><svg viewBox="0 0 270 70" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#9ca3af" stroke-width="2" points="0,26 40,30 80,34 120,40 160,48 200,54 240,62 270,66"/></svg></div></div><div><div class="chart-label">Deaths by cause</div><div class="chart" role="img" aria-label="Deaths by cause chart"><svg viewBox="0 0 270 70" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#9ca3af" stroke-width="2" points="0,66 40,58 80,50 120,40 160,32 200,24 240,16 270,8"/></svg></div></div></div></div></div></div></div></section></main>
+<script>
+(function(){
+  var tabs=document.querySelectorAll('.wf-tabs button');
+  function show(id){
+    document.querySelectorAll('section[data-state]').forEach(function(s){s.classList.toggle('on',s.dataset.state===id)});
+    tabs.forEach(function(b){b.setAttribute('aria-current', b.dataset.target===id ? 'true':'false')});
+    history.replaceState(null,'','#'+id);
+  }
+  tabs.forEach(function(b){b.addEventListener('click',function(){show(b.dataset.target)})});
+  var start=location.hash.slice(1)||tabs[0].dataset.target; show(start);
+  function toggle(btn,cls){
+    btn.addEventListener('click',function(){
+      var on=btn.getAttribute('aria-pressed')==='true';
+      btn.setAttribute('aria-pressed',String(!on));
+      document.body.classList.toggle(cls,!on);
+    });
+  }
+  toggle(document.getElementById('t-anno'),'anno-on');
+  toggle(document.getElementById('t-cmp'),'cmp-on');
+})();
+</script>
+</body></html>

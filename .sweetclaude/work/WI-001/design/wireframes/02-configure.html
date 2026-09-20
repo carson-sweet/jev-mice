@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>jev-mice wireframe 02 &mdash; Configure a run</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#ffffff; --surface:#f9fafb; --surface2:#f3f4f6; --text:#1f2937; --muted:#6b7280;
+  --border:#d1d5db; --border2:#e5e7eb; --accent:#3b82f6; --accent-weak:#eff6ff;
+  --warn-bg:#fffbeb; --warn-bd:#f59e0b; --bad-bg:#fef2f2; --bad-bd:#ef4444;
+  --ok-bg:#f0fdf4; --ok-bd:#22c55e; --ph:#e5e7eb; --ph-text:#9ca3af;
+}
+html,body{margin:0;padding:0}
+body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--surface2)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:8px;top:8px;background:#fff;padding:8px;z-index:100;border:1px solid var(--border)}
+
+/* wireframe chrome */
+.wf-bar{position:sticky;top:0;z-index:50;background:#111827;color:#f9fafb;padding:8px 14px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.wf-bar h1{font-size:13px;margin:0;font-weight:600;letter-spacing:.01em}
+.wf-bar .spacer{flex:1}
+.wf-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.wf-tabs button{font:inherit;font-size:12px;padding:4px 10px;border-radius:999px;cursor:pointer;
+  background:#374151;color:#e5e7eb;border:1px solid #4b5563}
+.wf-tabs button[aria-current="true"]{background:#f9fafb;color:#111827;border-color:#f9fafb;font-weight:600}
+.wf-toggle{font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;
+  background:#374151;color:#e5e7eb;border:1px solid #4b5563}
+.wf-toggle[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.wf-note{background:#fffbeb;border-bottom:1px solid #f59e0b;padding:8px 14px;font-size:12.5px;color:#78350f}
+section[data-state]{display:none;padding:18px}
+section[data-state].on{display:block}
+.wf-caption{font-size:12px;color:var(--muted);margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em}
+
+/* annotations */
+.anno{display:none;background:#eef2ff;border:1px solid #c7d2fe;border-left:3px solid #6366f1;
+  padding:10px 12px;margin:0 0 14px;font-size:12.5px;color:#312e81;border-radius:0 4px 4px 0}
+body.anno-on .anno{display:block}
+.anno b{color:#1e1b4b}
+.anno ul{margin:6px 0 0;padding-left:18px}
+
+/* component boundaries */
+body.cmp-on [data-component]{outline:1px dashed #94a3b8;outline-offset:2px;position:relative}
+body.cmp-on [data-component]::before{content:attr(data-component);position:absolute;top:-8px;left:4px;
+  background:#475569;color:#fff;font-size:9px;line-height:1;padding:2px 5px;border-radius:3px;
+  letter-spacing:.03em;z-index:5;font-weight:600}
+
+/* app shell */
+.app{background:var(--bg);border:1px solid var(--border);border-radius:8px;overflow:hidden;
+  max-width:1280px;margin:0 auto;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.hdr{display:flex;align-items:center;gap:16px;padding:10px 16px;border-bottom:1px solid var(--border2);background:var(--bg)}
+.brand{font-weight:700;letter-spacing:-.01em}
+.nav{display:flex;gap:4px}
+.nav a{padding:5px 10px;border-radius:6px;text-decoration:none;color:var(--muted);font-size:13px}
+.nav a[aria-current="page"]{background:var(--surface2);color:var(--text);font-weight:600}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--ph);color:var(--ph-text);
+  display:grid;place-items:center;font-size:10px}
+.main{padding:16px}
+
+/* primitives */
+.btn{font:inherit;font-size:13px;padding:7px 14px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);cursor:pointer}
+.btn:hover{background:var(--surface)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn-danger{border-color:var(--bad-bd);color:#b91c1c}
+.btn-sm{padding:4px 9px;font-size:12px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+.field .hint{font-size:11.5px;color:var(--muted);margin-top:3px}
+input,select{font:inherit;font-size:13px;padding:6px 9px;border:1px solid var(--border);
+  border-radius:5px;background:var(--bg);color:var(--text);width:100%}
+.err input{border-color:var(--bad-bd);background:var(--bad-bg)}
+.err-msg{font-size:11.5px;color:#b91c1c;margin-top:3px;font-weight:600}
+.err-msg::before{content:"! ";font-weight:700}
+.card{border:1px solid var(--border2);border-radius:7px;background:var(--bg)}
+.card>h3{margin:0;padding:9px 12px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);border-bottom:1px solid var(--border2);background:var(--surface)}
+.card>.body{padding:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+  padding:7px 9px;border-bottom:1px solid var(--border)}
+td{padding:8px 9px;border-bottom:1px solid var(--border2)}
+tr:last-child td{border-bottom:0}
+
+/* status: shape + text, never colour alone */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
+  padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:var(--surface)}
+.pill::before{font-size:9px}
+.pill.running::before{content:"\25B6"}
+.pill.queued::before{content:"\231B"}
+.pill.paused::before{content:"\23F8"}
+.pill.done::before{content:"\2714"}
+.pill.failed::before{content:"\2716"}
+.pill.cancelled::before{content:"\2298"}
+.pill.running{background:var(--accent-weak);border-color:#bfdbfe}
+.pill.done{background:var(--ok-bg);border-color:#bbf7d0}
+.pill.failed{background:var(--bad-bg);border-color:#fecaca}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:1px 7px;border-radius:4px;
+  border:1px solid var(--warn-bd);background:var(--warn-bg);color:#78350f;font-weight:600}
+.badge::before{content:"\23F1";font-size:9px}
+
+.banner{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:6px;
+  font-size:12.5px;margin-bottom:12px;border:1px solid}
+.banner .ico{font-weight:700;font-size:13px;line-height:1.3}
+.banner.warn{background:var(--warn-bg);border-color:var(--warn-bd);color:#78350f}
+.banner.bad{background:var(--bad-bg);border-color:var(--bad-bd);color:#991b1b}
+.banner.info{background:var(--accent-weak);border-color:#bfdbfe;color:#1e40af}
+.banner .btn{margin-left:auto;flex:none}
+
+/* simulation grid */
+.simgrid{background:#fafafa;border:1px solid var(--border);border-radius:6px;padding:10px;
+  font:12px/1.18 ui-monospace,SFMono-Regular,Menlo,monospace;color:#374151;white-space:pre;
+  overflow:auto;display:flex;justify-content:center;letter-spacing:.09em}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:8px}
+.legend span b{color:var(--text);font-family:ui-monospace,monospace}
+
+/* chart placeholders */
+.chart{background:var(--ph);border-radius:5px;height:78px;position:relative;overflow:hidden}
+.chart svg{position:absolute;inset:0;width:100%;height:100%}
+.chart-label{font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.ph{background:var(--ph);color:var(--ph-text);display:grid;place-items:center;border-radius:5px;
+  font-size:12px;text-align:center;padding:10px}
+
+/* meter */
+.meter{display:flex;gap:18px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.meter b{display:block;color:var(--text);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:var(--border2);overflow:hidden;min-width:110px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.bar.low>i{background:var(--warn-bd)}
+
+/* key/value */
+.kv{font-size:12.5px}
+.kv div{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--border2)}
+.kv div:last-child{border-bottom:0}
+.kv dt,.kv .k{color:var(--muted)}
+.kv .v{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+pre.code{background:var(--surface);border:1px solid var(--border2);border-radius:5px;padding:9px;
+  font:11.5px/1.45 ui-monospace,Menlo,monospace;margin:0;color:#374151;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.dist{display:grid;grid-template-columns:78px 1fr 44px;gap:6px;align-items:center;font-size:12px;margin-bottom:3px}
+.dist .track{height:9px;background:var(--border2);border-radius:2px;overflow:hidden}
+.dist .track>i{display:block;height:100%;background:var(--accent)}
+.dist .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.dialog{border:1px solid var(--border);border-radius:8px;background:var(--bg);max-width:520px;
+  box-shadow:0 8px 24px rgba(0,0,0,.12);margin:0 auto}
+.dialog h3{margin:0;padding:12px 14px;font-size:14px;border-bottom:1px solid var(--border2)}
+.dialog .body{padding:14px}
+.dialog .foot{padding:10px 14px;border-top:1px solid var(--border2);display:flex;gap:8px;justify-content:flex-end;background:var(--surface)}
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+.empty h3{margin:0 0 6px;color:var(--text);font-size:15px}
+.sidebar-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border2);margin-bottom:10px}
+.sidebar-tabs button{font:inherit;font-size:12px;padding:6px 11px;background:none;border:0;
+  border-bottom:2px solid transparent;cursor:pointer;color:var(--muted)}
+.sidebar-tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+.live{display:grid;grid-template-columns:1fr 372px;gap:14px;align-items:start}
+@media(max-width:1100px){.live{grid-template-columns:1fr}}
+</style></head>
+<body class="anno-on">
+<a class="skip" href="#wf-main">Skip to wireframe</a>
+<div class="wf-bar">
+  <h1>02 &middot; Configure a run</h1>
+  <div class="wf-tabs" role="group" aria-label="States"><button data-target="default">Defaults</button><button data-target="invalid">Validation error</button><button data-target="quota">Budget too small</button><button data-target="conflict">Run already active</button><button data-target="twin">Baseline twin</button></div>
+  <span class="spacer"></span>
+  <button class="wf-toggle" id="t-anno" aria-pressed="true">Notes</button>
+  <button class="wf-toggle" id="t-cmp" aria-pressed="false">Components</button>
+</div>
+<div class="wf-note"><b>Wireframe, not a mockup.</b> Setting up a colony, the three checks that can stop a start, and the code-only twin. Covers F-03 and F-15. Neutral styling; no visual design has been chosen yet.</div>
+<main id="wf-main"><section data-state="default" id="default"><p class="wf-caption">Configure a run &mdash; Defaults</p><div class="anno"><b>F-03 steps 1 to 3 &mdash; FR-053, FR-055, FR-056, FR-140</b><ul><li>Every setting from FR-053 is on one screen; Medium defaults from FR-055 are prefilled.</li><li>The estimate panel is FR-140 and is labelled as an estimate, with its basis stated.</li><li>Import and export of configuration plus seed is FR-056, and the same file round-trips.</li><li>Personality percentages state plainly that they apply to births as well as to the start (FR-043).</li></ul></div><div class="app"><div class="hdr" data-component="AppHeader"><span class="brand">jev-mice</span><nav class="nav" data-component="PrimaryNav"><a href="#" aria-current="page">Runs</a><a href="#">New run</a></nav><span style="flex:1"></span><div data-component="QuotaMeter" style="text-align:right"><div style="font-size:11px;color:var(--muted)">Daily budget</div><div class="row" style="gap:6px"><span class="bar" style="width:120px"><i style="width:68%"></i></span><span style="font-size:11.5px;font-variant-numeric:tabular-nums">17.0M / 25M</span></div></div><div class="avatar" data-component="AccountMenu">CS</div></div><div class="main"><div class="spread" style="margin-bottom:14px"><h2 style="margin:0;font-size:18px">New run</h2><div class="row"><button class="btn btn-sm">Import configuration</button><button class="btn btn-sm">Export configuration</button></div></div><div class="card" data-component="ConfigForm"><h3>World</h3><div class="body"><div class="grid3"><div><div class="field"><label>Grid preset</label><input value="Medium &mdash; 80 x 50"></div><div class="field"><label>Tick count</label><input value="2000"><div class="hint">100 to 20,000</div></div><div class="field"><label>Seed</label><input value="1749302811"><div class="hint">Random each run unless locked</div></div></div><div><div class="field"><label>Male mice</label><input value="30"></div><div class="field"><label>Female mice</label><input value="30"></div><div class="field"><label>Cats</label><input value="4"></div></div><div><div class="field"><label>Traps</label><input value="8"></div><div class="field"><label>Food piles</label><input value="20"></div><div class="field"><label>Mouseholes</label><input value="12"></div></div></div></div></div><div style="height:14px"></div><div class="card" data-component="PersonalityMix"><h3>Personality mix</h3><div class="body"><div class="grid4"><div class="field"><label>Bold</label><input value="25"><div class="hint">Approaches food despite danger</div></div><div class="field"><label>Cautious</label><input value="25"><div class="hint">Flees early, avoids remembered danger</div></div><div class="field"><label>Vigilant</label><input value="25"><div class="hint">Sees further, raises alarms</div></div><div class="field"><label>Social</label><input value="25"><div class="hint">Seeks others, shares what it saw</div></div></div><div class="row" style="justify-content:space-between;font-size:12px"><span style="color:var(--muted)">Applies to mice at the start <b>and</b> to every pup born during the run.</span><span class="pill done">Sums to 100</span></div></div></div><div style="height:14px"></div><div class="grid2" style="align-items:start"><div class="card"><h3>Simulation</h3><div class="body"><div class="field"><label>Food respawn (ticks, 0 = never)</label><input value="40"></div><div class="field"><label>Nutrition decay per tick</label><input value="0.5"></div><div class="field"><label>Decisions</label><select><option>Jev &mdash; the decision model</option></select></div></div></div><div class="card" data-component="RunEstimate"><h3>Before you start</h3><div class="body"><div class="kv"><div><span class="k">Decisions</span><span class="v">~14,800</span></div><div><span class="k">Input tokens</span><span class="v">~8.9M</span></div><div><span class="k">Cost</span><span class="v">~$0.37</span></div><div><span class="k">Duration</span><span class="v">~16 min</span></div></div><p class="hint" style="margin-top:8px">Estimates, from the median of recent runs. Your remaining budget today is 17.0M tokens.</p></div></div></div><div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn">Cancel</button><button class="btn btn-primary">Start run</button></div></div></div></section><section data-state="invalid" id="invalid"><p class="wf-caption">Configure a run &mdash; Validation error</p><div class="anno"><b>F-03 step 2 &mdash; FR-054, FR-003</b><ul><li>Errors appear beside the field, not in a summary at the top, and the run cannot start.</li><li>The message names the cap and the current total so the person can see what to change.</li><li>Caps derive from grid area, so changing the preset changes the message.</li></ul></div><div class="app"><div class="hdr" data-component="AppHeader"><span class="brand">jev-mice</span><nav class="nav" data-component="PrimaryNav"><a href="#" aria-current="page">Runs</a><a href="#">New run</a></nav><span style="flex:1"></span><div data-component="QuotaMeter" style="text-align:right"><div style="font-size:11px;color:var(--muted)">Daily budget</div><div class="row" style="gap:6px"><span class="bar" style="width:120px"><i style="width:68%"></i></span><span style="font-size:11.5px;font-variant-numeric:tabular-nums">17.0M / 25M</span></div></div><div class="avatar" data-component="AccountMenu">CS</div></div><div class="main"><div class="spread" style="margin-bottom:14px"><h2 style="margin:0;font-size:18px">New run</h2><div class="row"><button class="btn btn-sm">Import configuration</button><button class="btn btn-sm">Export configuration</button></div></div><div class="card" data-component="ConfigForm"><h3>World</h3><div class="body"><div class="grid3"><div><div class="field"><label>Grid preset</label><input value="Medium &mdash; 80 x 50"></div><div class="field"><label>Tick count</label><input value="2000"><div class="hint">100 to 20,000</div></div><div class="field"><label>Seed</label><input value="1749302811"><div class="hint">Random each run unless locked</div></div></div><div><div class="field"><label>Male mice</label><input value="30"></div><div class="field err"><label>Female mice</label><input value="130"><div class="err-msg">Medium allows 160 mice in total; you have 160 males and females.</div></div><div class="field"><label>Cats</label><input value="4"></div></div><div><div class="field"><label>Traps</label><input value="8"></div><div class="field"><label>Food piles</label><input value="20"></div><div class="field"><label>Mouseholes</label><input value="12"></div></div></div></div></div><div style="height:14px"></div><div class="card" data-component="PersonalityMix"><h3>Personality mix</h3><div class="body"><div class="grid4"><div class="field"><label>Bold</label><input value="25"><div class="hint">Approaches food despite danger</div></div><div class="field"><label>Cautious</label><input value="25"><div class="hint">Flees early, avoids remembered danger</div></div><div class="field"><label>Vigilant</label><input value="25"><div class="hint">Sees further, raises alarms</div></div><div class="field"><label>Social</label><input value="25"><div class="hint">Seeks others, shares what it saw</div></div></div><div class="row" style="justify-content:space-between;font-size:12px"><span style="color:var(--muted)">Applies to mice at the start <b>and</b> to every pup born during the run.</span><span class="pill done">Sums to 100</span></div></div></div><div style="height:14px"></div><div class="grid2" style="align-items:start"><div class="card"><h3>Simulation</h3><div class="body"><div class="field"><label>Food respawn (ticks, 0 = never)</label><input value="40"></div><div class="field"><label>Nutrition decay per tick</label><input value="0.5"></div><div class="field"><label>Decisions</label><select><option>Jev &mdash; the decision model</option></select></div></div></div><div class="card" data-component="RunEstimate"><h3>Before you start</h3><div class="body"><div class="kv"><div><span class="k">Decisions</span><span class="v">~14,800</span></div><div><span class="k">Input tokens</span><span class="v">~8.9M</span></div><div><span class="k">Cost</span><span class="v">~$0.37</span></div><div><span class="k">Duration</span><span class="v">~16 min</span></div></div><p class="hint" style="margin-top:8px">Estimates, from the median of recent runs. Your remaining budget today is 17.0M tokens.</p></div></div></div><div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn">Cancel</button><button class="btn btn-primary">Start run</button></div></div></div></section><section data-state="quota" id="quota"><p class="wf-caption">Configure a run &mdash; Budget too small</p><div class="anno"><b>F-03 step 4 &mdash; FR-122</b><ul><li>A run that would exceed the remaining budget is never refused outright.</li><li>Two ways forward are offered: run without the model, or shorten the run to what fits.</li><li>The shortened tick count is computed and shown, not left to the person to work out.</li></ul></div><div class="app"><div class="hdr" data-component="AppHeader"><span class="brand">jev-mice</span><nav class="nav" data-component="PrimaryNav"><a href="#" aria-current="page">Runs</a><a href="#">New run</a></nav><span style="flex:1"></span><div data-component="QuotaMeter" style="text-align:right"><div style="font-size:11px;color:var(--muted)">Daily budget</div><div class="row" style="gap:6px"><span class="bar" style="width:120px"><i style="width:68%"></i></span><span style="font-size:11.5px;font-variant-numeric:tabular-nums">17.0M / 25M</span></div></div><div class="avatar" data-component="AccountMenu">CS</div></div><div class="main"><div class="banner warn" data-component="QuotaGate"><span class="ico">!</span><div><b>This run would use more than today&rsquo;s remaining budget.</b> It needs about 8.9M tokens and 2.1M are left. Your budget resets at 00:00 UTC.</div></div><div class="row" style="margin:-4px 0 14px 0"><button class="btn btn-sm">Start without the model</button><button class="btn btn-sm">Shorten to 470 ticks</button><button class="btn btn-sm">Wait for the reset</button></div><div class="spread" style="margin-bottom:14px"><h2 style="margin:0;font-size:18px">New run</h2><div class="row"><button class="btn btn-sm">Import configuration</button><button class="btn btn-sm">Export configuration</button></div></div><div class="card" data-component="ConfigForm"><h3>World</h3><div class="body"><div class="grid3"><div><div class="field"><label>Grid preset</label><input value="Medium &mdash; 80 x 50"></div><div class="field"><label>Tick count</label><input value="2000"><div class="hint">100 to 20,000</div></div><div class="field"><label>Seed</label><input value="1749302811"><div class="hint">Random each run unless locked</div></div></div><div><div class="field"><label>Male mice</label><input value="30"></div><div class="field"><label>Female mice</label><input value="30"></div><div class="field"><label>Cats</label><input value="4"></div></div><div><div class="field"><label>Traps</label><input value="8"></div><div class="field"><label>Food piles</label><input value="20"></div><div class="field"><label>Mouseholes</label><input value="12"></div></div></div></div></div><div style="height:14px"></div><div class="card" data-component="PersonalityMix"><h3>Personality mix</h3><div class="body"><div class="grid4"><div class="field"><label>Bold</label><input value="25"><div class="hint">Approaches food despite danger</div></div><div class="field"><label>Cautious</label><input value="25"><div class="hint">Flees early, avoids remembered danger</div></div><div class="field"><label>Vigilant</label><input value="25"><div class="hint">Sees further, raises alarms</div></div><div class="field"><label>Social</label><input value="25"><div class="hint">Seeks others, shares what it saw</div></div></div><div class="row" style="justify-content:space-between;font-size:12px"><span style="color:var(--muted)">Applies to mice at the start <b>and</b> to every pup born during the run.</span><span class="pill done">Sums to 100</span></div></div></div><div style="height:14px"></div><div class="grid2" style="align-items:start"><div class="card"><h3>Simulation</h3><div class="body"><div class="field"><label>Food respawn (ticks, 0 = never)</label><input value="40"></div><div class="field"><label>Nutrition decay per tick</label><input value="0.5"></div><div class="field"><label>Decisions</label><select><option>Jev &mdash; the decision model</option></select></div></div></div><div class="card" data-component="RunEstimate"><h3>Before you start</h3><div class="body"><div class="kv"><div><span class="k">Decisions</span><span class="v">~14,800</span></div><div><span class="k">Input tokens</span><span class="v">~8.9M</span></div><div><span class="k">Cost</span><span class="v">~$0.37</span></div><div><span class="k">Duration</span><span class="v">~16 min</span></div></div><p class="hint" style="margin-top:8px">Estimates, from the median of recent runs. Your remaining budget today is 17.0M tokens.</p></div></div></div><div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn">Cancel</button><button class="btn btn-primary">Start run</button></div></div></div></section><section data-state="conflict" id="conflict"><p class="wf-caption">Configure a run &mdash; Run already active</p><div class="anno"><b>F-03 step 4 &mdash; FR-085</b><ul><li>One run per person at a time, enforced by the database so a double click cannot make two.</li><li>Three ways forward rather than a refusal.</li><li>Accounts on the owner allowlist never see this.</li></ul></div><div class="app"><div class="hdr" data-component="AppHeader"><span class="brand">jev-mice</span><nav class="nav" data-component="PrimaryNav"><a href="#" aria-current="page">Runs</a><a href="#">New run</a></nav><span style="flex:1"></span><div data-component="QuotaMeter" style="text-align:right"><div style="font-size:11px;color:var(--muted)">Daily budget</div><div class="row" style="gap:6px"><span class="bar" style="width:120px"><i style="width:68%"></i></span><span style="font-size:11.5px;font-variant-numeric:tabular-nums">17.0M / 25M</span></div></div><div class="avatar" data-component="AccountMenu">CS</div></div><div class="main"><div class="banner warn" data-component="ActiveRunGate"><span class="ico">!</span><div><b>You already have a run in progress.</b> &ldquo;Bold 70%&rdquo; is at tick 612 of 2,000.</div><button class="btn btn-sm">Watch it</button></div><div class="row" style="margin:-4px 0 14px 0"><button class="btn btn-sm">Stop it and start this one</button></div><div class="spread" style="margin-bottom:14px"><h2 style="margin:0;font-size:18px">New run</h2><div class="row"><button class="btn btn-sm">Import configuration</button><button class="btn btn-sm">Export configuration</button></div></div><div class="card" data-component="ConfigForm"><h3>World</h3><div class="body"><div class="grid3"><div><div class="field"><label>Grid preset</label><input value="Medium &mdash; 80 x 50"></div><div class="field"><label>Tick count</label><input value="2000"><div class="hint">100 to 20,000</div></div><div class="field"><label>Seed</label><input value="1749302811"><div class="hint">Random each run unless locked</div></div></div><div><div class="field"><label>Male mice</label><input value="30"></div><div class="field"><label>Female mice</label><input value="30"></div><div class="field"><label>Cats</label><input value="4"></div></div><div><div class="field"><label>Traps</label><input value="8"></div><div class="field"><label>Food piles</label><input value="20"></div><div class="field"><label>Mouseholes</label><input value="12"></div></div></div></div></div><div style="height:14px"></div><div class="card" data-component="PersonalityMix"><h3>Personality mix</h3><div class="body"><div class="grid4"><div class="field"><label>Bold</label><input value="25"><div class="hint">Approaches food despite danger</div></div><div class="field"><label>Cautious</label><input value="25"><div class="hint">Flees early, avoids remembered danger</div></div><div class="field"><label>Vigilant</label><input value="25"><div class="hint">Sees further, raises alarms</div></div><div class="field"><label>Social</label><input value="25"><div class="hint">Seeks others, shares what it saw</div></div></div><div class="row" style="justify-content:space-between;font-size:12px"><span style="color:var(--muted)">Applies to mice at the start <b>and</b> to every pup born during the run.</span><span class="pill done">Sums to 100</span></div></div></div><div style="height:14px"></div><div class="grid2" style="align-items:start"><div class="card"><h3>Simulation</h3><div class="body"><div class="field"><label>Food respawn (ticks, 0 = never)</label><input value="40"></div><div class="field"><label>Nutrition decay per tick</label><input value="0.5"></div><div class="field"><label>Decisions</label><select><option>Jev &mdash; the decision model</option></select></div></div></div><div class="card" data-component="RunEstimate"><h3>Before you start</h3><div class="body"><div class="kv"><div><span class="k">Decisions</span><span class="v">~14,800</span></div><div><span class="k">Input tokens</span><span class="v">~8.9M</span></div><div><span class="k">Cost</span><span class="v">~$0.37</span></div><div><span class="k">Duration</span><span class="v">~16 min</span></div></div><p class="hint" style="margin-top:8px">Estimates, from the median of recent runs. Your remaining budget today is 17.0M tokens.</p></div></div></div><div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn">Cancel</button><button class="btn btn-primary">Start run</button></div></div></div></section><section data-state="twin" id="twin"><p class="wf-caption">Configure a run &mdash; Baseline twin</p><div class="anno"><b>F-15 steps 1 and 2 &mdash; FR-069, SM-05</b><ul><li>Opened from a completed run; every setting and the seed are prefilled and the seed is locked.</li><li>The decision source is fixed to code-only rules and cannot be changed here.</li><li>This is the comparison the whole product argues for, so it is one click from a finished run.</li></ul></div><div class="app"><div class="hdr" data-component="AppHeader"><span class="brand">jev-mice</span><nav class="nav" data-component="PrimaryNav"><a href="#" aria-current="page">Runs</a><a href="#">New run</a></nav><span style="flex:1"></span><div data-component="QuotaMeter" style="text-align:right"><div style="font-size:11px;color:var(--muted)">Daily budget</div><div class="row" style="gap:6px"><span class="bar" style="width:120px"><i style="width:68%"></i></span><span style="font-size:11.5px;font-variant-numeric:tabular-nums">17.0M / 25M</span></div></div><div class="avatar" data-component="AccountMenu">CS</div></div><div class="main"><div class="banner info"><span class="ico">i</span><div><b>Same world, code-only decisions.</b> Copied from &ldquo;Bold 70%&rdquo;. When it finishes you can compare the two.</div></div><div class="spread" style="margin-bottom:14px"><h2 style="margin:0;font-size:18px">Baseline twin</h2><div class="row"><button class="btn btn-sm">Import configuration</button><button class="btn btn-sm">Export configuration</button></div></div><div class="card" data-component="ConfigForm"><h3>World</h3><div class="body"><div class="grid3"><div><div class="field"><label>Grid preset</label><input value="Medium &mdash; 80 x 50"></div><div class="field"><label>Tick count</label><input value="2000"><div class="hint">100 to 20,000</div></div><div class="field"><label>Seed <span class="pill" style="font-size:10px">locked</span></label><input value="1749302811"><div class="hint">Same seed, same world</div></div></div><div><div class="field"><label>Male mice</label><input value="30"></div><div class="field"><label>Female mice</label><input value="30"></div><div class="field"><label>Cats</label><input value="4"></div></div><div><div class="field"><label>Traps</label><input value="8"></div><div class="field"><label>Food piles</label><input value="20"></div><div class="field"><label>Mouseholes</label><input value="12"></div></div></div></div></div><div style="height:14px"></div><div class="card" data-component="PersonalityMix"><h3>Personality mix</h3><div class="body"><div class="grid4"><div class="field"><label>Bold</label><input value="25"><div class="hint">Approaches food despite danger</div></div><div class="field"><label>Cautious</label><input value="25"><div class="hint">Flees early, avoids remembered danger</div></div><div class="field"><label>Vigilant</label><input value="25"><div class="hint">Sees further, raises alarms</div></div><div class="field"><label>Social</label><input value="25"><div class="hint">Seeks others, shares what it saw</div></div></div><div class="row" style="justify-content:space-between;font-size:12px"><span style="color:var(--muted)">Applies to mice at the start <b>and</b> to every pup born during the run.</span><span class="pill done">Sums to 100</span></div></div></div><div style="height:14px"></div><div class="grid2" style="align-items:start"><div class="card"><h3>Simulation</h3><div class="body"><div class="field"><label>Food respawn (ticks, 0 = never)</label><input value="40"></div><div class="field"><label>Nutrition decay per tick</label><input value="0.5"></div><div class="field"><label>Decisions</label><select><option>Code-only rules (no model)</option></select><div class="hint">Locked for a twin run: the only difference from the original.</div></div></div></div><div class="card" data-component="RunEstimate"><h3>Before you start</h3><div class="body"><div class="kv"><div><span class="k">Decisions</span><span class="v">~14,800</span></div><div><span class="k">Input tokens</span><span class="v">~8.9M</span></div><div><span class="k">Cost</span><span class="v">~$0.37</span></div><div><span class="k">Duration</span><span class="v">~16 min</span></div></div><p class="hint" style="margin-top:8px">Estimates, from the median of recent runs. Your remaining budget today is 17.0M tokens.</p></div></div></div><div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn">Cancel</button><button class="btn btn-primary">Start twin</button></div></div></div></section></main>
+<script>
+(function(){
+  var tabs=document.querySelectorAll('.wf-tabs button');
+  function show(id){
+    document.querySelectorAll('section[data-state]').forEach(function(s){s.classList.toggle('on',s.dataset.state===id)});
+    tabs.forEach(function(b){b.setAttribute('aria-current', b.dataset.target===id ? 'true':'false')});
+    history.replaceState(null,'','#'+id);
+  }
+  tabs.forEach(function(b){b.addEventListener('click',function(){show(b.dataset.target)})});
+  var start=location.hash.slice(1)||tabs[0].dataset.target; show(start);
+  function toggle(btn,cls){
+    btn.addEventListener('click',function(){
+      var on=btn.getAttribute('aria-pressed')==='true';
+      btn.setAttribute('aria-pressed',String(!on));
+      document.body.classList.toggle(cls,!on);
+    });
+  }
+  toggle(document.getElementById('t-anno'),'anno-on');
+  toggle(document.getElementById('t-cmp'),'cmp-on');
+})();
+</script>
+</body></html>
