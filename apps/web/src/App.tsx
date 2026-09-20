@@ -9,6 +9,7 @@ import { Chart } from './Chart'
 import { Inspector } from './Inspector'
 import { Configure } from './Configure'
 import { Legend } from './Legend'
+import { COLOURS } from './glyphs'
 import { Speed } from './Speed'
 import { Runs } from './Runs'
 
@@ -145,10 +146,15 @@ export function App(): React.ReactElement {
 
   const world = run ? PRESETS[run.config.preset] : PRESETS.medium
   const ticks = useMemo(() => points.map((p) => p.tick), [points])
+  // Colours and glyphs come from the map's own set, so a line in the chart and
+  // a thing on the grid are never a different shape or a different colour.
   const series = useMemo(() => [
-    { label: 'mice', colour: '#60a5fa', values: points.map((p) => p.population) },
-    { label: 'food', colour: '#4ade80', values: points.map((p) => p.food) },
-    { label: 'cats', colour: '#fb923c', values: points.map((p) => p.cats) },
+    { label: 'mice', colour: COLOURS.mouse, glyph: 'mouse' as const,
+      values: points.map((p) => p.population) },
+    { label: 'food', colour: COLOURS.food, glyph: 'food' as const,
+      values: points.map((p) => p.food) },
+    { label: 'cats', colour: COLOURS.cat, glyph: 'cat' as const,
+      values: points.map((p) => p.cats) },
   ], [points])
 
   if (route.startsWith('#/runs')) {

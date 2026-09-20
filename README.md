@@ -94,8 +94,9 @@ Shape carries what a thing is and shade carries its condition, so the map does
 not depend on colour alone. A mouse is a blue circle, a cat a red triangle,
 food a green square, a trap an orange diamond and a mousehole a grey ring. The
 four solid shapes stay distinct down to a few pixels, which is why the same
-glyphs work on the large preset as on the small one. The key under the map draws
-its swatches with the same function the map uses, so the two cannot drift apart.
+glyphs work on the large preset as on the small one. The key under the map and
+the chart's own legend both draw their swatches with the same function the map
+uses, so none of the three can drift apart.
 
 A cat has its own hunger. It decays slowly, a mouse restores half of it, and a
 cat below half sees further, springs from further away and stops resting after
