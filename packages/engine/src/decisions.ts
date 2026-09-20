@@ -3,11 +3,17 @@
 // model is available.
 
 import type {
-  AgentId, AnswerPayload, CatMode, DecisionProvider, DecisionRequest, DecisionSubject,
-  Drive, FearLevel, Memory, Personality, Sex, Tick, WorldView,
+  AgentId, AnswerPayload, CatMode, DecisionBatch, DecisionProvider, DecisionRequest,
+  DecisionSubject, Drive, FearLevel, Memory, Personality, Sex, Tick, WorldView,
 } from './types.js'
-import { BATCH_SIZE, DRIVES, NUTRITION_BANDS, PERSONALITY_TEXT, TIMING } from './types.js'
+import {
+  BATCH_SIZE, DRIVES, FEAR_LEVELS, NUTRITION_BANDS, PERCEPTION, PERSONALITY_TEXT, TIMING,
+} from './types.js'
 import { chebyshev } from './signals.js'
+import { bearingFrom } from './memory.js'
+import {
+  catCandidateText, catModeQuestion, catTargetQuestion, driveQuestion, fearQuestion,
+} from './questions.js'
 
 // ------------------------------------------------------------------ bucketing
 
@@ -150,14 +156,8 @@ export function composeRequests(
       const ctx = contextFor(world, m.id)
       contexts[m.id] = ctx
       state[m.id] = stateForMouse(ctx)
-      questions[`drive_${m.id}`] = {
-        type: 'choice',
-        instructions: `What should the mouse at \`${m.id}\` do right now?`,
-      }
-      questions[`fear_${m.id}`] = {
-        type: 'score',
-        instructions: `How afraid should the mouse at \`${m.id}\` be right now?`,
-      }
+      questions[`drive_${m.id}`] = driveQuestion(m.id, ctx.options)
+      questions[`fear_${m.id}`] = fearQuestion(m.id)
     }
     requests.push({ batchId: nextBatchId(), state, questions, contexts, agents: group.map((m) => m.id) })
   }
@@ -165,16 +165,29 @@ export function composeRequests(
   for (const group of chunk(spatialOrder(cats), BATCH_SIZE)) {
     const state: Record<string, unknown> = {}
     const questions: Record<string, unknown> = {}
+    const contexts: Record<string, unknown> = {}
     for (const c of group) {
-      state[c.id] = { cat: { mode: c.mode } }
-      questions[`target_${c.id}`] = {
-        type: 'choice', instructions: `Which mouse should the cat at \`${c.id}\` go after?`,
+      const seen = world.mice
+        .filter((m) => !m.inHole && chebyshev(m.at, c.at) <= PERCEPTION.cat)
+        .sort((a, b) => (a.id < b.id ? -1 : 1))
+      const candidates = seen.map((m) => ({
+        id: m.id,
+        description: catCandidateText(
+          m, bucketDistance(chebyshev(m.at, c.at)), bearingFrom(c.at, m.at),
+          seen.filter((o) => o.id !== m.id && chebyshev(o.at, m.at) <= 2).length,
+        ),
+      }))
+      contexts[c.id] = { at: c.at, mode: c.mode, candidates: seen.map((m) => ({
+        id: m.id, distance: chebyshev(m.at, c.at), nutrition: m.nutrition })) }
+      state[c.id] = {
+        cat: { doing: c.mode === 'rest' ? 'resting' : `${c.mode}ing` },
+        mice: candidates.map((x) => x.description),
       }
-      questions[`mode_${c.id}`] = {
-        type: 'choice', instructions: `How should the cat at \`${c.id}\` move now?`,
-      }
+      questions[`target_${c.id}`] = catTargetQuestion(c.id, candidates)
+      questions[`mode_${c.id}`] = catModeQuestion(c.id)
     }
-    requests.push({ batchId: nextBatchId(), state, questions, agents: group.map((c) => c.id) })
+    requests.push({ batchId: nextBatchId(), state, questions, contexts,
+                    agents: group.map((c) => c.id) })
   }
   return requests
 }
@@ -279,28 +292,91 @@ export function baselineFear(c: MouseContext, tick: Tick): FearLevel {
   return fresh ? 'wary' : 'unconcerned'
 }
 
+/**
+ * What the fixed rules answer for one batch. The engine uses this when a
+ * provider fails and a provider uses it when the service does, so a fallback
+ * looks the same wherever it was decided.
+ */
+export interface CatContext {
+  at: { x: number; y: number }
+  mode: CatMode
+  candidates: { id: AgentId; distance: number; nutrition: number }[]
+}
+
+const isCatContext = (c: unknown): c is CatContext =>
+  typeof c === 'object' && c !== null && Array.isArray((c as CatContext).candidates)
+
+/**
+ * The fixed rules for a cat: go after whichever mouse is cheapest to catch,
+ * counting a hungry mouse as nearer than it is because it moves slower.
+ */
+export function baselineCat(c: CatContext): { target: AgentId | 'none_worth_it'; mode: CatMode } {
+  if (c.candidates.length === 0) return { target: 'none_worth_it', mode: 'prowl' }
+  const cost = (m: { distance: number; nutrition: number }): number =>
+    m.distance + m.nutrition / 20
+  const best = c.candidates.reduce((a, b) => (cost(b) < cost(a) ? b : a))
+  return { target: best.id, mode: best.distance <= 3 ? 'pounce' : 'stalk' }
+}
+
+export function baselineSubjects(req: DecisionRequest, tick: Tick): DecisionSubject[] {
+  return req.agents.map((id) => {
+    const raw = req.contexts?.[id]
+    if (isCatContext(raw)) return baselineCatSubject(req, id, raw)
+    const ctx = raw as MouseContext | undefined
+    const probs = ctx ? baselineDrive(ctx) : { explore: 1 }
+    const fear: FearLevel = ctx ? baselineFear(ctx, tick) : 'unconcerned'
+    const drive = choice(probs)
+    return {
+      agentId: id,
+      state: (req.state[id] ?? {}) as Record<string, unknown>,
+      questions: req.questions,
+      answers: {
+        drive,
+        fear: {
+          type: 'score', score: FEAR_LEVELS.indexOf(fear), confidence: 1,
+          probabilities: Object.fromEntries(
+            FEAR_LEVELS.map((l, i) => [i, l === fear ? 1 : 0])),
+        },
+      },
+      intent: (drive as { choice: string }).choice as Drive,
+      lowConfidence: false,
+      fear,
+      weights: probs,
+    }
+  })
+}
+
+function baselineCatSubject(req: DecisionRequest, id: AgentId, ctx: CatContext): DecisionSubject {
+  const { target, mode } = baselineCat(ctx)
+  const certain = (label: string, labels: readonly string[]): AnswerPayload => ({
+    type: 'choice', choice: label, confidence: 1,
+    probabilities: Object.fromEntries(labels.map((l) => [l, l === label ? 1 : 0])),
+  })
+  const targets = [...ctx.candidates.map((m) => m.id), 'none_worth_it']
+  return {
+    agentId: id,
+    state: (req.state[id] ?? {}) as Record<string, unknown>,
+    questions: req.questions,
+    answers: {
+      target: certain(target, targets),
+      mode: certain(mode, ['prowl', 'stalk', 'pounce', 'rest']),
+    },
+    intent: mode,
+    lowConfidence: false,
+    fear: 'unconcerned',
+    weights: {},
+  }
+}
+
+export function baselineBatch(req: DecisionRequest, tick: Tick): DecisionBatch {
+  return { subjects: baselineSubjects(req, tick), source: 'baseline', latencyMs: 0 }
+}
+
 export function baselineProvider(): DecisionProvider {
   return {
     decide: (requests) => {
-      const out: Record<string, DecisionSubject[]> = {}
-      for (const req of requests) {
-        out[req.batchId] = req.agents.map((id) => {
-          const ctx = req.contexts?.[id] as MouseContext | undefined
-          const probs = ctx ? baselineDrive(ctx) : { explore: 1 }
-          const fear: FearLevel = ctx ? baselineFear(ctx, 0) : 'unconcerned'
-          const drive = choice(probs)
-          return {
-            agentId: id,
-            state: req.state[id] as Record<string, unknown>,
-            questions: req.questions,
-            answers: { drive, fear: { type: 'score', score: 0, probabilities: {}, confidence: 1 } },
-            intent: (drive as { choice: string }).choice as Drive,
-            lowConfidence: false,
-            fear,
-            weights: probs,
-          }
-        })
-      }
+      const out: Record<string, DecisionBatch> = {}
+      for (const req of requests) out[req.batchId] = baselineBatch(req, 0)
       return Promise.resolve(out)
     },
   }

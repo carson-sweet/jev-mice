@@ -3,11 +3,12 @@
 // network, or touches a page: that is what makes a run replayable.
 
 import type {
-  AgentId, CandidateScore, Cell, DecisionProvider, DecisionSubject, Drive, FearLevel,
-  Memory, Personality, RunConfig, Sex, SimEvent, Snapshot, Tick, WorldView,
+  AgentId, CandidateScore, Cell, DecisionBatch, DecisionProvider, DecisionRequest,
+  DecisionSubject, Drive, FearLevel, Memory, Personality, RunConfig, Sex, SimEvent,
+  Snapshot, Tick, WorldView,
 } from './types.js'
 import {
-  ALARM_RANGE, BATCH_SIZE, ENGINE_VERSION, JITTER, NUTRITION_BANDS,
+  ALARM_RANGE, BATCH_SIZE, DRIVES, ENGINE_VERSION, JITTER, NUTRITION_BANDS,
   PERCEPTION, PERSONALITIES, PUP_NUTRITION, TIMING,
 } from './types.js'
 import { capsFor, drawPersonality, PRESETS } from './config.js'
@@ -19,7 +20,9 @@ import {
   chebyshev, dangerAt, exploreAt, foodAt, mateAt, NEIGHBOURS, normalize,
   shelterAt, type Sources,
 } from './signals.js'
-import { composeRequests, contextFor, baselineDrive, baselineFear } from './decisions.js'
+import {
+  composeRequests, contextFor, baselineDrive, baselineFear, baselineBatch,
+} from './decisions.js'
 
 const DECISION_TIMEOUT_MS = 2000
 
@@ -418,7 +421,7 @@ function build(
     if (requests.length === 0) return
     for (const r of requests) emit({ kind: 'decision_requested', batchId: r.batchId, agents: r.agents } as never)
 
-    let answers: Record<string, DecisionSubject[]> | null = null
+    let answers: Record<string, DecisionBatch> | null = null
     let failure: 'timeout' | 'error' | null = null
     try {
       answers = await withTimeout(provider.decide(requests), DECISION_TIMEOUT_MS)
@@ -435,39 +438,32 @@ function build(
 
     // apply in ascending agent id order, never in arrival order
     for (const r of requests) {
-      const subjects = (answers[r.batchId] ?? []).slice().sort((a, b) =>
+      const batch = answers[r.batchId] ?? baselineBatch(r, tick)
+      if (batch.source === 'baseline' && !failure) {
+        emit({ kind: 'decision_fallback', batchId: r.batchId, reason: 'error' } as never)
+      }
+      const subjects = batch.subjects.slice().sort((a, b) =>
         a.agentId < b.agentId ? -1 : a.agentId > b.agentId ? 1 : 0)
-      emit({ kind: 'decision_returned', batchId: r.batchId, source: 'baseline',
-             latencyMs: 0, subjects } as never)
+      emit({ kind: 'decision_returned', batchId: r.batchId, source: batch.source,
+             latencyMs: batch.latencyMs, model: batch.model,
+             inputTokens: batch.inputTokens, subjects } as never)
       for (const s of subjects) applyDecision(s)
     }
   }
 
-  function applyLocalRules(requests: readonly import('./types.js').DecisionRequest[]):
-      Record<string, DecisionSubject[]> {
-    const out: Record<string, DecisionSubject[]> = {}
-    for (const r of requests) {
-      out[r.batchId] = r.agents.map((id) => {
-        const ctx = r.contexts?.[id] as ReturnType<typeof contextFor> | undefined
-        const probs = ctx ? baselineDrive(ctx) : { explore: 1 }
-        const fear = ctx ? baselineFear(ctx, tick) : 'unconcerned'
-        const top = Object.entries(probs).reduce((a, b) => (b[1] > a[1] ? b : a), ['explore', 0])
-        return {
-          agentId: id, state: (r.state[id] ?? {}) as Record<string, unknown>,
-          questions: r.questions,
-          answers: { drive: { type: 'choice', choice: top[0], probabilities: probs,
-                              confidence: Object.values(probs).reduce((t, v) => t + v * v, 0) } },
-          intent: top[0] as Drive, lowConfidence: false, fear, weights: probs,
-        }
-      })
-    }
+  function applyLocalRules(requests: readonly DecisionRequest[]):
+      Record<string, DecisionBatch> {
+    const out: Record<string, DecisionBatch> = {}
+    for (const r of requests) out[r.batchId] = baselineBatch(r, tick)
     return out
   }
 
   function applyDecision(s: DecisionSubject): void {
     const m = mice.find((x) => x.id === s.agentId)
     if (m) {
-      m.intent = s.intent; m.intentSetAt = tick; m.weights = s.weights
+      // A cat's mode can never become a mouse's intent, whatever a provider returns.
+      m.intent = (DRIVES as readonly string[]).includes(s.intent) ? s.intent as Drive : 'explore'
+      m.intentSetAt = tick; m.weights = s.weights
       m.fear = s.fear; m.decidedAt = tick
       return
     }

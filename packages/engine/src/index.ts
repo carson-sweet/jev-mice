@@ -7,7 +7,8 @@ export { createRng, type Rng, type RngState } from './rng.js'
 export {
   bucketNutrition, bucketDistance, bucketAge, catStateWord,
   composeRequests, contextFor, availableDrives, spatialOrder,
-  baselineProvider, baselineDrive, baselineFear, BLOCK,
+  baselineProvider, baselineDrive, baselineFear, baselineSubjects, baselineBatch, baselineCat, BLOCK,
+  type CatContext,
   type MouseContext,
 } from './decisions.js'
 export {
@@ -18,4 +19,8 @@ export {
   bearingFrom, whenWord, sentenceFor, addMemory, expireMemories, freshestSeen,
 } from './memory.js'
 export { createEngine, restore, type Engine, type EngineOptions } from './engine.js'
+export {
+  DRIVE_CRITERIA, FEAR_RUBRIC, CAT_MODE_CRITERIA, FEAR_FROM_SCORE,
+  driveQuestion, fearQuestion, catTargetQuestion, catModeQuestion, catCandidateText,
+} from './questions.js'
 export { fleeOrHideRate, personalityMix } from './metrics.js'

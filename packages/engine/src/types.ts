@@ -144,7 +144,8 @@ export interface DecisionSubject {
   state: Record<string, unknown>
   questions: Record<string, unknown>
   answers: Record<string, AnswerPayload>
-  intent: Drive
+  /** A drive for a mouse, a mode for a cat. */
+  intent: Drive | CatMode
   lowConfidence: boolean
   fear: FearLevel
   weights: Record<string, number>
@@ -164,8 +165,17 @@ export interface DecisionRequest {
   contexts?: Record<string, unknown>
 }
 
+/** One batch's worth of answers, with where they came from and what they cost. */
+export interface DecisionBatch {
+  subjects: DecisionSubject[]
+  source: 'jev' | 'baseline'
+  latencyMs: number
+  model?: string
+  inputTokens?: number
+}
+
 export interface DecisionProvider {
-  decide(requests: DecisionRequest[]): Promise<Record<string, DecisionSubject[]>>
+  decide(requests: DecisionRequest[]): Promise<Record<string, DecisionBatch>>
 }
 
 export interface CandidateScore {
