@@ -68,6 +68,9 @@ export interface SummaryPoint {
   tick: number
   population: number
   cats: number
+  /** Piles present, and traps not holding a body. Deltas are read from these. */
+  food: number
+  traps: number
   births: number
   deathsByStarvation: number
   deathsByTrap: number

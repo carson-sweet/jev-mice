@@ -278,3 +278,38 @@ describe('How fast a run starts', () => {
     m.control(run.id, 'stop')
   })
 })
+
+describe('Stepping a run', () => {
+  it('Leaves the run paused and says so, rather than reporting it as running', async () => {
+    const m = manager()
+    const run = m.create({ config: small({ ticks: 20_000 }), seed: 1, speed: SPEED.fastest })
+    await new Promise((r) => setTimeout(r, 200))
+    m.control(run.id, 'step')
+    await new Promise((r) => setTimeout(r, 200))
+    // A step is one turn out of a pause. Saying "running" while nothing
+    // advances leaves the page showing a control that does nothing.
+    expect(m.get(run.id)?.status).toBe('paused')
+    const held = m.get(run.id)?.currentTick ?? 0
+    await new Promise((r) => setTimeout(r, 300))
+    expect(m.get(run.id)?.currentTick).toBe(held)
+    m.control(run.id, 'stop')
+    await settled(m, run.id)
+  }, 30_000)
+
+  it('Advances, then holds, so a resume is what starts it again', async () => {
+    const m = manager()
+    const run = m.create({ config: small({ ticks: 20_000 }), seed: 1, speed: SPEED.fastest })
+    await new Promise((r) => setTimeout(r, 200))
+    m.control(run.id, 'pause')
+    await new Promise((r) => setTimeout(r, 150))
+    const before = m.get(run.id)?.currentTick ?? 0
+    m.control(run.id, 'step')
+    await new Promise((r) => setTimeout(r, 200))
+    expect(m.get(run.id)?.currentTick).toBe(before + 1)
+    m.control(run.id, 'resume')
+    await new Promise((r) => setTimeout(r, 250))
+    expect(m.get(run.id)?.currentTick ?? 0).toBeGreaterThan(before + 1)
+    m.control(run.id, 'stop')
+    await settled(m, run.id)
+  }, 30_000)
+})

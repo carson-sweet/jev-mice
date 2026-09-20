@@ -315,7 +315,10 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
       if (!live || !live.sim) return false
       live.controlSeq += 1
       const desired = action === 'resume' ? 'run' : action === 'stop' ? 'stop' : action
-      if (action === 'pause') setStatus(live, 'paused')
+      // A step is one turn out of a pause and a pause again, so the run is
+      // paused afterwards and has to say so. Reporting it as running left the
+      // page offering a pause button for something already stopped.
+      if (action === 'pause' || action === 'step') setStatus(live, 'paused')
       if (action === 'resume') setStatus(live, 'running')
       live.sim.control({ desired, speed: live.summary.speed, seq: live.controlSeq })
       return true

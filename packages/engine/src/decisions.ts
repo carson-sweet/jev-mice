@@ -334,7 +334,7 @@ export function baselineSubjects(req: DecisionRequest, tick: Tick): DecisionSubj
     return {
       agentId: id,
       state: (req.state[id] ?? {}) as Record<string, unknown>,
-      questions: req.questions,
+      options: ctx ? [...ctx.options] : ['explore'],
       answers: {
         drive,
         fear: {
@@ -361,7 +361,7 @@ function baselineCatSubject(req: DecisionRequest, id: AgentId, ctx: CatContext):
   return {
     agentId: id,
     state: (req.state[id] ?? {}) as Record<string, unknown>,
-    questions: req.questions,
+    options: ['prowl', 'stalk', 'pounce', 'rest'],
     answers: {
       target: certain(target, targets),
       mode: certain(mode, ['prowl', 'stalk', 'pounce', 'rest']),

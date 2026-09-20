@@ -92,9 +92,20 @@ happens, and for a death it names the decision the animal was last given and
 who gave it. A colony collapsing and then its cats leaving one by one reads as
 a sequence of lines rather than as a chart going flat.
 
+Pointing at anything on the map names it and says how it is doing. Hovering a
+line in the log rings whatever that line is about, where it is still standing.
+
+The transport controls are a video player: play, pause, stop, a step and a scan
+each way. Forward is the simulation advancing. Backward moves a playhead through
+the frames this page has already received, because the engine runs forwards only
+and reconstructing an earlier turn live would mean replaying from a snapshot.
+
 `/#/runs` lists every run so far, newest first, with its seed, its settings, and
-the highest, lowest and final count of mice and cats. That is the page for
-seeing how starting conditions change outcomes.
+the highest, lowest and final count of mice and cats. Opening a run reads it
+turn by turn: what was standing at the end of each turn, how that changed, and
+under each turn every event of it except plain movement. That is assembled on
+request from what the run already stored, so nothing extra is written while a
+run is going.
 
 ## Reading the map
 

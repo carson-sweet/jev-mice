@@ -1,0 +1,226 @@
+// Everything that happened in one run, turn by turn. Each row is a turn with
+// what was standing at the end of it and how that changed; opening a row shows
+// every life-changing event of that turn.
+
+import { useCallback, useEffect, useState } from 'react'
+import { api, TURN_PAGE, type RunSummary, type Turn, type TurnStats } from './api'
+import { COLOURS } from './glyphs'
+
+const COUNT_COLOUR: Record<keyof TurnStats, string> = {
+  mice: COLOURS.mouse,
+  cats: COLOURS.cat,
+  food: COLOURS.food,
+  traps: COLOURS.trap,
+}
+
+function Delta({ n }: { n: number }): React.ReactElement | null {
+  if (n === 0) return null
+  return (
+    <span className={n > 0 ? 'text-emerald-400' : 'text-red-400'}>
+      {' '}{n > 0 ? '+' : ''}{n}
+    </span>
+  )
+}
+
+function Count({ which, value, delta }: {
+  which: keyof TurnStats; value: number; delta: number
+}): React.ReactElement {
+  return (
+    <span className="tabular-nums">
+      <span style={{ color: COUNT_COLOUR[which] }}>{value}</span>
+      <Delta n={delta} />
+    </span>
+  )
+}
+
+/** Reads as what happened, so a quiet turn is obvious without opening it. */
+const NOTABLE: Record<string, string> = {
+  death: 'died', birth: 'born', mating: 'mated', capture: 'caught',
+  mouse_trapped: 'trapped', food_eaten: 'ate', cat_left: 'cat left',
+  hunger_changed: 'hunger', cap_limited_birth: 'litter lost',
+  food_respawned: 'food back', trap_respawned: 'trap reset',
+}
+
+function summarize(turn: Turn): string {
+  const counts = new Map<string, number>()
+  let spotted = 0
+  for (const e of turn.events) {
+    if (e.kind === 'spotted') { spotted++; continue }
+    const label = NOTABLE[e.kind]
+    if (label === undefined) continue
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  }
+  const parts = [...counts.entries()].map(([label, n]) => `${String(n)} ${label}`)
+  if (parts.length === 0) {
+    return spotted === 0 ? 'nothing but movement' : `${String(spotted)} spotted something`
+  }
+  return parts.join(', ')
+}
+
+function TurnRow({ turn }: { turn: Turn }): React.ReactElement {
+  const [open, setOpen] = useState(false)
+  const count = turn.events.length
+  return (
+    <>
+      <tr className="border-t border-zinc-800 hover:bg-zinc-900/60">
+        <td className="px-3 py-1.5">
+          <button
+            type="button"
+            onClick={() => { setOpen((o) => !o) }}
+            aria-expanded={open}
+            disabled={count === 0}
+            className="w-full text-left tabular-nums text-zinc-200 disabled:text-zinc-500"
+          >
+            <span className="inline-block w-3 text-zinc-500">
+              {count === 0 ? '' : open ? '−' : '+'}
+            </span>
+            {' '}{turn.tick}
+          </button>
+        </td>
+        <td className="px-3 py-1.5"><Count which="mice" value={turn.stats.mice} delta={turn.delta.mice} /></td>
+        <td className="px-3 py-1.5"><Count which="cats" value={turn.stats.cats} delta={turn.delta.cats} /></td>
+        <td className="px-3 py-1.5"><Count which="food" value={turn.stats.food} delta={turn.delta.food} /></td>
+        <td className="px-3 py-1.5"><Count which="traps" value={turn.stats.traps} delta={turn.delta.traps} /></td>
+        <td className="px-3 py-1.5 text-xs text-zinc-500">
+          {count === 0 ? 'nothing but movement' : summarize(turn)}
+        </td>
+      </tr>
+      {open && (
+        <tr className="bg-zinc-950/60">
+          <td colSpan={6} className="px-3 py-2">
+            <ul className="space-y-0.5">
+              {turn.events.map((e, i) => (
+                <li key={`${e.kind}-${String(i)}`} className="flex gap-2 text-xs">
+                  <span className="w-40 shrink-0 text-zinc-600">{e.kind}</span>
+                  <span className="text-zinc-300">{e.text}</span>
+                </li>
+              ))}
+            </ul>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+export function RunDetail({ id }: { id: string }): React.ReactElement {
+  const [run, setRun] = useState<RunSummary | null>(null)
+  const [from, setFrom] = useState(1)
+  const [window_, setWindow] = useState<{ turns: Turn[]; total: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    void api.get(id).then(setRun).catch(() => undefined)
+  }, [id])
+
+  const load = useCallback((start: number) => {
+    setBusy(true)
+    api.turns(id, start, start + TURN_PAGE - 1)
+      .then((w) => {
+        setWindow({ turns: w.turns, total: w.totalTurns })
+        setError(null)
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : 'could not read the telemetry')
+      })
+      .finally(() => { setBusy(false) })
+  }, [id])
+
+  useEffect(() => { load(from) }, [load, from])
+
+  const total = window_?.total ?? 0
+  const last = Math.min(from + TURN_PAGE - 1, total)
+  const withEvents = window_?.turns.filter((t) => t.events.length > 0).length ?? 0
+
+  return (
+    <div className="flex h-full flex-col">
+      <header className="flex items-center justify-between gap-4 border-b border-zinc-800 px-4 py-2">
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-base font-semibold text-zinc-100">
+            {run === null ? 'Run' : `Seed ${String(run.seed)}`}
+          </h1>
+          <span className="text-xs text-zinc-500">
+            {run === null
+              ? 'turn by turn'
+              : `${run.config.preset}, ${String(run.config.ticks)} turns, decided by `
+                + `${run.decidedBy === 'jev' ? 'Jev' : 'the rules'}`}
+          </span>
+        </div>
+        <a
+          href="#/runs"
+          className="rounded border border-zinc-700 px-3 py-1 text-sm text-zinc-200
+                     hover:border-zinc-500"
+        >
+          All runs
+        </a>
+      </header>
+
+      <div className="flex items-center gap-3 border-b border-zinc-900 px-4 py-2 text-xs">
+        <button
+          type="button"
+          disabled={from <= 1 || busy}
+          onClick={() => { setFrom(Math.max(1, from - TURN_PAGE)) }}
+          className="rounded border border-zinc-700 px-2 py-1 text-zinc-200
+                     hover:border-zinc-500 disabled:text-zinc-600"
+        >
+          Earlier
+        </button>
+        <span className="tabular-nums text-zinc-400">
+          turns {from} to {last} of {total}
+        </span>
+        <button
+          type="button"
+          disabled={last >= total || busy}
+          onClick={() => { setFrom(from + TURN_PAGE) }}
+          className="rounded border border-zinc-700 px-2 py-1 text-zinc-200
+                     hover:border-zinc-500 disabled:text-zinc-600"
+        >
+          Later
+        </button>
+        <label className="ml-2 flex items-center gap-1 text-zinc-500">
+          Jump to
+          <input
+            type="number"
+            min={1}
+            max={Math.max(1, total)}
+            defaultValue={from}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return
+              const n = Number((e.target as HTMLInputElement).value)
+              if (Number.isFinite(n)) setFrom(Math.max(1, Math.min(total, Math.floor(n))))
+            }}
+            className="w-20 rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5
+                       text-zinc-100 focus:border-sky-500 focus:outline-none"
+          />
+        </label>
+        <span className="text-zinc-600">
+          {withEvents} of these turns had something happen
+        </span>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto p-4">
+        {error !== null && <p role="alert" className="text-sm text-red-300">{error}</p>}
+        {window_ === null && error === null && <p className="text-sm text-zinc-500">Loading.</p>}
+        {window_ !== null && (
+          <table className="w-full border-collapse text-sm">
+            <caption className="sr-only">
+              Every turn of this run with its counts, the change from the turn
+              before, and the events of that turn
+            </caption>
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-zinc-500">
+                {['Turn', 'Mice', 'Cats', 'Food', 'Traps', 'What happened'].map((h) => (
+                  <th key={h} scope="col" className="px-3 pb-2 font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {window_.turns.map((t) => <TurnRow key={t.tick} turn={t} />)}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}

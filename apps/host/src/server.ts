@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws'
 import { defaultConfig, validateConfig, type RunConfig } from '@jev-mice/engine'
 import { SPEED } from '@jev-mice/sim'
 import { createRunManager, type Decider, type RunManager, type ViewerMessage } from './runs.js'
+import { turnWindow, MAX_WINDOW } from './turns.js'
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -138,6 +139,26 @@ export function createHost(opts: HostOptions): {
         }
         const ok = manager.control(id, action)
         return json(res, ok ? 200 : 409, { run: manager.get(id) })
+      }
+
+      if (rest === '/turns' && method === 'GET') {
+        const from = Number(url.searchParams.get('from') ?? 1)
+        const to = Number(url.searchParams.get('to') ?? from + 49)
+        if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) {
+          return json(res, 400, { error: 'from and to must be turn numbers, from first' })
+        }
+        if (to - from + 1 > MAX_WINDOW) {
+          return json(res, 400, {
+            error: `at most ${String(MAX_WINDOW)} turns at a time; ask for a smaller window`,
+          })
+        }
+        const window = turnWindow({
+          chunks: state.chunks,
+          chunkPath: (seq) => manager.chunkPath(id, seq) ?? '',
+          summaryPath: (seq) => manager.summaryPath(id, seq) ?? '',
+          totalTurns: state.currentTick,
+        }, from, to)
+        return json(res, 200, { ...window, runId: id })
       }
 
       const chunk = /^\/chunks\/(\d+)$/.exec(rest)

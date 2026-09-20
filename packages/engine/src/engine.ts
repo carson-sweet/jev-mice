@@ -4,11 +4,12 @@
 
 import type {
   AgentId, CandidateScore, Cell, DecisionBatch, DecisionProvider, DecisionRequest,
-  DecisionSubject, Drive, FearLevel, Memory, Personality, RunConfig, Sex, SimEvent,
-  Snapshot, Tick, WorldView,
+  DecisionSubject, Drive, FearLevel, HungerBand, Memory, Personality, RunConfig, Sex,
+  SimEvent, Snapshot, Spottable, Tick, WorldView,
 } from './types.js'
 import {
-  ALARM_RANGE, BATCH_SIZE, CAT, DRIVES, ENGINE_VERSION, JITTER, NUTRITION_BANDS,
+  ALARM_RANGE, BATCH_SIZE, CAT, catBand, DRIVES, ENGINE_VERSION, hungerBand, JITTER,
+  NUTRITION_BANDS,
   PERCEPTION, PERSONALITIES, PUP_NUTRITION, TIMING,
 } from './types.js'
 import { capsFor, drawPersonality, PRESETS } from './config.js'
@@ -44,6 +45,9 @@ interface MouseState {
   recent: Cell[]
   alarmedAt: Record<AgentId, Tick>
   decidedAt: Tick
+  band: HungerBand
+  /** Ids currently in perception, sorted. Diffed each tick to find arrivals. */
+  seen: string[]
 }
 
 interface CatState {
@@ -54,6 +58,8 @@ interface CatState {
   lastSighting: Cell | null; sightingUntil: Tick
   busyUntil: Tick
   nutrition: number
+  band: 'fed' | 'hungry'
+  seen: string[]
   bestDistance: number
   drift: { dx: number; dy: number }
 }
@@ -148,9 +154,9 @@ function build(
     batchNo = from.batchNo
     mice = from.mice.map((m) => ({ ...m, memories: m.memories.map((x) => ({ ...x })),
       recent: m.recent.map((c) => ({ ...c })), alarmedAt: { ...m.alarmedAt },
-      weights: { ...m.weights } }))
+      seen: [...m.seen], weights: { ...m.weights } }))
     cats = from.cats.map((c) => ({ ...c, lastSighting: c.lastSighting ? { ...c.lastSighting } : null,
-      drift: { ...c.drift } }))
+      seen: [...c.seen], drift: { ...c.drift } }))
     food = from.food.map((f) => ({ ...f }))
     traps = from.traps.map((t) => ({ ...t }))
     holes = from.holes.map((h) => ({ ...h, brood: [...h.brood] }))
@@ -185,7 +191,7 @@ function build(
     for (let i = 0; i < Math.min(config.cats, caps.cats); i++) {
       const c = freeCell((x, y) => hasHole(x, y) || occupiedByAnimal(x, y))
       cats.push({ id: `c${pad(i + 1)}`, x: c.x, y: c.y, mode: 'prowl', target: null,
-        nutrition: CAT.startingNutrition,
+        nutrition: CAT.startingNutrition, band: 'fed', seen: [],
         pounceCooldown: 0, patience: 0, lastSighting: null, sightingUntil: 0,
         busyUntil: 0, bestDistance: Infinity, drift: { dx: 0, dy: 0 } })
     }
@@ -200,6 +206,7 @@ function build(
       weights: {}, memories: [], pregnantSince: null,
       nextMoveTick: 0, busyUntil: 0, busyWith: null, eatingFoodId: null,
       mateTarget: null, isPup, recent: [{ ...at }], alarmedAt: {}, decidedAt: -9999,
+      band: hungerBand(nutrition), seen: [],
     }
   }
 
@@ -394,6 +401,9 @@ function build(
     resolveMating()
     resolveBirths()
     exchangeAlarms()
+    // Last, so both read the world as the turn leaves it.
+    resolveHungerBands()
+    resolvePerception()
 
     emit({ kind: 'tick_advanced', population: mice.length } as never)
 
@@ -443,8 +453,11 @@ function build(
     // apply in ascending agent id order, never in arrival order
     for (const r of requests) {
       const batch = answers[r.batchId] ?? baselineBatch(r, tick)
-      if (batch.source === 'baseline' && !failure) {
-        emit({ kind: 'decision_fallback', batchId: r.batchId, reason: 'error' } as never)
+      // A provider that chose the rules is not a fallback. Only one that meant
+      // to ask and could not is, and it says so.
+      if (!failure && batch.fallbackReason !== undefined) {
+        emit({ kind: 'decision_fallback', batchId: r.batchId,
+               reason: batch.fallbackReason } as never)
       }
       const subjects = batch.subjects.slice().sort((a, b) =>
         a.agentId < b.agentId ? -1 : a.agentId > b.agentId ? 1 : 0)
@@ -654,6 +667,79 @@ function build(
       emit({ kind: 'mouse_trapped', id: m.id, trapId: t.id } as never)
       kill(m, 'trap', { x: t.x, y: t.y })
     }
+  }
+
+  /**
+   * A band crossing, not a nutrition figure. Reported once per crossing, so a
+   * turn shows that an animal became hungry rather than that it is hungry.
+   */
+  function resolveHungerBands(): void {
+    for (const m of sortedMice()) {
+      const now = hungerBand(m.nutrition)
+      if (now === m.band) continue
+      emit({ kind: 'hunger_changed', id: m.id, subject: 'mouse',
+             from: m.band, to: now } as never)
+      m.band = now
+    }
+    for (const c of [...cats].sort(byId)) {
+      const now = catBand(c.nutrition)
+      if (now === c.band) continue
+      emit({ kind: 'hunger_changed', id: c.id, subject: 'cat',
+             from: c.band, to: now } as never)
+      c.band = now
+    }
+  }
+
+  /**
+   * What each animal can newly see. Only arrivals are reported: a thing held in
+   * view would otherwise fill a turn with the same line over and over. Mice
+   * notice food, traps and cats; cats notice mice.
+   */
+  function resolvePerception(): void {
+    refreshCache()
+    for (const m of sortedMice()) {
+      if (m.inHole) { m.seen = []; continue }
+      const here = { x: m.x, y: m.y }
+      const r = perceptionOf(m)
+      const now: { id: string; what: Spottable; distance: number }[] = []
+      for (const f of food) {
+        if (!f.present) continue
+        const d = chebyshev(here, { x: f.x, y: f.y })
+        if (d <= r) now.push({ id: f.id, what: 'food', distance: d })
+      }
+      for (const x of traps) {
+        const d = chebyshev(here, { x: x.x, y: x.y })
+        if (d <= r) now.push({ id: x.id, what: 'trap', distance: d })
+      }
+      for (const c of cats) {
+        const d = chebyshev(here, { x: c.x, y: c.y })
+        if (d <= r) now.push({ id: c.id, what: 'cat', distance: d })
+      }
+      m.seen = report(m.id, m.seen, now)
+    }
+    for (const c of [...cats].sort(byId)) {
+      const here = { x: c.x, y: c.y }
+      const r = catPerception(c)
+      const now = sortedMice()
+        .filter((m) => !m.inHole)
+        .map((m) => ({ id: m.id, what: 'mouse' as const,
+                       distance: chebyshev(here, { x: m.x, y: m.y }) }))
+        .filter((x) => x.distance <= r)
+      c.seen = report(c.id, c.seen, now)
+    }
+  }
+
+  function report(
+    watcher: AgentId, before: readonly string[],
+    now: readonly { id: string; what: Spottable; distance: number }[],
+  ): string[] {
+    const had = new Set(before)
+    for (const x of now) {
+      if (had.has(x.id)) continue
+      emit({ kind: 'spotted', id: watcher, what: x.what,
+             targetId: x.id, distance: x.distance } as never)
+    }
+    return now.map((x) => x.id).sort()
   }
 
   function resolveCaptures(): void {

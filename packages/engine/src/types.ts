@@ -19,6 +19,8 @@ export const FEAR_LEVELS: readonly FearLevel[] =
 export type CatMode = 'prowl' | 'stalk' | 'pounce' | 'rest' | 'eating'
 export type DeathCause = 'starvation' | 'trap' | 'cat'
 export type Provenance = 'seen' | 'heard'
+export type HungerBand = 'fed' | 'hungry' | 'starving'
+export type Spottable = 'food' | 'trap' | 'cat' | 'mouse'
 export type Bearing =
   | 'north' | 'northeast' | 'east' | 'southeast'
   | 'south' | 'southwest' | 'west' | 'northwest'
@@ -123,6 +125,11 @@ export type SimEvent =
   | (EventBase & { kind: 'cat_eating_started'; id: AgentId })
   | (EventBase & { kind: 'cat_eating_ended'; id: AgentId })
   | (EventBase & { kind: 'cat_fed'; id: AgentId; restored: number; nutrition: number })
+  | (EventBase & { kind: 'hunger_changed'; id: AgentId; subject: 'mouse' | 'cat'
+                   from: HungerBand; to: HungerBand })
+  /** Emitted on entering perception, never for a thing already in view. */
+  | (EventBase & { kind: 'spotted'; id: AgentId; what: Spottable
+                   targetId: string; distance: number })
   | (EventBase & { kind: 'cat_left'; id: AgentId; reason: 'starving'; nutrition: number
                    at: Cell })
   | (EventBase & { kind: 'mating'; a: AgentId; b: AgentId; holeId: string })
@@ -149,7 +156,13 @@ export type AnswerPayload =
 export interface DecisionSubject {
   agentId: AgentId
   state: Record<string, unknown>
-  questions: Record<string, unknown>
+  /**
+   * The options this agent was offered. The question wording is a constant of
+   * the engine version, so it is rebuilt from this rather than recorded on
+   * every batch: carrying the criteria made one decision event 48 kilobytes and
+   * 91 percent of a stored run.
+   */
+  options: (Drive | CatMode)[]
   answers: Record<string, AnswerPayload>
   /** A drive for a mouse, a mode for a cat. */
   intent: Drive | CatMode
@@ -179,6 +192,11 @@ export interface DecisionBatch {
   latencyMs: number
   model?: string
   inputTokens?: number
+  /**
+   * Why a baseline batch is baseline. Absent means it was never going to ask,
+   * which is a choice rather than a failure and is not recorded as a fallback.
+   */
+  fallbackReason?: 'timeout' | 'error' | 'quota'
 }
 
 export interface DecisionProvider {
@@ -230,6 +248,18 @@ export const CAT = {
 export const ALARM_RANGE = { normal: 1, social: 2 } as const
 export const NUTRITION_BANDS = { fed: 60, hungry: 30 } as const
 export const PUP_NUTRITION = 75
+
+/** The band a nutrition figure falls in. The same boundaries govern speed. */
+export function hungerBand(nutrition: number): HungerBand {
+  if (nutrition >= NUTRITION_BANDS.fed) return 'fed'
+  if (nutrition >= NUTRITION_BANDS.hungry) return 'hungry'
+  return 'starving'
+}
+
+/** A cat has two bands, not three: it hunts harder or it leaves. */
+export function catBand(nutrition: number): 'fed' | 'hungry' {
+  return nutrition >= CAT.hungryBelow ? 'fed' : 'hungry'
+}
 export const JITTER = 0.05
 export const BATCH_SIZE = 8
 export const ENGINE_VERSION = '0.1.0'

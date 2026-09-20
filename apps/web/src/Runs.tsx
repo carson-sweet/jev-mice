@@ -40,7 +40,15 @@ function Row({ run }: { run: RunSummary }): React.ReactElement {
   return (
     <>
       <tr className="border-t border-zinc-800 align-top hover:bg-zinc-900/60">
-        <td className="whitespace-nowrap px-3 py-2 text-zinc-300">{when(run.createdAt)}</td>
+        <td className="whitespace-nowrap px-3 py-2">
+          <a
+            href={`#/runs/${run.id}`}
+            className="text-sky-400 hover:text-sky-300 hover:underline"
+            title="Open this run turn by turn"
+          >
+            {when(run.createdAt)}
+          </a>
+        </td>
         <td className="px-3 py-2 tabular-nums text-zinc-300">{run.seed}</td>
         <td className="px-3 py-2 capitalize text-zinc-400">{c.preset}</td>
         <td className="px-3 py-2 text-zinc-400">
@@ -117,7 +125,7 @@ export function Runs({ onBack }: { onBack: () => void }): React.ReactElement {
         <div className="flex items-baseline gap-3">
           <h1 className="text-base font-semibold text-zinc-100">Previous runs</h1>
           <span className="text-xs text-zinc-500">
-            newest first, with what each one started from
+            newest first; open one to read it turn by turn
           </span>
         </div>
         <a

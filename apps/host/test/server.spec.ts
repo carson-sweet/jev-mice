@@ -186,3 +186,78 @@ describe('What the host tells the page it can offer', () => {
     expect(row.decidedBy).toBe('rules')
   }, 30_000)
 })
+
+describe('Per-turn telemetry for a finished run', () => {
+  const finished = async (over: Record<string, unknown> = {}): Promise<string> => {
+    const created = await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 300, ...over }, seed: 31, speed: 334,
+    })
+    const id = created.body.run.id as string
+    for (let i = 0; i < 400; i++) {
+      const s = await (await fetch(`${base}/api/runs/${id}`)).json() as any
+      if (s.run.status === 'completed') return id
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    throw new Error('run never finished')
+  }
+
+  it('Gives a window of turns, each with its own counts', async () => {
+    const id = await finished()
+    const r = await fetch(`${base}/api/runs/${id}/turns?from=1&to=20`)
+    expect(r.status).toBe(200)
+    const body = await r.json() as any
+    expect(body.turns).toHaveLength(20)
+    expect(body.turns[0].tick).toBe(1)
+    expect(body.turns[19].tick).toBe(20)
+    for (const turn of body.turns) {
+      expect(turn.stats).toMatchObject({
+        mice: expect.any(Number), cats: expect.any(Number),
+        food: expect.any(Number), traps: expect.any(Number),
+      })
+    }
+  }, 60_000)
+
+  it('Gives the change from the turn before, so a reader sees movement', async () => {
+    const id = await finished()
+    const body = await (await fetch(`${base}/api/runs/${id}/turns?from=2&to=30`)).json() as any
+    for (const turn of body.turns) {
+      expect(turn.delta).toMatchObject({
+        mice: expect.any(Number), cats: expect.any(Number),
+        food: expect.any(Number), traps: expect.any(Number),
+      })
+    }
+    // The first turn asked for still has a delta, taken against turn one.
+    expect(body.turns[0].tick).toBe(2)
+    expect(typeof body.turns[0].delta.mice).toBe('number')
+  }, 60_000)
+
+  it('Gives every life-changing event of a turn, and no plain movement', async () => {
+    const id = await finished()
+    const body = await (await fetch(`${base}/api/runs/${id}/turns?from=1&to=250`)).json() as any
+    const all = body.turns.flatMap((t: any) => t.events)
+    expect(all.length).toBeGreaterThan(0)
+    expect(all.some((e: any) => e.kind === 'moved')).toBe(false)
+    const kinds = new Set(all.map((e: any) => e.kind))
+    expect([...kinds].length).toBeGreaterThan(3)
+    for (const e of all) expect(typeof e.text).toBe('string')
+  }, 60_000)
+
+  it('Says how many turns there are, so a reader can page through them', async () => {
+    const id = await finished()
+    const body = await (await fetch(`${base}/api/runs/${id}/turns?from=1&to=5`)).json() as any
+    expect(body.totalTurns).toBe(300)
+    expect(body.from).toBe(1)
+    expect(body.to).toBe(5)
+  }, 60_000)
+
+  it('Refuses a window too large to answer in one go', async () => {
+    const id = await finished()
+    const r = await fetch(`${base}/api/runs/${id}/turns?from=1&to=99999`)
+    expect(r.status).toBe(400)
+  }, 60_000)
+
+  it('Answers for a run that does not exist rather than failing', async () => {
+    const r = await fetch(`${base}/api/runs/nope/turns?from=1&to=5`)
+    expect(r.status).toBe(404)
+  })
+})

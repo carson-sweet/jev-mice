@@ -194,6 +194,8 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       tick: atTick,
       population: view?.mice.length ?? 0,
       cats: view?.cats.length ?? 0,
+      food: view?.food.filter((f) => f.present).length ?? 0,
+      traps: view?.traps.filter((x) => x.occupantId === null).length ?? 0,
       births,
       deathsByStarvation: deaths.starvation,
       deathsByTrap: deaths.trap,
@@ -302,9 +304,16 @@ export function createSimulation(opts: SimulationOptions): Simulation {
     // requested rate, which paces accurately without sleeping once per tick.
     let credit = 0
     let lastPaced = now()
+    let holding = false
 
     while (tick < limit && control.desired !== 'stop') {
       if (control.desired === 'pause' && stepsOwed === 0) {
+        if (!holding) {
+          // One frame on the way in, so the page shows where it actually
+          // stopped rather than wherever the last interval happened to land.
+          holding = true
+          pendingFrames.push(frameNow())
+        }
         await flushFrames()
         // The clock is reset on the way out of a pause, so a long pause does
         // not bank ticks and spend them in a burst when the run resumes.
@@ -313,8 +322,11 @@ export function createSimulation(opts: SimulationOptions): Simulation {
         await sleep(5)
         continue
       }
+      holding = false
+      let stepped = false
       if (stepsOwed > 0) {
         stepsOwed -= 1
+        stepped = true
         credit = 0
         lastPaced = now()
       } else if (control.speed > 0) {
@@ -345,9 +357,11 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       const every = control.speed > 0
         ? Math.max(1, Math.round(control.speed / FRAMES_PER_SECOND))
         : FRAME_EVERY_TICKS
-      if (tick % every === 0) pendingFrames.push(frameNow())
+      // A stepped turn always sends its frame: a step exists so that someone
+      // can look at the result, and the interval would usually swallow it.
+      if (stepped || tick % every === 0) pendingFrames.push(frameNow())
       const waiting = pendingFrames.length + pendingLog.length
-      if (pendingFrames.length >= FRAME_BATCH
+      if (stepped || pendingFrames.length >= FRAME_BATCH
           || (waiting > 0 && now() - lastFrameFlush >= FRAME_FLUSH_MS)) {
         await flushFrames()
       }

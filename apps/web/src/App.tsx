@@ -13,10 +13,16 @@ import { COLOURS } from './glyphs'
 import { Log } from './Log'
 import { Speed } from './Speed'
 import { Runs } from './Runs'
+import { RunDetail } from './RunDetail'
+import { Transport } from './Transport'
 
 const MAX_POINTS = 600
 /** Enough to scroll back through without letting the page grow forever. */
 const MAX_LOG = 400
+/** Frames kept for scanning back through what has already been seen. */
+const MAX_FRAMES = 240
+/** How far a scan jumps, in frames. */
+const SCAN = 10
 
 interface Point { tick: number; population: number; food: number; cats: number }
 
@@ -74,8 +80,10 @@ function Status({ run }: { run: RunSummary }): React.ReactElement {
 export function App(): React.ReactElement {
   const [runs, setRuns] = useState<RunSummary[]>([])
   const [run, setRun] = useState<RunSummary | null>(null)
-  const [frame, setFrame] = useState<Frame | null>(null)
+  const [frames, setFrames] = useState<Frame[]>([])
+  const [behind, setBehind] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
+  const [highlighted, setHighlighted] = useState<readonly string[]>([])
   const [points, setPoints] = useState<Point[]>([])
   const [log, setLog] = useState<LogEntry[]>([])
   const [busy, setBusy] = useState(false)
@@ -101,19 +109,21 @@ export function App(): React.ReactElement {
 
   const open = useCallback((id: string) => {
     stop.current?.()
-    setFrame(null)
+    setFrames([])
+    setBehind(0)
     setPoints([])
     setLog([])
     setSelected(null)
+    setHighlighted([])
     stop.current = watchRun(id, (m) => {
       if (m.t === 'hello') {
         setRun(m.run)
-        if (m.frame) setFrame(m.frame)
+        if (m.frame) setFrames([m.frame])
         setLog(m.log.slice(-MAX_LOG))
       } else if (m.t === 'log') {
         setLog((l) => [...l, ...m.entries].slice(-MAX_LOG))
       } else if (m.t === 'frame') {
-        setFrame(m.frame)
+        setFrames((f) => [...f, m.frame].slice(-MAX_FRAMES))
         setPoints((p) => [...p, {
           tick: m.frame.tick,
           population: m.frame.population,
@@ -152,6 +162,29 @@ export function App(): React.ReactElement {
     void api.control(run.id, a).then(refresh).catch(() => undefined)
   }, [run, refresh])
 
+  // The playhead. At zero it is the newest frame, which is the live edge.
+  const frame = frames.length === 0
+    ? null
+    : frames[Math.max(0, frames.length - 1 - behind)] ?? null
+
+  const over = run === null || run.status === 'completed' || run.status === 'failed'
+    || run.status === 'cancelled'
+
+  const transport = {
+    play: () => { setBehind(0); act('resume') },
+    pause: () => { act('pause') },
+    stop: () => { act('stop') },
+    live: () => { setBehind(0) },
+    stepBack: () => { setBehind((b) => Math.min(frames.length - 1, b + 1)) },
+    stepForward: () => {
+      // Forward out of the buffer first; at the live edge, ask for a turn.
+      if (behind > 0) setBehind((b) => Math.max(0, b - 1))
+      else act('step')
+    },
+    scanBack: () => { setBehind((b) => Math.min(frames.length - 1, b + SCAN)) },
+    scanForward: () => { setBehind((b) => Math.max(0, b - SCAN)) },
+  }
+
   const world = run ? PRESETS[run.config.preset] : PRESETS.medium
   const ticks = useMemo(() => points.map((p) => p.tick), [points])
   // Colours and glyphs come from the map's own set, so a line in the chart and
@@ -165,9 +198,9 @@ export function App(): React.ReactElement {
       values: points.map((p) => p.cats) },
   ], [points])
 
-  if (route.startsWith('#/runs')) {
-    return <Runs onBack={() => undefined} />
-  }
+  const detail = /^#\/runs\/(.+)$/.exec(route)
+  if (detail) return <RunDetail id={detail[1] ?? ''} />
+  if (route.startsWith('#/runs')) return <Runs onBack={() => undefined} />
 
   return (
     <div className="flex h-full flex-col">
@@ -194,7 +227,15 @@ export function App(): React.ReactElement {
               onChange={setSpeed}
             />
             <Status run={run} />
-            <Controls run={run} onAction={act} />
+            <Transport
+              state={{
+                playing: run.status === 'running',
+                over,
+                behind,
+                buffered: frames.length,
+              }}
+              actions={transport}
+            />
           </div>
         )}
       </header>
@@ -210,7 +251,12 @@ export function App(): React.ReactElement {
           <Configure onStart={start} busy={busy} jevAvailable={caps.jevAvailable} />
           <div className="mt-6 flex items-baseline justify-between">
             <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-500">Runs</h2>
-            <a href="#/runs" className="text-xs text-sky-400 hover:text-sky-300 hover:underline">
+            <a
+              href="#/runs"
+              target="_blank"
+              rel="noopener"
+              className="text-xs text-sky-400 hover:text-sky-300 hover:underline"
+            >
               See all previous runs
             </a>
           </div>
@@ -242,7 +288,8 @@ export function App(): React.ReactElement {
             ? <>
                 <div className="flex min-h-0 w-full flex-1 items-center justify-center">
                   <Grid frame={frame} width={world.width} height={world.height}
-                        selected={selected} onSelect={setSelected} />
+                        selected={selected} highlighted={highlighted}
+                        onSelect={setSelected} />
                 </div>
                 <Legend />
               </>
@@ -275,7 +322,9 @@ export function App(): React.ReactElement {
               <dd className="tabular-nums text-zinc-200">{run.seed}</dd>
             </dl>
           )}
-          {run && <Log entries={log} decidedBy={run.decidedBy} />}
+          {run && (
+            <Log entries={log} decidedBy={run.decidedBy} onHover={setHighlighted} />
+          )}
         </aside>
       </div>
     </div>

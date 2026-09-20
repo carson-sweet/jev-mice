@@ -5,7 +5,7 @@
 
 import {
   baselineBatch, FEAR_FROM_SCORE, FEAR_LEVELS,
-  type AnswerPayload, type DecisionBatch, type DecisionProvider,
+  type AnswerPayload, type CatMode, type DecisionBatch, type DecisionProvider,
   type DecisionRequest, type DecisionSubject, type Drive, type FearLevel,
 } from '@jev-mice/engine'
 
@@ -94,7 +94,11 @@ export function jevProvider(client: SystemOneLike, opts: JevProviderOptions = {}
     } catch {
       // A batch the service could not answer is answered by the rules, so a
       // failure costs accuracy for those agents and nothing else.
-      return { ...baselineBatch(req, 0), latencyMs: Math.max(0, now() - started) }
+      return {
+        ...baselineBatch(req, 0),
+        latencyMs: Math.max(0, now() - started),
+        fallbackReason: controller.signal.aborted ? 'timeout' : 'error',
+      }
     } finally {
       clearTimeout(timer)
     }
@@ -126,7 +130,11 @@ function race(
   const started = now()
   return new Promise<DecisionBatch>((resolve) => {
     const timer = setTimeout(() => {
-      resolve({ ...baselineBatch(req, 0), latencyMs: Math.max(0, now() - started) })
+      resolve({
+        ...baselineBatch(req, 0),
+        latencyMs: Math.max(0, now() - started),
+        fallbackReason: 'timeout',
+      })
     }, timeoutMs + 50)
     void work.then((batch) => { clearTimeout(timer); resolve(batch) })
   })
@@ -160,8 +168,10 @@ function subjectFor(
 
   return {
     agentId: id,
+    // Read back from what was offered, so the recorded subject says what this
+    // agent could have chosen without repeating the wording of the question.
+    options: Object.keys(probabilities) as (Drive | CatMode)[],
     state: (req.state[id] ?? {}) as Record<string, unknown>,
-    questions: req.questions,
     answers: mine,
     intent,
     lowConfidence: confidence < 0.5,

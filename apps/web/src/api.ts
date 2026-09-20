@@ -44,6 +44,16 @@ async function body<T>(r: Response): Promise<T> {
   return parsed
 }
 
+export interface TurnStats { mice: number; cats: number; food: number; traps: number }
+export interface TurnEvent { kind: string; text: string; subject?: string }
+export interface Turn { tick: number; stats: TurnStats; delta: TurnStats; events: TurnEvent[] }
+export interface TurnWindow {
+  runId: string; from: number; to: number; totalTurns: number; turns: Turn[]
+}
+
+/** The largest window the server will assemble in one request. */
+export const TURN_PAGE = 100
+
 export const api = {
   defaults: async (preset: Preset): Promise<RunConfig> =>
     (await body<{ config: RunConfig }>(await fetch(`/api/config/defaults?preset=${preset}`))).config,
@@ -73,6 +83,10 @@ export const api = {
       body: JSON.stringify({ action }),
     }))
   },
+
+  turns: async (id: string, from: number, to: number): Promise<TurnWindow> =>
+    await body<TurnWindow>(
+      await fetch(`/api/runs/${id}/turns?from=${String(from)}&to=${String(to)}`)),
 
   setSpeed: async (id: string, speed: number): Promise<void> => {
     await body(await fetch(`/api/runs/${id}/control`, {

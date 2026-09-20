@@ -53,9 +53,17 @@ function Mark({ kind }: { kind: LogEntry['kind'] }): React.ReactElement {
   )
 }
 
-export function Log({ entries, decidedBy }: {
+/** Every id a line mentions, so hovering it can point at all of them. */
+function subjectsOf(e: LogEntry): string[] {
+  const ids = e.text.match(/\b[mctfh]\d{4}\b/g) ?? []
+  return [...new Set([e.subject, ...ids])]
+}
+
+export function Log({ entries, decidedBy, onHover }: {
   entries: readonly LogEntry[]
   decidedBy: 'jev' | 'rules'
+  /** Called with the ids a line is about, and with nothing on leaving it. */
+  onHover?: (ids: readonly string[]) => void
 }): React.ReactElement {
   const box = useRef<HTMLDivElement>(null)
   const [pinned, setPinned] = useState(true)
@@ -105,7 +113,10 @@ export function Log({ entries, decidedBy }: {
           : <ol className="space-y-1">
               {entries.map((e, i) => (
                 <li key={`${String(e.tick)}-${e.subject}-${e.kind}-${String(i)}`}
-                    className="flex gap-2 text-xs leading-snug">
+                    onMouseEnter={() => { onHover?.(subjectsOf(e)) }}
+                    onMouseLeave={() => { onHover?.([]) }}
+                    className="flex gap-2 rounded px-1 text-xs leading-snug
+                               hover:bg-zinc-800/60">
                   <Mark kind={e.kind} />
                   <span className="min-w-0">
                     <span className="tabular-nums text-zinc-600">{e.tick}</span>

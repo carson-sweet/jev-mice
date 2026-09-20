@@ -5,7 +5,8 @@ import {
 } from '@jev-mice/engine'
 import {
   createSimulation, CHUNK_TICKS,
-  type ChunkAck, type ChunkReport, type Coordinator, type Frame, type LogEntry,
+  type ChunkAck, type ChunkBody, type ChunkReport, type Coordinator, type Frame,
+  type LogEntry, type SummaryBody,
 } from '../src/index.js'
 
 const ack = (over: Partial<ChunkAck> = {}): ChunkAck => ({
@@ -165,6 +166,59 @@ describe('The simulation process', () => {
     await running
     expect(rec.done).toHaveLength(1)
   }, 15_000)
+
+  it('Sends a frame the moment it pauses, so the page shows where it stopped', async () => {
+    const seen: Frame[] = []
+    const coordinator: Coordinator = {
+      ready: () => Promise.resolve(ack({ control: { desired: 'run', speed: 334, seq: 0 } })),
+      chunk: () => Promise.resolve(ack({ control: { desired: 'run', speed: 334, seq: 0 } })),
+      frames: (f) => { seen.push(...f); return Promise.resolve() },
+      done: () => Promise.resolve(),
+      failed: () => Promise.resolve(),
+    }
+    const sim = createSimulation({
+      runId: 'pause', config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 3,
+      coordinator, upload: () => Promise.resolve(), provider: () => baselineProvider(),
+    })
+    const running = sim.start()
+    await new Promise((r) => setTimeout(r, 200))
+    sim.control({ desired: 'pause', speed: 334, seq: 1 })
+    await new Promise((r) => setTimeout(r, 200))
+    // Without this the last frame is up to seventeen turns behind where the
+    // run actually stopped, and a step from there looks like a jump.
+    expect(seen.at(-1)?.tick).toBe(sim.currentTick())
+    sim.control({ desired: 'stop', speed: 334, seq: 2 })
+    await running
+  }, 20_000)
+
+  it('Sends a frame for a stepped turn, whatever the frame interval is', async () => {
+    // A step exists so someone can look at the result. At speed 334 a frame is
+    // only due every seventeenth tick, so without this a step showed nothing.
+    const seen: Frame[] = []
+    const coordinator: Coordinator = {
+      ready: () => Promise.resolve(ack({ control: { desired: 'run', speed: 334, seq: 0 } })),
+      chunk: () => Promise.resolve(ack({ control: { desired: 'run', speed: 334, seq: 0 } })),
+      frames: (f) => { seen.push(...f); return Promise.resolve() },
+      done: () => Promise.resolve(),
+      failed: () => Promise.resolve(),
+    }
+    const sim = createSimulation({
+      runId: 'step', config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 3,
+      coordinator, upload: () => Promise.resolve(), provider: () => baselineProvider(),
+    })
+    const running = sim.start()
+    sim.control({ desired: 'pause', speed: 334, seq: 1 })
+    await new Promise((r) => setTimeout(r, 150))
+    const before = seen.length
+    const tickBefore = sim.currentTick()
+    sim.control({ desired: 'step', speed: 334, seq: 2 })
+    await new Promise((r) => setTimeout(r, 200))
+    expect(sim.currentTick()).toBe(tickBefore + 1)
+    expect(seen.length).toBeGreaterThan(before)
+    expect(seen.at(-1)?.tick).toBe(tickBefore + 1)
+    sim.control({ desired: 'stop', speed: 334, seq: 3 })
+    await running
+  }, 20_000)
 
   it('Advances exactly one tick on a step from a pause', async () => {
     const { sim } = harness({ config: { ticks: 10_000 } })
@@ -526,4 +580,56 @@ describe('What a run reports about its population', () => {
     expect(done!.totals.population.mice.current).toBeGreaterThanOrEqual(0)
     expect(done!.totals.population.cats.current).toBeGreaterThanOrEqual(0)
   }, 20_000)
+})
+
+describe('Per-turn telemetry', () => {
+  const summaries = (rec: Recorded): SummaryBody[] =>
+    rec.puts.filter((p) => p.url === 'put:summary')
+      .map((p) => JSON.parse(gunzipSync(p.body).toString('utf8')) as SummaryBody)
+
+  it('Records one point for every turn, with nothing skipped', async () => {
+    const { sim, rec } = harness({ config: { ticks: 500 } })
+    await sim.start()
+    const points = summaries(rec).flatMap((s) => s.points)
+    expect(points).toHaveLength(500)
+    expect(points.map((p) => p.tick)).toEqual(
+      Array.from({ length: 500 }, (_, i) => i + 1))
+  }, 30_000)
+
+  it('Counts what was standing at the end of each turn', async () => {
+    const config = { ...defaultConfig('small'), ticks: 300 }
+    const { sim, rec } = harness({ config })
+    await sim.start()
+    const first = summaries(rec).flatMap((s) => s.points)[0]
+    expect(first).toBeDefined()
+    expect(first!.cats).toBeLessThanOrEqual(config.cats)
+    expect(first!.food).toBeLessThanOrEqual(config.foodPiles)
+    expect(first!.traps).toBeLessThanOrEqual(config.traps)
+    expect(first!.population).toBeGreaterThan(0)
+  }, 30_000)
+
+  it('Stores the events of a turn in the chunk that covers it', async () => {
+    const { sim, rec } = harness({ config: { ticks: 250 } })
+    await sim.start()
+    const chunk = rec.puts.filter((p) => p.url === 'put:chunk')
+      .map((p) => JSON.parse(gunzipSync(p.body).toString('utf8')) as ChunkBody)[0]
+    expect(chunk).toBeDefined()
+    const ticks = new Set(chunk!.events.map((e) => e.tick))
+    // Every turn in the chunk's range put something in it, if only its own
+    // tick_advanced, so a turn is never missing from the record.
+    for (let t = chunk!.firstTick; t <= chunk!.lastTick; t++) {
+      expect(ticks.has(t), `turn ${String(t)} has no events at all`).toBe(true)
+    }
+  }, 30_000)
+
+  it('Records the life-changing events a turn view needs, not just movement', async () => {
+    const { sim, rec } = harness({ config: { ticks: 500 } })
+    await sim.start()
+    const kinds = new Set(rec.puts.filter((p) => p.url === 'put:chunk')
+      .flatMap((p) => (JSON.parse(gunzipSync(p.body).toString('utf8')) as ChunkBody).events)
+      .map((e) => e.kind))
+    for (const wanted of ['spotted', 'hunger_changed', 'food_eaten', 'death', 'tick_advanced']) {
+      expect(kinds, `no ${wanted} in the record`).toContain(wanted)
+    }
+  }, 30_000)
 })

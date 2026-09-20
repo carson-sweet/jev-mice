@@ -1,8 +1,10 @@
 // US-E02-05 Falling back to code-only rules
 // Satisfies FR-069 to FR-071, FR-121. Verifies SM-15.
 import { describe, it, expect } from 'vitest'
-import { createEngine, baselineProvider, type DecisionProvider } from '../../src/index.js'
-import { medium, SEED, runTicks, of, comparable } from '../helpers.js'
+import {
+  createEngine, baselineProvider, baselineBatch, type DecisionProvider,
+} from '../../src/index.js'
+import { engine, medium, SEED, runTicks, of, comparable } from '../helpers.js'
 
 const never: DecisionProvider = { decide: () => new Promise(() => {}) }
 const broken: DecisionProvider = { decide: () => Promise.reject(new Error('upstream')) }
@@ -42,5 +44,37 @@ describe('US-E02-05 Falling back to code-only rules', () => {
     const firstRequest = a.findIndex((e) => e.kind === 'decision_requested')
     expect(firstRequest, 'no decision was requested at all').toBeGreaterThanOrEqual(0)
     expect(comparable(b.slice(0, firstRequest))).toEqual(comparable(a.slice(0, firstRequest)))
+  })
+})
+
+describe('A run that was never going to ask Jev', () => {
+  it('Does not record a fallback on every batch', async () => {
+    // Choosing the rules is a choice, not a failure. Recording it as one put a
+    // decision_fallback with reason "error" in every single turn.
+    const events = await runTicks(engine(medium({ ticks: 300 })), 60)
+    expect(of(events, 'decision_returned').length).toBeGreaterThan(0)
+    expect(of(events, 'decision_fallback')).toHaveLength(0)
+  })
+
+  it('Still records a fallback when a batch genuinely failed', async () => {
+    const e = createEngine({ config: medium({ ticks: 300 }), seed: 1, provider: broken })
+    const events = await runTicks(e, 2)
+    const fell = of(events, 'decision_fallback')
+    expect(fell.length).toBeGreaterThan(0)
+    expect(fell[0]?.reason).toBe('error')
+  })
+
+  it('Records a fallback when a provider says a batch was over budget', async () => {
+    const quotaBound: DecisionProvider = {
+      decide: (requests) => Promise.resolve(Object.fromEntries(requests.map((r) => [
+        r.batchId,
+        { ...baselineBatch(r, 0), fallbackReason: 'quota' as const },
+      ]))),
+    }
+    const e = createEngine({ config: medium({ ticks: 300 }), seed: 1, provider: quotaBound })
+    const events = await runTicks(e, 2)
+    const fell = of(events, 'decision_fallback')
+    expect(fell.length).toBeGreaterThan(0)
+    expect(fell[0]?.reason).toBe('quota')
   })
 })

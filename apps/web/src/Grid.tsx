@@ -2,28 +2,68 @@
 // last frame the server sent and reports what was clicked. Every shape comes
 // from the shared glyph set, which is what the legend draws from too.
 
-import { useEffect, useReducer, useRef } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import type { Frame } from '@jev-mice/sim'
 import { COLOURS, catShade, drawGlyph, mouseShade } from './glyphs'
 
-export function Grid({ frame, width, height, selected, onSelect }: {
+/** What sits on one cell, named the way the key names it. */
+export interface Identified { id: string; label: string; detail: string }
+
+export function Grid({ frame, width, height, selected, highlighted, onSelect }: {
   frame: Frame | null
   width: number
   height: number
   selected: string | null
+  /** Ids to ring, so hovering a log line points at what it is about. */
+  highlighted?: readonly string[]
   onSelect: (id: string | null) => void
 }): React.ReactElement {
   const ref = useRef<HTMLCanvasElement>(null)
+  // Measured instead of the canvas's own parent: a wrapper that hugs the canvas
+  // is sized by it, and measuring that makes the map shrink to nothing.
+  const box = useRef<HTMLDivElement>(null)
   const cell = useRef(8)
   const [, bump] = useReducer((n: number) => n + 1, 0)
+  const [hover, setHover] = useState<{ x: number; y: number; what: Identified } | null>(null)
+
+  /** Animals first: a cell with a mouse on a hole is about the mouse. */
+  const identify = (fx: number, fy: number): Identified | null => {
+    if (!frame) return null
+    const cat = frame.cats.find((c) => c.x === fx && c.y === fy)
+    if (cat) {
+      return { id: cat.id, label: 'Cat',
+               detail: `${cat.id}, ${cat.mode}, ${String(cat.nutrition)} percent`
+                 + `${cat.hungry ? ', hungry' : ''}` }
+    }
+    const mouse = frame.mice.find((m) => !m.inHole && m.x === fx && m.y === fy)
+    if (mouse) {
+      return { id: mouse.id, label: 'Mouse',
+               detail: `${mouse.id}, ${mouse.intent ?? 'deciding'}, `
+                 + `${String(mouse.nutrition)} percent, ${mouse.fear}` }
+    }
+    const trap = frame.traps.find((x) => x.x === fx && x.y === fy)
+    if (trap) {
+      return { id: trap.id, label: trap.occupied ? 'Trap, holding a dead mouse' : 'Trap',
+               detail: trap.id }
+    }
+    const food = frame.food.find((f) => f.x === fx && f.y === fy)
+    if (food) return { id: food.id, label: 'Food pile', detail: food.id }
+    const hole = frame.holes.find((h) => h.x === fx && h.y === fy)
+    if (hole) {
+      return { id: hole.id,
+               label: hole.occupancy === 'empty' ? 'Mousehole, free' : `Mousehole, ${hole.occupancy}`,
+               detail: hole.id }
+    }
+    return null
+  }
 
   // A paused or finished run sends no more frames, so without this the map
   // would keep whatever size the window had when the last one arrived.
   useEffect(() => {
-    const parent = ref.current?.parentElement
-    if (!parent) return
+    const el = box.current
+    if (!el) return
     const observer = new ResizeObserver(() => { bump() })
-    observer.observe(parent)
+    observer.observe(el)
     return () => { observer.disconnect() }
   }, [])
 
@@ -33,8 +73,10 @@ export function Grid({ frame, width, height, selected, onSelect }: {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const box = canvas.parentElement?.getBoundingClientRect()
-    const avail = box ?? { width: 800, height: 600 }
+    const available = box.current?.getBoundingClientRect()
+    const avail = available === undefined || available.width < 40
+      ? { width: 800, height: 600 }
+      : available
     const size = Math.max(3, Math.floor(Math.min(avail.width / width, avail.height / height)))
     cell.current = size
     const dpr = window.devicePixelRatio || 1
@@ -81,23 +123,73 @@ export function Grid({ frame, width, height, selected, onSelect }: {
       drawGlyph(ctx, c.hungry ? 'catHungry' : 'cat', c.x * size, c.y * size, size,
                 catShade(c.nutrition))
     }
-  }, [frame, width, height, selected])
+
+    // Anything a hovered log line is about, ringed where it still stands.
+    const ring = new Set(highlighted ?? [])
+    if (ring.size > 0) {
+      ctx.strokeStyle = COLOURS.selected
+      ctx.lineWidth = 2
+      const at: { x: number; y: number }[] = [
+        ...frame.mice.filter((m) => !m.inHole && ring.has(m.id)),
+        ...frame.cats.filter((c) => ring.has(c.id)),
+        ...frame.traps.filter((x) => ring.has(x.id)),
+        ...frame.food.filter((f) => ring.has(f.id)),
+        ...frame.holes.filter((h) => ring.has(h.id)),
+      ]
+      for (const p of at) {
+        ctx.beginPath()
+        ctx.arc(p.x * size + size / 2, p.y * size + size / 2,
+                Math.max(3, size / 2 + 2), 0, Math.PI * 2)
+        ctx.stroke()
+      }
+    }
+  }, [frame, width, height, selected, highlighted])
+
+  const cellAt = (e: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    return {
+      x: Math.floor((e.clientX - rect.left) / cell.current),
+      y: Math.floor((e.clientY - rect.top) / cell.current),
+    }
+  }
 
   return (
-    <canvas
-      ref={ref}
-      className="rounded border border-zinc-800"
-      aria-label={frame
-        ? `World at tick ${String(frame.tick)} with ${String(frame.mice.length)} mice`
-        : 'World, no frame yet'}
-      onClick={(e) => {
-        if (!frame) return
-        const rect = e.currentTarget.getBoundingClientRect()
-        const x = Math.floor((e.clientX - rect.left) / cell.current)
-        const y = Math.floor((e.clientY - rect.top) / cell.current)
-        const hit = frame.mice.find((m) => !m.inHole && m.x === x && m.y === y)
-        onSelect(hit?.id ?? null)
-      }}
-    />
+    <div ref={box} className="flex h-full w-full items-center justify-center">
+      {/* Hugs the canvas so the tooltip can be positioned against its cells. */}
+      <div className="relative">
+      <canvas
+        ref={ref}
+        className="rounded border border-zinc-800"
+        aria-label={frame
+          ? `World at tick ${String(frame.tick)} with ${String(frame.mice.length)} mice`
+          : 'World, no frame yet'}
+        onMouseMove={(e) => {
+          const { x, y } = cellAt(e)
+          const what = identify(x, y)
+          setHover(what === null ? null : { x: x * cell.current, y: y * cell.current, what })
+        }}
+        onMouseLeave={() => { setHover(null) }}
+        onClick={(e) => {
+          const { x, y } = cellAt(e)
+          const hit = frame?.mice.find((m) => !m.inHole && m.x === x && m.y === y)
+          onSelect(hit?.id ?? null)
+        }}
+      />
+      {hover !== null && (
+        <div
+          role="tooltip"
+          // Follows the cell, not the pointer, so it does not jitter, and it is
+          // never wide enough to cover what is being pointed at.
+          style={{ left: hover.x + cell.current + 6, top: Math.max(0, hover.y - 4) }}
+          className="pointer-events-none absolute z-10 whitespace-nowrap rounded border
+                     border-zinc-700 bg-zinc-900/95 px-1.5 py-1 text-[11px]
+                     leading-tight text-zinc-200 shadow-lg"
+        >
+          <span className="font-medium">{hover.what.label}</span>
+          <span className="block text-zinc-500">{hover.what.detail}</span>
+        </div>
+      )}
+      </div>
+    </div>
   )
 }
