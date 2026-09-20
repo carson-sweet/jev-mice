@@ -77,10 +77,28 @@ export interface SummaryPoint {
   fallbacks: number
 }
 
+/**
+ * One line of the running log. Only what changes the population appears, with
+ * the decision that preceded it and who made that decision, so a consequence
+ * and its judgment are read together. The sentence is composed here rather than
+ * in the page, for the same reason a mouse's memories are.
+ */
+export interface LogEntry {
+  tick: number
+  kind: 'starved' | 'eaten' | 'trapped' | 'born' | 'mated' | 'cat_left' | 'birth_lost'
+  subject: string
+  text: string
+  /** The intent the subject last held, when one is known. */
+  decision?: string
+  /** Who chose it: the decision service, or the fixed rules. */
+  decidedBy?: 'jev' | 'baseline'
+}
+
 export interface Coordinator {
   ready(info: { engineVersion: string; pid: number; resumedFromTick?: number }): Promise<ChunkAck>
   chunk(report: ChunkReport): Promise<ChunkAck>
-  frames(frames: Frame[]): Promise<void>
+  /** Frames and log lines travel together, on the same flush. */
+  frames(frames: Frame[], log: LogEntry[]): Promise<void>
   done(d: { finalTick: number; totals: ChunkReport['totals'] }): Promise<void>
   failed(f: { atTick: number; reason: string; detail?: string }): Promise<void>
 }

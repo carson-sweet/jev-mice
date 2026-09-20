@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PRESETS, type RunConfig } from '@jev-mice/engine'
-import type { Frame } from '@jev-mice/sim'
+import type { Frame, LogEntry } from '@jev-mice/sim'
 import {
   api, watchRun, type Capabilities, type Decider, type RunSummary,
 } from './api'
@@ -10,10 +10,13 @@ import { Inspector } from './Inspector'
 import { Configure } from './Configure'
 import { Legend } from './Legend'
 import { COLOURS } from './glyphs'
+import { Log } from './Log'
 import { Speed } from './Speed'
 import { Runs } from './Runs'
 
 const MAX_POINTS = 600
+/** Enough to scroll back through without letting the page grow forever. */
+const MAX_LOG = 400
 
 interface Point { tick: number; population: number; food: number; cats: number }
 
@@ -74,6 +77,7 @@ export function App(): React.ReactElement {
   const [frame, setFrame] = useState<Frame | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [points, setPoints] = useState<Point[]>([])
+  const [log, setLog] = useState<LogEntry[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [caps, setCaps] = useState<Capabilities>(
@@ -99,11 +103,15 @@ export function App(): React.ReactElement {
     stop.current?.()
     setFrame(null)
     setPoints([])
+    setLog([])
     setSelected(null)
     stop.current = watchRun(id, (m) => {
       if (m.t === 'hello') {
         setRun(m.run)
         if (m.frame) setFrame(m.frame)
+        setLog(m.log.slice(-MAX_LOG))
+      } else if (m.t === 'log') {
+        setLog((l) => [...l, ...m.entries].slice(-MAX_LOG))
       } else if (m.t === 'frame') {
         setFrame(m.frame)
         setPoints((p) => [...p, {
@@ -244,7 +252,8 @@ export function App(): React.ReactElement {
               </p>}
         </main>
 
-        <aside className="w-72 shrink-0 overflow-y-auto border-l border-zinc-800 p-4">
+        <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l
+                          border-zinc-800 p-4">
           <Inspector frame={frame} id={selected} onClear={() => { setSelected(null) }} />
           <h2 className="mt-4 text-xs font-medium uppercase tracking-wide text-zinc-500">
             Over time
@@ -266,6 +275,7 @@ export function App(): React.ReactElement {
               <dd className="tabular-nums text-zinc-200">{run.seed}</dd>
             </dl>
           )}
+          {run && <Log entries={log} decidedBy={run.decidedBy} />}
         </aside>
       </div>
     </div>

@@ -5,8 +5,8 @@
 import { gzipSync } from 'node:zlib'
 import { createEngine, restore, ENGINE_VERSION, type Engine, type SimEvent } from '@jev-mice/engine'
 import type {
-  Allowance, ChunkAck, ChunkBody, ChunkReport, Control, Extent, Frame, Simulation,
-  SimulationOptions, SummaryBody, SummaryPoint,
+  Allowance, ChunkAck, ChunkBody, ChunkReport, Control, Extent, Frame, LogEntry,
+  Simulation, SimulationOptions, SummaryBody, SummaryPoint,
 } from './types.js'
 
 export * from './types.js'
@@ -48,6 +48,9 @@ export function createSimulation(opts: SimulationOptions): Simulation {
   let bufferedBytes = 0
   let points: SummaryPoint[] = []
   let pendingFrames: Frame[] = []
+  let pendingLog: LogEntry[] = []
+  /** The last decision each agent was given, so a death can name its cause. */
+  const lastDecision = new Map<string, { intent: string; source: 'jev' | 'baseline' }>()
   let control: Control = { desired: 'run', speed: 0, seq: -1 }
   let stepsOwed = 0
   let allowance: Allowance = { tokens: 0, degraded: true, reason: 'disabled' }
@@ -88,9 +91,78 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       currentProvider().decide(requests),
   }
 
+  /** Reads as a sentence, so the page shows it without rephrasing anything. */
+  function logFrom(events: readonly SimEvent[], atTick: number): void {
+    for (const e of events) {
+      const of = (id: string): Pick<LogEntry, 'decision' | 'decidedBy'> => {
+        const d = lastDecision.get(id)
+        return d === undefined ? {} : { decision: d.intent, decidedBy: d.source }
+      }
+      switch (e.kind) {
+        case 'death': {
+          const kind = e.cause === 'starvation' ? 'starved'
+            : e.cause === 'cat' ? 'eaten' : 'trapped'
+          if (kind === 'starved') {
+            pendingLog.push({
+              tick: atTick, kind, subject: e.id,
+              text: `${e.id} starved.`, ...of(e.id),
+            })
+          }
+          // A cat kill and a trap death are named by the events that caused
+          // them, which carry the cat or the trap. Naming them here too would
+          // log the same loss twice.
+          break
+        }
+        case 'capture':
+          pendingLog.push({
+            tick: atTick, kind: 'eaten', subject: e.mouseId,
+            text: `${e.mouseId} was caught by ${e.catId}.`, ...of(e.mouseId),
+          })
+          break
+        case 'mouse_trapped':
+          pendingLog.push({
+            tick: atTick, kind: 'trapped', subject: e.id,
+            text: `${e.id} died in ${e.trapId}.`, ...of(e.id),
+          })
+          break
+        case 'birth':
+          pendingLog.push({
+            tick: atTick, kind: 'born', subject: e.pupId,
+            text: `${e.pupId} was born to ${e.motherId}, ${e.personality} and ${e.sex}.`,
+          })
+          break
+        case 'mating':
+          pendingLog.push({
+            tick: atTick, kind: 'mated', subject: e.a,
+            text: `${e.a} and ${e.b} mated in ${e.holeId}.`, ...of(e.a),
+          })
+          break
+        case 'cat_left':
+          pendingLog.push({
+            tick: atTick, kind: 'cat_left', subject: e.id,
+            text: `${e.id} left the area, down to ${String(e.nutrition)} percent `
+              + 'with nothing to catch.',
+          })
+          break
+        case 'cap_limited_birth':
+          pendingLog.push({
+            tick: atTick, kind: 'birth_lost', subject: e.motherId,
+            text: `${String(e.lost)} of ${e.motherId}'s litter had nowhere to go; `
+              + 'the world is full.',
+          })
+          break
+        default:
+          break
+      }
+    }
+  }
+
   function accumulate(events: readonly SimEvent[]): void {
     for (const e of events) {
       if (e.kind === 'decision_returned') {
+        for (const s of e.subjects) {
+          lastDecision.set(s.agentId, { intent: s.intent, source: e.source })
+        }
         if (e.source === 'jev') {
           sinceChunk.requests += 1
           sinceChunk.inputTokens += e.inputTokens ?? 0
@@ -157,10 +229,12 @@ export function createSimulation(opts: SimulationOptions): Simulation {
 
   async function flushFrames(): Promise<void> {
     lastFrameFlush = now()
-    if (pendingFrames.length === 0) return
+    if (pendingFrames.length === 0 && pendingLog.length === 0) return
     const batch = pendingFrames
+    const log = pendingLog
     pendingFrames = []
-    await opts.coordinator.frames(batch)
+    pendingLog = []
+    await opts.coordinator.frames(batch, log)
   }
 
   /**
@@ -263,6 +337,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       const fresh = (engine?.events() ?? []).slice(before)
 
       accumulate(fresh)
+      logFrom(fresh, tick)
       summarize(fresh, tick)
       buffered.push(...fresh)
       bufferedBytes += fresh.length * 200
@@ -271,8 +346,9 @@ export function createSimulation(opts: SimulationOptions): Simulation {
         ? Math.max(1, Math.round(control.speed / FRAMES_PER_SECOND))
         : FRAME_EVERY_TICKS
       if (tick % every === 0) pendingFrames.push(frameNow())
+      const waiting = pendingFrames.length + pendingLog.length
       if (pendingFrames.length >= FRAME_BATCH
-          || (pendingFrames.length > 0 && now() - lastFrameFlush >= FRAME_FLUSH_MS)) {
+          || (waiting > 0 && now() - lastFrameFlush >= FRAME_FLUSH_MS)) {
         await flushFrames()
       }
 

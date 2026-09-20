@@ -2,7 +2,7 @@
 // and never holds a key; it asks for runs and draws what arrives.
 
 import type { RunConfig, Preset } from '@jev-mice/engine'
-import type { Frame } from '@jev-mice/sim'
+import type { Frame, LogEntry } from '@jev-mice/sim'
 
 export interface Extent { peak: number; min: number; current: number }
 
@@ -30,8 +30,9 @@ export interface RunSummary {
 }
 
 export type ViewerMessage =
-  | { t: 'hello'; run: RunSummary; frame: Frame | null }
+  | { t: 'hello'; run: RunSummary; frame: Frame | null; log: LogEntry[] }
   | { t: 'frame'; frame: Frame }
+  | { t: 'log'; entries: LogEntry[] }
   | { t: 'status'; run: RunSummary }
   | { t: 'error'; message: string }
 

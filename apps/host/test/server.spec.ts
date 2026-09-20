@@ -38,7 +38,7 @@ describe('The local host', () => {
 
   it('Starts a run and then reports it', async () => {
     const created = await post('/api/runs', {
-      config: { ...defaultConfig('small'), ticks: 300 }, seed: 5,
+      config: { ...defaultConfig('small'), ticks: 300 }, seed: 5, speed: 334,
     })
     expect(created.status).toBe(201)
     const id = created.body.run.id as string
@@ -54,7 +54,7 @@ describe('The local host', () => {
 
   it('Streams frames to a watching socket and takes control from it', async () => {
     const created = await post('/api/runs', {
-      config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 6,
+      config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 6, speed: 334,
     })
     const id = created.body.run.id as string
     const ws = new WebSocket(`ws://127.0.0.1:${String(started.port)}/api/runs/${id}/stream`)
@@ -79,7 +79,7 @@ describe('The local host', () => {
 
   it('Serves a stored chunk as gzip once a run has produced one', async () => {
     const created = await post('/api/runs', {
-      config: { ...defaultConfig('small'), ticks: 300 }, seed: 7,
+      config: { ...defaultConfig('small'), ticks: 300 }, seed: 7, speed: 334,
     })
     const id = created.body.run.id as string
     for (let i = 0; i < 200; i++) {
@@ -166,7 +166,7 @@ describe('What the host tells the page it can offer', () => {
 
   it('Lists what a table of previous runs needs', async () => {
     const created = await post('/api/runs', {
-      config: { ...defaultConfig('small'), ticks: 300 }, seed: 21,
+      config: { ...defaultConfig('small'), ticks: 300 }, seed: 21, speed: 334,
     })
     const id = created.body.run.id as string
     for (let i = 0; i < 200; i++) {

@@ -84,6 +84,14 @@ changes the simulation's rate rather than dropping frames on the way to the
 page. How often frames are sent follows the pace, so one tick a second is
 watchable and full speed does not flood the socket.
 
+A run starts slow, at a tick a second, because the first thing anyone sees
+should be watchable. Drag the slider right when you want it to get on with it.
+
+Under the chart, the running log shows every change to the population as it
+happens, and for a death it names the decision the animal was last given and
+who gave it. A colony collapsing and then its cats leaving one by one reads as
+a sequence of lines rather than as a chart going flat.
+
 `/#/runs` lists every run so far, newest first, with its seed, its settings, and
 the highest, lowest and final count of mice and cats. That is the page for
 seeing how starting conditions change outcomes.

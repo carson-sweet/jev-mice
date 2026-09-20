@@ -5,7 +5,7 @@ import {
 } from '@jev-mice/engine'
 import {
   createSimulation, CHUNK_TICKS,
-  type ChunkAck, type ChunkReport, type Coordinator, type Frame,
+  type ChunkAck, type ChunkReport, type Coordinator, type Frame, type LogEntry,
 } from '../src/index.js'
 
 const ack = (over: Partial<ChunkAck> = {}): ChunkAck => ({
@@ -135,7 +135,9 @@ describe('The simulation process', () => {
     const { sim, rec } = harness({ config: { ticks: 250 } })
     await sim.start()
     expect(rec.frames.length).toBeGreaterThan(1)
-    const first = rec.frames[0]?.[0]
+    // A flush carrying only log lines sends an empty frame batch, so the first
+    // frame is the first one in a batch that has any.
+    const first = rec.frames.flat()[0]
     expect(first?.tick).toBeGreaterThan(0)
     expect(Array.isArray(first?.mice)).toBe(true)
   })
@@ -392,6 +394,92 @@ describe('How often a watcher hears anything', () => {
     // Far fewer frames than ticks, or a fast run would flood the socket.
     expect(sent).toBeLessThan(3_000 / 2)
   }, 20_000)
+})
+
+describe('The running log', () => {
+  const logFrom = async (over: Parameters<typeof harness>[0] = {}) => {
+    const entries: LogEntry[] = []
+    const rec: Recorded = { puts: [], reports: [], frames: [], done: [], failed: [] }
+    const coordinator: Coordinator = {
+      ready: () => Promise.resolve(ack()),
+      chunk: () => Promise.resolve(ack()),
+      frames: (f, log) => { rec.frames.push(f); entries.push(...log); return Promise.resolve() },
+      done: (d) => { rec.done.push(d); return Promise.resolve() },
+      failed: (f) => { rec.failed.push(f); return Promise.resolve() },
+    }
+    const sim = createSimulation({
+      runId: 'log',
+      config: { ...defaultConfig('medium'), ticks: 1_200, cats: 3, ...over.config },
+      seed: 5,
+      coordinator,
+      upload: () => Promise.resolve(),
+      provider: () => baselineProvider(),
+    })
+    await sim.start()
+    return entries
+  }
+
+  it('Records a mouse that starves, and what it was doing', async () => {
+    const entries = await logFrom()
+    const starved = entries.filter((e) => e.kind === 'starved')
+    expect(starved.length).toBeGreaterThan(0)
+    expect(starved[0]?.text).toMatch(/starved/i)
+    expect(starved[0]?.subject).toMatch(/^m/)
+  }, 30_000)
+
+  it('Records a mouse a cat caught, naming the cat', async () => {
+    const entries = await logFrom()
+    const eaten = entries.filter((e) => e.kind === 'eaten')
+    expect(eaten.length).toBeGreaterThan(0)
+    expect(eaten[0]?.text).toMatch(/^m\d+ was caught by c\d+/)
+  }, 30_000)
+
+  it('Says who decided what the mouse was doing when it died', async () => {
+    const entries = await logFrom()
+    const withDecision = entries.filter((e) => e.decision !== undefined)
+    expect(withDecision.length).toBeGreaterThan(0)
+    for (const e of withDecision) {
+      expect(e.decidedBy).toBe('baseline')
+      expect(typeof e.decision).toBe('string')
+    }
+  }, 30_000)
+
+  it('Records a litter and a pup that could not fit', async () => {
+    const entries = await logFrom({
+      config: { cats: 0, traps: 0, foodPiles: 60, foodRespawnTicks: 10,
+                nutritionDecayPerTick: 0.3, mouseholes: 30, ticks: 2_000 },
+    })
+    const born = entries.filter((e) => e.kind === 'born')
+    expect(born.length).toBeGreaterThan(0)
+    expect(born[0]?.text).toMatch(/born/i)
+  }, 40_000)
+
+  it('Records a cat that gives up on the area', async () => {
+    const entries = await logFrom({
+      config: { maleMice: 0, femaleMice: 0, cats: 2, traps: 0, foodPiles: 0, ticks: 1_000 },
+    })
+    const left = entries.filter((e) => e.kind === 'cat_left')
+    expect(left.length).toBe(2)
+    expect(left[0]?.text).toMatch(/left the area/i)
+  }, 30_000)
+
+  it('Loses nothing that happened between two frames', async () => {
+    // Frames go out every few ticks; a death on any other tick must still
+    // appear, so the log is complete rather than sampled.
+    const entries = await logFrom()
+    const ticks = entries.map((e) => e.tick)
+    expect(new Set(ticks).size).toBeGreaterThan(5)
+    expect(ticks).toEqual([...ticks].sort((a, b) => a - b))
+  }, 30_000)
+
+  it('Carries only what changes the population', async () => {
+    const entries = await logFrom()
+    const kinds = new Set(entries.map((e) => e.kind))
+    for (const k of kinds) {
+      expect(['starved', 'eaten', 'trapped', 'born', 'mated', 'cat_left', 'birth_lost'])
+        .toContain(k)
+    }
+  }, 30_000)
 })
 
 describe('What a run reports about its population', () => {

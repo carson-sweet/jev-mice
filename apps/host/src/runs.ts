@@ -13,7 +13,7 @@ import { jevProvider, type SystemOneLike } from '@jev-mice/provider-jev'
 import {
   createSimulation, SPEED,
   type ChunkAck, type ChunkReport, type Control, type Coordinator, type Extent,
-  type Frame, type Simulation,
+  type Frame, type LogEntry, type Simulation,
 } from '@jev-mice/sim'
 
 export type RunStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
@@ -43,8 +43,9 @@ export interface RunSummary {
 }
 
 export type ViewerMessage =
-  | { t: 'hello'; run: RunSummary; frame: Frame | null }
+  | { t: 'hello'; run: RunSummary; frame: Frame | null; log: LogEntry[] }
   | { t: 'frame'; frame: Frame }
+  | { t: 'log'; entries: LogEntry[] }
   | { t: 'status'; run: RunSummary }
   | { t: 'error'; message: string }
 
@@ -54,8 +55,8 @@ export interface RunManagerOptions {
   /** Absent means every decision is computed by the fixed rules. */
   apiKey: string | null
   client?: SystemOneLike
-  /** How many frames to keep so a viewer joining late sees something at once. */
-  frameHistory?: number
+  /** How many log lines to keep so a viewer joining late sees something at once. */
+  logHistory?: number
 }
 
 export interface RunManager {
@@ -81,6 +82,8 @@ interface Live {
   summary: RunSummary
   sim: Simulation | null
   lastFrame: Frame | null
+  /** Bounded: a long run must not grow the process's memory through its log. */
+  log: LogEntry[]
   controlSeq: number
   watchers: Set<(m: ViewerMessage) => void>
   decider: Decider
@@ -95,6 +98,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
   mkdirSync(opts.root, { recursive: true })
 
   const jevAvailable = opts.apiKey !== null || opts.client !== undefined
+  const history = opts.logHistory ?? 500
 
   const dir = (id: string, ...rest: string[]): string =>
     join(opts.root, 'runs', id, ...rest)
@@ -158,11 +162,16 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         publish(live, { t: 'status', run: { ...live.summary } })
         return Promise.resolve(ackNow())
       },
-      frames: (frames) => {
+      frames: (frames, entries) => {
         for (const frame of frames) {
           live.lastFrame = frame
           live.summary.currentTick = frame.tick
           publish(live, { t: 'frame', frame })
+        }
+        if (entries.length > 0) {
+          live.log.push(...entries)
+          if (live.log.length > history) live.log.splice(0, live.log.length - history)
+          publish(live, { t: 'log', entries })
         }
         return Promise.resolve()
       },
@@ -261,12 +270,14 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         },
         error: null,
         decidedBy: chosen,
-        speed: clampSpeed(speed),
+        // Slow by default: the first thing anyone sees should be watchable, and
+        // the slider is right there for anyone who wants it faster.
+        speed: speed === undefined ? SPEED.slowest : clampSpeed(speed),
         population: { mice: blank(), cats: blank() },
       }
       const live: Live = {
-        summary, sim: null, lastFrame: null, controlSeq: 0, watchers: new Set(),
-        decider: chosen,
+        summary, sim: null, lastFrame: null, log: [], controlSeq: 0,
+        watchers: new Set(), decider: chosen,
       }
       runs.set(id, live)
       order.unshift(id)
@@ -317,7 +328,10 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         return () => undefined
       }
       live.watchers.add(send)
-      send({ t: 'hello', run: { ...live.summary }, frame: live.lastFrame })
+      send({
+        t: 'hello', run: { ...live.summary }, frame: live.lastFrame,
+        log: [...live.log],
+      })
       return () => live.watchers.delete(send)
     },
 
