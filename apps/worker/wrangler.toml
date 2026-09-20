@@ -54,6 +54,6 @@ JEV_PRICE_PER_MTOK = "0.28"
 
 # Cloudflare Web Analytics. Cookieless, no cross-site identity. Empty means no
 # beacon is injected, which is what local development gets.
-CF_ANALYTICS_TOKEN = ""
+CF_ANALYTICS_TOKEN = "8966086a6b1c4568a6cec4c593ff5160"
 
 # TYPESAFE_API_KEY is a secret, set with: wrangler secret put TYPESAFE_API_KEY

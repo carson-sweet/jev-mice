@@ -22,6 +22,9 @@ const LOOKS_LIKE_A_TOKEN = /^[A-Za-z0-9]{6,64}$/
 export function beaconTag(token: string | undefined): string | null {
   const clean = (token ?? '').trim()
   if (!LOOKS_LIKE_A_TOKEN.test(clean)) return null
-  return '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" '
+  // type="module" is the form Cloudflare issues, and a module is deferred by
+  // default. Copied from their snippet rather than approximated, so the tag
+  // stays whatever they decide it should be.
+  return '<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" '
     + `data-cf-beacon='{"token": "${clean}"}'></script>`
 }

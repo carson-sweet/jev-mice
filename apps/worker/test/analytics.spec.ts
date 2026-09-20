@@ -24,7 +24,9 @@ describe('The usage beacon', () => {
   })
 
   it('Loads without blocking the page', () => {
-    expect(beaconTag('abc123')).toContain('defer')
+    // A module script is deferred by default, and this is the form Cloudflare
+    // issues in its own snippet.
+    expect(beaconTag('abc123')).toContain('type="module"')
   })
 
   it('Refuses a token that is not a plain identifier', () => {
