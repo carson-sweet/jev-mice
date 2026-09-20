@@ -60,7 +60,14 @@ interface CatState {
   nutrition: number
   band: 'fed' | 'hungry'
   seen: string[]
-  bestDistance: number
+  /**
+   * The closest this cat has come to its current target, or null before it has
+   * measured one. Null rather than Infinity because a snapshot is a JSON
+   * document: Infinity serializes to null, so a resumed cat read its own best
+   * distance as null, never beat it, and abandoned every target after thirty
+   * turns of false patience.
+   */
+  bestDistance: number | null
   drift: { dx: number; dy: number }
 }
 
@@ -193,7 +200,7 @@ function build(
       cats.push({ id: `c${pad(i + 1)}`, x: c.x, y: c.y, mode: 'prowl', target: null,
         nutrition: CAT.startingNutrition, band: 'fed', seen: [],
         pounceCooldown: 0, patience: 0, lastSighting: null, sightingUntil: 0,
-        busyUntil: 0, bestDistance: Infinity, drift: { dx: 0, dy: 0 } })
+        busyUntil: 0, bestDistance: null, drift: { dx: 0, dy: 0 } })
     }
   }
 
@@ -315,7 +322,7 @@ function build(
     for (const c of cats) {
       if (c.pounceCooldown > 0) c.pounceCooldown--
       if (c.mode === 'eating' && tick >= c.busyUntil) {
-        c.mode = 'rest'; c.target = null; c.bestDistance = Infinity
+        c.mode = 'rest'; c.target = null; c.bestDistance = null
         // resuming next tick, not this one: the tick it stops eating is spent finishing
         c.busyUntil = tick + 1
         emit({ kind: 'cat_eating_ended', id: c.id } as never)
@@ -499,7 +506,7 @@ function build(
         return a === null || score(b) < score(a) ? b : a
       }, null)
       c.target = best?.id ?? null
-      c.bestDistance = Infinity
+      c.bestDistance = null
       c.patience = 0
       c.mode = best ? 'stalk' : 'prowl'
       emit({ kind: 'cat_targeted', id: c.id, target: c.target, mode: c.mode } as never)
@@ -589,11 +596,14 @@ function build(
     }
     if (target) {
       const d = chebyshev({ x: c.x, y: c.y }, { x: target.x, y: target.y })
-      if (d < c.bestDistance) { c.bestDistance = d; c.patience = 0 } else c.patience++
+      if (c.bestDistance === null || d < c.bestDistance) {
+        c.bestDistance = d
+        c.patience = 0
+      } else c.patience++
       if (c.patience >= TIMING.catPatience) {
         c.lastSighting = { x: target.x, y: target.y }
         c.sightingUntil = tick + TIMING.catReturnToSighting
-        c.target = null; c.mode = 'prowl'; c.bestDistance = Infinity; c.patience = 0
+        c.target = null; c.mode = 'prowl'; c.bestDistance = null; c.patience = 0
         emit({ kind: 'cat_targeted', id: c.id, target: null, mode: 'prowl' } as never)
         return
       }
