@@ -136,6 +136,12 @@ export interface SimulationOptions {
   provider: (o: Allowance) => import('@jev-mice/engine').DecisionProvider
   /** Pacing only. Overridden in tests; the engine never reads a clock. */
   now?: () => number
+  /**
+   * Called once with the engine this run drives. The coordinator protocol needs
+   * a run's current world state on demand, to answer a viewer joining between
+   * chunk boundaries, and this is the handle for it.
+   */
+  onEngine?: (engine: import('@jev-mice/engine').Engine) => void
 }
 
 export interface Simulation {

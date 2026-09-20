@@ -5,7 +5,7 @@
 import type {
   AgentId, CandidateScore, Cell, DecisionBatch, DecisionProvider, DecisionRequest,
   DecisionSubject, Drive, FearLevel, HungerBand, Memory, Personality, RunConfig, Sex,
-  SimEvent, Snapshot, Spottable, Tick, WorldView,
+  CatMode, SimEvent, Snapshot, Spottable, Tick, WorldView,
 } from './types.js'
 import {
   ALARM_RANGE, BATCH_SIZE, CAT, catBand, DRIVES, ENGINE_VERSION, hungerBand, JITTER,
@@ -487,6 +487,16 @@ function build(
     return out
   }
 
+  /** What a subject chose for one question, or null when it was not answered. */
+  function choiceOf(s: DecisionSubject, name: string): string | null {
+    const answer = s.answers[name]
+    return answer !== undefined && answer.type === 'choice' ? answer.choice : null
+  }
+
+  const CAT_MODES: readonly CatMode[] = ['prowl', 'stalk', 'pounce', 'rest'] as const
+  const modeOf = (label: string | null): CatMode =>
+    (CAT_MODES as readonly string[]).includes(label ?? '') ? label as CatMode : 'stalk'
+
   function applyDecision(s: DecisionSubject): void {
     const m = mice.find((x) => x.id === s.agentId)
     if (m) {
@@ -498,17 +508,25 @@ function build(
     }
     const c = cats.find((x) => x.id === s.agentId)
     if (c) {
-      const visible = mice.filter((x) => !x.inHole
-        && chebyshev({ x: x.x, y: x.y }, { x: c.x, y: c.y }) <= PERCEPTION.cat)
-      const best = visible.reduce<MouseState | null>((a, b) => {
-        const score = (m2: MouseState) =>
-          chebyshev({ x: m2.x, y: m2.y }, { x: c.x, y: c.y }) + m2.nutrition / 20
-        return a === null || score(b) < score(a) ? b : a
-      }, null)
-      c.target = best?.id ?? null
+      // The answer decides, not a second heuristic here. Recomputing it threw
+      // away every cat decision and made cat_targeted contradict the
+      // decision_returned event just emitted.
+      const chosen = choiceOf(s, 'target')
+      const named = chosen === null || chosen === 'none_worth_it'
+        ? null
+        : mice.find((x) => x.id === chosen
+            && !x.inHole
+            && chebyshev({ x: x.x, y: x.y }, { x: c.x, y: c.y }) <= catPerception(c))
+      const mode = modeOf(choiceOf(s, 'mode') ?? s.intent)
+
+      c.target = named?.id ?? null
       c.bestDistance = null
       c.patience = 0
-      c.mode = best ? 'stalk' : 'prowl'
+      // Without a target there is nothing to stalk or spring at.
+      c.mode = named === undefined || named === null
+        ? (mode === 'rest' ? 'rest' : 'prowl')
+        : mode
+      if (c.mode === 'rest') c.busyUntil = Math.max(c.busyUntil, tick + TIMING.catRest)
       emit({ kind: 'cat_targeted', id: c.id, target: c.target, mode: c.mode } as never)
     }
   }

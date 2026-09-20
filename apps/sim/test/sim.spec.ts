@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { gunzipSync } from 'node:zlib'
 import {
-  defaultConfig, baselineProvider, type RunConfig, type Snapshot,
+  defaultConfig, baselineProvider, type Engine, type RunConfig, type Snapshot,
 } from '@jev-mice/engine'
 import {
   createSimulation, CHUNK_TICKS,
@@ -32,6 +32,7 @@ function harness(over: {
   ackFor?: (report: ChunkReport | null) => ChunkAck
   onReport?: (r: ChunkReport, rec: Recorded) => void
   onUpload?: (url: string) => void
+  capture?: (engine: Engine) => void
 } = {}) {
   const rec: Recorded = { puts: [], reports: [], frames: [], done: [], failed: [] }
   const answer = over.ackFor ?? (() => ack())
@@ -51,6 +52,7 @@ function harness(over: {
       rec.puts.push({ url, body }); over.onUpload?.(url); return Promise.resolve()
     },
     provider: () => baselineProvider(),
+    ...(over.capture ? { onEngine: over.capture } : {}),
   })
   return { sim, rec }
 }
@@ -691,6 +693,39 @@ describe('Per-turn telemetry', () => {
       .map((e) => e.kind))
     for (const wanted of ['spotted', 'hunger_changed', 'food_eaten', 'death', 'tick_advanced']) {
       expect(kinds, `no ${wanted} in the record`).toContain(wanted)
+    }
+  }, 30_000)
+})
+
+describe('What the process holds on to', () => {
+  it('Does not let the engine keep every event of the run', async () => {
+    // ISSUE-014. The engine buffers events until drained, and the process was
+    // only ever slicing from a remembered index, so a long run retained
+    // everything: measured at 335,880 events and 136MB after 3,000 ticks.
+    let engine: Engine | null = null
+    const { sim } = harness({
+      config: { ticks: 1_500, foodPiles: 20, foodRespawnTicks: 10,
+                nutritionDecayPerTick: 0.2 },
+      capture: (e) => { engine = e },
+    })
+    await sim.start()
+    expect(engine).not.toBeNull()
+    const held = (engine as unknown as Engine).events().length
+    // A chunk closes every 250 ticks, so nothing older than the open chunk
+    // should still be sitting in the engine.
+    expect(held, `the engine is still holding ${String(held)} events`)
+      .toBeLessThan(CHUNK_TICKS * 200)
+  }, 30_000)
+
+  it('Still reports every event it consumed, having drained them', async () => {
+    const { sim, rec } = harness({ config: { ticks: 500 } })
+    await sim.start()
+    const stored = rec.puts.filter((p) => p.url === 'put:chunk')
+      .flatMap((p) => (JSON.parse(gunzipSync(p.body).toString('utf8')) as ChunkBody).events)
+    // Draining must not lose anything: every turn still appears in the record.
+    const ticks = new Set(stored.map((e) => e.tick))
+    for (let t = 1; t <= 500; t++) {
+      expect(ticks.has(t), `turn ${String(t)} vanished from the record`).toBe(true)
     }
   }, 30_000)
 })

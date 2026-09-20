@@ -348,10 +348,12 @@ export function createSimulation(opts: SimulationOptions): Simulation {
         credit = Math.min(credit, control.speed)
       }
 
-      const before = engine?.events().length ?? 0
       await engine?.step()
       tick += 1
-      const fresh = (engine?.events() ?? []).slice(before)
+      // Drained, not sliced. Slicing from a remembered index left the engine
+      // holding every event of the run: 335,880 events and 136MB after 3,000
+      // ticks, projecting to roughly 847MB over a full-length run.
+      const fresh = engine?.drain() ?? []
 
       accumulate(fresh)
       logFrom(fresh, tick)
@@ -416,6 +418,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
           engine = createEngine({ config: opts.config, seed: opts.seed, provider: forwarding })
           chunkFirstTick = 1
         }
+        opts.onEngine?.(engine)
         totals.currentTick = tick
         // Sampled before the first tick, or the population a run started with
         // would never appear in its own extremes.

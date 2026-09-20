@@ -2,7 +2,7 @@
 id: ISSUE-013
 title: "Cat decisions are computed then discarded"
 type: bug
-status: todo
+status: done
 priority: P0
 effort: m
 epic: null
@@ -40,3 +40,12 @@ part of the engine, and the request sent to Jev, uses 11.
 A cat's target and mode come from the answer. A test asserts that a provider
 returning a specific target produces a `cat_targeted` naming that target, and
 that a hungry cat can target a mouse at distance 11.
+
+## Resolution
+
+Fixed 2026-09-20. A cat now reads `answers.target` and `answers.mode` from the
+subject it was given, and the recomputed heuristic is gone. A target it cannot
+perceive is refused, and the reach is `catPerception(c)` so a hungry cat can be
+given a mouse at 11 rather than 8. Four tests in
+`packages/engine/test/ep2/cat-decisions.spec.ts`, including one that picks a
+target the old heuristic would never have chosen.

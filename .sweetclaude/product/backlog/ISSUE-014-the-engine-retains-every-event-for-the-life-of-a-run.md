@@ -2,7 +2,7 @@
 id: ISSUE-014
 title: "The engine retains every event for the life of a run"
 type: bug
-status: todo
+status: done
 priority: P0
 effort: s
 epic: null
@@ -33,3 +33,10 @@ ends.
 The simulation drains what it has consumed. A test asserts the retained buffer
 does not grow without bound over a long run, and the determinism and snapshot
 suites still pass, since draining changes what `events()` returns.
+
+## Resolution
+
+Fixed 2026-09-20. The process drains the engine rather than slicing from a
+remembered index. Measured over 3,000 ticks: 335,880 events and 136MB retained
+before, 0 events and 45MB after. Two tests assert the buffer stays bounded and
+that draining loses no turn from the record.
