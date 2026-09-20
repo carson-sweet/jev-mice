@@ -1,0 +1,9 @@
+{
+  "name": "@jev-mice/sim",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@jev-mice/engine": "*", "@jev-mice/provider-jev": "*" }
+}
