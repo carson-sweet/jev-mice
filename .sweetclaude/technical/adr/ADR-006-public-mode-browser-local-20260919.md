@@ -1,0 +1,1 @@
+../../work/WI-001/design/adr/ADR-006-public-mode-browser-local-20260919.md

@@ -1,0 +1,1 @@
+../../work/WI-001/design/adr/ADR-010-npm-workspaces-three-packages-20260919.md

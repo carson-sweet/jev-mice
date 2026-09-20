@@ -1,0 +1,133 @@
+flows:
+- flow_id: F-01
+  title: Sign in with Google
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-02
+  title: Arrive in public mode
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-03
+  title: Configure and start a run
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-04
+  title: Watch a live run
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-05
+  title: Inspect an animal
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-06
+  title: Leave and come back
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-07
+  title: Run library
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-08
+  title: Replay a completed run
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-09
+  title: Compare two runs
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-10
+  title: Share a run
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-11
+  title: Export a run
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-12
+  title: Quota and budget states
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-13
+  title: Account
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-14
+  title: Queue
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-15
+  title: Baseline twin
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+- flow_id: F-16
+  title: Public-mode run lifetime
+  story_id: null
+  requirements: see document
+  entry_point: see document
+  steps: []
+  success_state: see document
+  error_states: []
+flow_count: 16
+source: requirements v2.1 and architecture v2.1 (no stories yet)
+current_file: .sweetclaude/work/WI-001/design/jev-mice-user-flows-final-v1.0-20260919.md
+status: final

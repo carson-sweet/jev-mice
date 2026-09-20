@@ -1,0 +1,1 @@
+../../work/WI-001/design/adr/ADR-017-browser-as-viewer-20260919.md

@@ -1,0 +1,1 @@
+../../work/WI-001/design/adr/ADR-005-google-sign-in-hono-kv-auth-flag-20260919.md

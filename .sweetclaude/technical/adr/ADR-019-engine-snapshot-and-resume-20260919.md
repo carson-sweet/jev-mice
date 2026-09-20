@@ -1,0 +1,1 @@
+../../work/WI-001/design/adr/ADR-019-engine-snapshot-and-resume-20260919.md

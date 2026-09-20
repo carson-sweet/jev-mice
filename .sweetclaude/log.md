@@ -169,3 +169,57 @@
 **Improvement check-in:** nothing to change (lr-004, confirmation)
 
 **Next-phase skills surfaced:** design-architecture, design-tech-spec, design-data-model, design-api-design, design-user-flows, design-wireframes, design-ux-review, design-solutioning-gate, design-manage-decisions
+
+## 2026-09-19T22:48:23Z — design-architecture (n/a)
+
+**Status:** completed (draft v1.0, awaiting review)
+
+**Produced:** .sweetclaude/work/WI-001/design/jev-mice-architecture-draft-v1.0-20260919.md (symlinked into .sweetclaude/technical/), 12 ADRs in design/adr/ (symlinked into .sweetclaude/technical/adr/), architecture.yaml
+
+**Compliance flags:** personal data present (Google id, email, name, avatar); US-only per Carson; gdpr_floor; six HARD REQUIREMENTS in section 6
+
+**Key decisions:** hosted multi-tenant web app on Cloudflare Workers with Hono; Google sign-in via Hono OAuth middleware and KV sessions behind an auth flag; Neon Postgres plus R2 plus IndexedDB cache; Durable Object quotas with baseline fallback; browser-local public mode; engine in a Web Worker; Vite React Tailwind uPlot; npm workspaces; Vitest
+
+**Open questions:** owner allowlist, blob cap, retention default, Neon project layout, upload-after-sign-in behavior; PRD v3.0 and brief v2.0 needed for the scope change (scope-changes 1-3)
+
+## 2026-09-19T23:47:44Z — design-architecture revision v1.0 -> v2.0
+
+**Status:** completed (draft, awaiting review)
+
+**Produced:** .sweetclaude/work/WI-001/design/jev-mice-architecture-draft-v2.0-20260919.md; ADR-013 to ADR-018; ADR-002, 004, 006, 008, 009, 010 marked superseded; v1.0 deprecated
+
+**Key decisions:** server-side simulation in a Cloudflare Container per run orchestrated by a Run Durable Object; chunked records and summary series in R2; Jev from the container with per-chunk metering; browser as viewer; public mode server-side with 24-hour retention; four packages
+
+**Open questions:** chunk size, instance type per preset, active-run limits, retention values, snapshot restart, Neon project layout
+
+## 2026-09-20T00:37:16Z — design-architecture revision v2.0 -> v2.1
+
+**Status:** completed (draft, awaiting review)
+
+**Produced:** .sweetclaude/work/WI-001/design/jev-mice-architecture-draft-v2.1-20260919.md; ADR-019, ADR-020; v2.0 deprecated
+
+**Key decisions:** six open questions resolved one at a time (decision log 40-45); zero open questions remain
+
+## 2026-09-20T00:39:15Z — architecture v2.1 approved as final
+
+**Status:** completed
+
+**Produced:** .sweetclaude/work/WI-001/design/jev-mice-architecture-final-v2.1-20260919.md; 20 ADRs (14 accepted, 6 superseded)
+
+## 2026-09-20T00:42:39Z — design-user-flows (n/a)
+
+**Status:** completed (draft v1.0, awaiting review)
+
+**Produced:** .sweetclaude/work/WI-001/design/jev-mice-user-flows-draft-v1.0-20260919.md (symlinked into .sweetclaude/design/user-flows/); .sweetclaude/state/ux-flows.yaml
+
+**Flows defined:** 16
+
+**Skipped/shortcuts:** No stories exist; flows derived from requirements v2.1 and architecture v2.1 at Carson's choice. Per-flow "does this capture it" check consolidated into one draft review at Guided deference.
+
+**Open questions:** compare tray persistence, inspector on share pages, rename in first version, duration estimate on configure
+
+## 2026-09-20T00:46:27Z — user flows v1.0 approved as final
+
+**Status:** completed
+
+**Produced:** .sweetclaude/work/WI-001/design/jev-mice-user-flows-final-v1.0-20260919.md

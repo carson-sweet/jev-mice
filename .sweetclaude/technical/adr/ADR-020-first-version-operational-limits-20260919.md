@@ -1,0 +1,1 @@
+../../work/WI-001/design/adr/ADR-020-first-version-operational-limits-20260919.md

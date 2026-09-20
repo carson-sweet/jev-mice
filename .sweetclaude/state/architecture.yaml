@@ -1,0 +1,42 @@
+style: monolith
+tech_stack:
+  language: TypeScript
+  framework: Hono on Cloudflare Workers (API, Durable Objects); Node in Cloudflare
+    Containers (simulation); React 19 + Vite (viewer); engine as standalone package
+  database: Neon Postgres 17 via serverless driver + Drizzle; KV sessions; R2 chunked
+    run records and summaries; Durable Object counters
+  deployment: Cloudflare Workers with static assets plus Containers via wrangler;
+    local dev via @cloudflare/vite-plugin
+compliance_requirements:
+- pii_minimal_scopes_and_fields
+- no_analytics_or_tracking
+- secrets_server_side_only
+- secure_httponly_sessions
+- authorization_on_every_run_route
+- jev_payload_validation
+- container_callback_token
+adr_ids:
+- ADR-001
+- ADR-003
+- ADR-005
+- ADR-007
+- ADR-011
+- ADR-012
+- ADR-013
+- ADR-014
+- ADR-015
+- ADR-016
+- ADR-017
+- ADR-018
+- ADR-019
+- ADR-020
+boundary_design_type: modules
+current_architecture_file: .sweetclaude/work/WI-001/design/jev-mice-architecture-final-v2.1-20260919.md
+superseded_adr_ids:
+- ADR-002
+- ADR-004
+- ADR-006
+- ADR-008
+- ADR-009
+- ADR-010
+status: final

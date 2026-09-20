@@ -1,0 +1,1 @@
+../../work/WI-001/design/adr/ADR-002-engine-in-web-worker-20260919.md
