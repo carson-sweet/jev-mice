@@ -112,13 +112,20 @@ run is going.
 
 ## Reading the map
 
-Shape carries what a thing is and shade carries its condition, so the map does
-not depend on colour alone. A mouse is a blue circle, a cat a red triangle,
-food a green square, a trap an orange diamond and a mousehole a grey ring. The
-four solid shapes stay distinct down to a few pixels, which is why the same
+Shape carries what a thing is, and colour never changes with its condition. A
+mouse is a blue circle, a cat a red triangle, food a green square, a trap an
+orange diamond and a mousehole a grey ring. A hungry animal keeps its own colour
+and gains one bright yellow dot, the same dot on a mouse and on a cat.
+
+The four solid shapes stay distinct down to a few pixels, which is why the same
 glyphs work on the large preset as on the small one. The key under the map and
 the chart's own legend both draw their swatches with the same function the map
-uses, so none of the three can drift apart.
+uses, and a test asserts the key names every glyph exactly once, so none of the
+three can drift apart.
+
+Two marks are not in the key because they are not things in the world: a yellow
+ring around the mouse you have selected, and the same ring around whatever a
+hovered log line is about.
 
 A cat has its own hunger. It decays slowly, a mouse restores half of it, and a
 cat below half sees further, springs from further away and stops resting after

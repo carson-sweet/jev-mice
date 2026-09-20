@@ -9,17 +9,17 @@ import { COLOURS, drawGlyph, type GlyphKind } from './glyphs'
 
 /** Each kind reads as what it happened to, so the column scans by shape. */
 const GLYPH: Record<LogEntry['kind'], GlyphKind> = {
-  starved: 'mouseFaint',
+  starved: 'mouseHungry',
   eaten: 'cat',
   trapped: 'trap',
   born: 'mouse',
   mated: 'mouse',
   cat_starved: 'catHungry',
-  birth_lost: 'mouseFaint',
+  birth_lost: 'mouseHungry',
 }
 
 const TINT: Record<LogEntry['kind'], string> = {
-  starved: COLOURS.mouseFaint,
+  starved: COLOURS.mouse,
   eaten: COLOURS.cat,
   trapped: COLOURS.trap,
   born: COLOURS.food,

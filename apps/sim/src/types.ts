@@ -57,7 +57,9 @@ export interface Frame {
   tick: number
   population: number
   mice: { id: string; x: number; y: number; nutrition: number; intent: string | null
-          fear: string; inHole: boolean }[]
+          fear: string; inHole: boolean
+          /** Below the fed band, by the engine's own reckoning. */
+          hungry: boolean }[]
   cats: { id: string; x: number; y: number; mode: string
           nutrition: number; hungry: boolean }[]
   food: { id: string; x: number; y: number }[]

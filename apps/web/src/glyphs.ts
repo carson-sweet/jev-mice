@@ -5,53 +5,57 @@
 // to nothing as cells shrink and a colour alone is not enough to tell two
 // things apart. Circle, triangle, square and diamond stay distinct down to a
 // few pixels, which is what makes the same glyph work on every preset.
+//
+// Colour says what a thing is and never how it is doing. A shade ramp for
+// nutrition looked like a different animal at a glance; hunger is one bright
+// dot in the middle instead, the same dot on a mouse and on a cat.
 
 export type GlyphKind =
-  | 'mouse' | 'mouseFaint' | 'cat' | 'catHungry'
-  | 'food' | 'trap' | 'trapOccupied' | 'hole' | 'holeOccupied'
+  | 'mouse' | 'mouseHungry' | 'food'
+  | 'cat' | 'catHungry' | 'trap'
+  | 'trapOccupied' | 'hole' | 'holeOccupied'
+
+/** Every glyph the map can draw. The legend is tested against this. */
+export const GLYPH_KINDS: readonly GlyphKind[] = [
+  'mouse', 'mouseHungry', 'food',
+  'cat', 'catHungry', 'trap',
+  'trapOccupied', 'hole', 'holeOccupied',
+] as const
+
+/** Read down each column, not across. */
+export const LEGEND_COLUMNS: readonly (readonly GlyphKind[])[] = [
+  ['mouse', 'mouseHungry', 'food'],
+  ['cat', 'catHungry', 'trap'],
+  ['trapOccupied', 'hole', 'holeOccupied'],
+] as const
 
 export const COLOURS = {
   mouse: '#3b82f6',
-  mouseFaint: '#93c5fd',
+  mouseHungry: '#3b82f6',
   cat: '#ef4444',
-  catHungry: '#b91c1c',
+  catHungry: '#ef4444',
   food: '#22c55e',
   trap: '#f97316',
   trapOccupied: '#9a3412',
   hole: '#64748b',
   holeOccupied: '#cbd5e1',
+  /** Hunger, on either animal. Used for nothing else. */
+  hungry: '#fde047',
   background: '#0b0d10',
   grid: '#151a21',
   selected: '#facc15',
 } as const
 
-/** Mice stay blue and cats stay red; condition moves the shade, never the hue. */
-export function mouseShade(nutrition: number): string {
-  const t = Math.max(0, Math.min(100, nutrition)) / 100
-  const r = Math.round(147 - 88 * t)
-  const g = Math.round(197 - 67 * t)
-  const b = Math.round(253 - 7 * t)
-  return `rgb(${String(r)},${String(g)},${String(b)})`
-}
-
-export function catShade(nutrition: number): string {
-  const t = Math.max(0, Math.min(100, nutrition)) / 100
-  const r = Math.round(185 + 54 * t)
-  const g = Math.round(28 + 40 * t)
-  const b = Math.round(28 + 40 * t)
-  return `rgb(${String(r)},${String(g)},${String(b)})`
-}
-
 const LABELS: Record<GlyphKind, string> = {
   mouse: 'Mouse',
-  mouseFaint: 'Mouse, close to starving',
+  mouseHungry: 'Hungry mouse',
   cat: 'Cat',
-  catHungry: 'Cat, hungry and hunting harder',
+  catHungry: 'Hungry cat',
   food: 'Food pile',
   trap: 'Trap',
-  trapOccupied: 'Trap holding a dead mouse',
-  hole: 'Mousehole, free',
-  holeOccupied: 'Mousehole, in use',
+  trapOccupied: 'Trap with a dead mouse',
+  hole: 'Mousehole, available',
+  holeOccupied: 'Mousehole, occupied',
 }
 
 export const glyphLabel = (kind: GlyphKind): string => LABELS[kind]
@@ -76,12 +80,21 @@ export function drawGlyph(
   ctx.fillStyle = colour ?? COLOURS[kind]
   ctx.strokeStyle = colour ?? COLOURS[kind]
 
+  /** One bright dot in the middle, the same on either animal. */
+  const hungerDot = (): void => {
+    ctx.fillStyle = COLOURS.hungry
+    ctx.beginPath()
+    ctx.arc(cx, cy, Math.max(1, r * 0.42), 0, Math.PI * 2)
+    ctx.fill()
+  }
+
   switch (kind) {
     case 'mouse':
-    case 'mouseFaint': {
+    case 'mouseHungry': {
       ctx.beginPath()
       ctx.arc(cx, cy, r, 0, Math.PI * 2)
       ctx.fill()
+      if (kind === 'mouseHungry') hungerDot()
       return
     }
     case 'cat':
@@ -93,6 +106,14 @@ export function drawGlyph(
       ctx.lineTo(cx - r, cy + r * 0.85)
       ctx.closePath()
       ctx.fill()
+      // Sits a little low, because a triangle's visual centre is below its
+      // middle and a centred dot reads as high.
+      if (kind === 'catHungry') {
+        ctx.fillStyle = COLOURS.hungry
+        ctx.beginPath()
+        ctx.arc(cx, cy + r * 0.2, Math.max(1, r * 0.34), 0, Math.PI * 2)
+        ctx.fill()
+      }
       return
     }
     case 'food': {
@@ -111,7 +132,7 @@ export function drawGlyph(
       ctx.fill()
       if (kind === 'trapOccupied') {
         // The mouse that died in it, so a loss is visible on the map.
-        ctx.fillStyle = COLOURS.mouseFaint
+        ctx.fillStyle = COLOURS.mouse
         ctx.beginPath()
         ctx.arc(cx, cy, Math.max(1, r * 0.38), 0, Math.PI * 2)
         ctx.fill()
@@ -135,7 +156,4 @@ export function drawGlyph(
   }
 }
 
-/** Drawn under everything else, so an animal standing on a hole is still visible. */
-export const GLYPH_ORDER: readonly GlyphKind[] = [
-  'hole', 'holeOccupied', 'food', 'trap', 'trapOccupied', 'mouse', 'cat',
-] as const
+

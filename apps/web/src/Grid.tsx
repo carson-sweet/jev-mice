@@ -4,10 +4,10 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 import type { Frame } from '@jev-mice/sim'
-import { COLOURS, catShade, drawGlyph, mouseShade } from './glyphs'
+import { COLOURS, drawGlyph, glyphLabel, type GlyphKind } from './glyphs'
 
-/** What sits on one cell, named the way the key names it. */
-export interface Identified { id: string; label: string; detail: string }
+/** What sits on one cell, named by the key rather than by a second wording. */
+export interface Identified { id: string; kind: GlyphKind; detail: string }
 
 export function Grid({ frame, width, height, selected, highlighted, onSelect }: {
   frame: Frame | null
@@ -31,28 +31,30 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
     if (!frame) return null
     const cat = frame.cats.find((c) => c.x === fx && c.y === fy)
     if (cat) {
-      return { id: cat.id, label: 'Cat',
-               detail: `${cat.id}, ${cat.mode}, ${String(cat.nutrition)} percent`
-                 + `${cat.hungry ? ', hungry' : ''}` }
+      return { id: cat.id, kind: cat.hungry ? 'catHungry' : 'cat',
+               detail: `${cat.id}, ${cat.mode}, ${String(cat.nutrition)} percent` }
     }
     const mouse = frame.mice.find((m) => !m.inHole && m.x === fx && m.y === fy)
     if (mouse) {
-      return { id: mouse.id, label: 'Mouse',
+      return { id: mouse.id, kind: mouse.hungry ? 'mouseHungry' : 'mouse',
                detail: `${mouse.id}, ${mouse.intent ?? 'deciding'}, `
                  + `${String(mouse.nutrition)} percent, ${mouse.fear}` }
     }
     const trap = frame.traps.find((x) => x.x === fx && x.y === fy)
     if (trap) {
-      return { id: trap.id, label: trap.occupied ? 'Trap, holding a dead mouse' : 'Trap',
-               detail: trap.id }
+      return { id: trap.id, kind: trap.occupied ? 'trapOccupied' : 'trap', detail: trap.id }
     }
     const food = frame.food.find((f) => f.x === fx && f.y === fy)
-    if (food) return { id: food.id, label: 'Food pile', detail: food.id }
+    if (food) return { id: food.id, kind: 'food', detail: food.id }
     const hole = frame.holes.find((h) => h.x === fx && h.y === fy)
     if (hole) {
-      return { id: hole.id,
-               label: hole.occupancy === 'empty' ? 'Mousehole, free' : `Mousehole, ${hole.occupancy}`,
-               detail: hole.id }
+      return {
+        id: hole.id,
+        kind: hole.occupancy === 'empty' ? 'hole' : 'holeOccupied',
+        // The map shows a hole as taken; only here is it said what is in it.
+        detail: hole.occupancy === 'empty' ? hole.id
+          : `${hole.id}, ${hole.occupancy === 'brood' ? 'a litter' : 'an adult sheltering'}`,
+      }
     }
     return null
   }
@@ -110,7 +112,7 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
     }
     for (const m of frame.mice) {
       if (m.inHole) continue
-      drawGlyph(ctx, 'mouse', m.x * size, m.y * size, size, mouseShade(m.nutrition))
+      drawGlyph(ctx, m.hungry ? 'mouseHungry' : 'mouse', m.x * size, m.y * size, size)
       if (m.id === selected) {
         ctx.strokeStyle = COLOURS.selected
         ctx.lineWidth = 2
@@ -120,8 +122,7 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
       }
     }
     for (const c of frame.cats) {
-      drawGlyph(ctx, c.hungry ? 'catHungry' : 'cat', c.x * size, c.y * size, size,
-                catShade(c.nutrition))
+      drawGlyph(ctx, c.hungry ? 'catHungry' : 'cat', c.x * size, c.y * size, size)
     }
 
     // Anything a hovered log line is about, ringed where it still stands.
@@ -185,7 +186,7 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
                      border-zinc-700 bg-zinc-900/95 px-1.5 py-1 text-[11px]
                      leading-tight text-zinc-200 shadow-lg"
         >
-          <span className="font-medium">{hover.what.label}</span>
+          <span className="font-medium">{glyphLabel(hover.what.kind)}</span>
           <span className="block text-zinc-500">{hover.what.detail}</span>
         </div>
       )}

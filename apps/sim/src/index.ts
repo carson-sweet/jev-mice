@@ -3,7 +3,10 @@
 // it can neither name nor reach an object it was not given.
 
 import { gzipSync } from 'node:zlib'
-import { createEngine, restore, ENGINE_VERSION, type Engine, type SimEvent } from '@jev-mice/engine'
+import {
+  createEngine, restore, ENGINE_VERSION, hungerBand,
+  type Engine, type SimEvent,
+} from '@jev-mice/engine'
 import type {
   Allowance, ChunkAck, ChunkBody, ChunkReport, Control, EndReason, Extent, Frame,
   LogEntry, Simulation, SimulationOptions, SummaryBody, SummaryPoint,
@@ -215,6 +218,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       mice: (w?.mice ?? []).map((m) => ({
         id: m.id, x: m.at.x, y: m.at.y, nutrition: Math.round(m.nutrition),
         intent: m.intent, fear: m.fear, inHole: m.inHole !== null,
+        hungry: hungerBand(m.nutrition) !== 'fed',
       })),
       cats: (w?.cats ?? []).map((c) => ({
         id: c.id, x: c.at.x, y: c.at.y, mode: c.mode,

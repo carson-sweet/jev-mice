@@ -3,7 +3,7 @@
 // somebody remembering to update both.
 
 import { useEffect, useRef } from 'react'
-import { catShade, drawGlyph, glyphLabel, mouseShade, type GlyphKind } from './glyphs'
+import { drawGlyph, glyphLabel, LEGEND_COLUMNS, type GlyphKind } from './glyphs'
 
 const SWATCH = 18
 
@@ -19,12 +19,7 @@ function Swatch({ kind }: { kind: GlyphKind }): React.ReactElement {
     canvas.height = SWATCH * dpr
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, SWATCH, SWATCH)
-    const shade = kind === 'mouse' ? mouseShade(100)
-      : kind === 'mouseFaint' ? mouseShade(10)
-      : kind === 'cat' ? catShade(100)
-      : kind === 'catHungry' ? catShade(20)
-      : undefined
-    drawGlyph(ctx, kind, 0, 0, SWATCH, shade)
+    drawGlyph(ctx, kind, 0, 0, SWATCH)
   }, [kind])
   return (
     <canvas
@@ -36,20 +31,13 @@ function Swatch({ kind }: { kind: GlyphKind }): React.ReactElement {
   )
 }
 
-const ROWS: readonly GlyphKind[][] = [
-  ['mouse', 'mouseFaint'],
-  ['cat', 'catHungry'],
-  ['food', 'trap'],
-  ['trapOccupied', 'hole'],
-  ['holeOccupied'],
-] as const
-
 export function Legend(): React.ReactElement {
   return (
     <div className="mx-auto mt-3 w-full max-w-3xl shrink-0">
       <h2 className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Key</h2>
-      <ul className="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
-        {ROWS.flat().map((kind) => (
+      {/* Three columns read downwards, so each one groups a family. */}
+      <ul className="mt-1.5 grid grid-flow-col grid-cols-3 grid-rows-3 gap-x-6 gap-y-1">
+        {LEGEND_COLUMNS.flat().map((kind) => (
           <li key={kind} className="flex items-center gap-2 text-xs text-zinc-400">
             <Swatch kind={kind} />
             <span>{glyphLabel(kind)}</span>
@@ -57,9 +45,10 @@ export function Legend(): React.ReactElement {
         ))}
       </ul>
       <p className="mt-1.5 text-[11px] text-zinc-600">
-        Shape carries what a thing is and shade carries its condition, so the map
-        still reads without relying on colour. Mice are blue, cats red, food
-        green, traps orange, and the same shapes are used at every world size.
+        Shape carries what a thing is and colour never changes with its
+        condition: a hungry animal keeps its own colour and gains a bright dot.
+        Mice are blue, cats red, food green, traps orange, and the same shapes
+        are used at every world size.
       </p>
     </div>
   )
