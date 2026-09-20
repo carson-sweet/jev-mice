@@ -33,6 +33,10 @@ Determinism is a property of the boundary, not of discipline: if the engine cann
 
 Easier: testing, replay, running under Node, moving the engine to a worker thread. Harder: anything that wants wall-clock time or direct I/O inside the engine has to be modeled as an event or an injected provider.
 
+## Correction, 2026-09-19
+
+This record's rationale predates ADR-013 and argues against server-side execution on the grounds that the browser simulates for free. That argument no longer holds and the alternatives below should be read as history. The decision itself, a platform-free engine with injected providers, is unchanged and is what made moving the engine to the server cheap.
+
 ## Alternatives Considered
 
 Engine coupled to the browser (rejected: untestable headless, replay would diverge). Engine on the server per user (rejected: server compute per tenant for a workload the browser does for free).

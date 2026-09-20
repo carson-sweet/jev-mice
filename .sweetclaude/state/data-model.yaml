@@ -16,4 +16,5 @@ engine_types:
 - SummarySeries
 - Snapshot
 status: final
-current_file: .sweetclaude/work/WI-001/design/jev-mice-data-model-final-v1.0-20260919.md
+current_file: .sweetclaude/work/WI-001/design/jev-mice-data-model-final-v1.1-20260919.md
+current_version: '1.1'

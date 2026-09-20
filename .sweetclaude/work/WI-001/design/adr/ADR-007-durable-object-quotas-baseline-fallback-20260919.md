@@ -33,6 +33,10 @@ Durable Objects give single-threaded, exact counters keyed by subject at negligi
 
 Easier: exact caps, graceful degradation. Harder: one more binding type; estimation before the call and reconciliation after.
 
+## Correction, 2026-09-19
+
+The object named GlobalBudget here is called GlobalLimits from the data model onward, because it also holds the active-run count, the queue and the shared request-rate budget. The name in this record is historical.
+
 ## Alternatives Considered
 
 KV counters (rejected: eventually consistent, races under load). Postgres counters (rejected: a write per Jev call on the hot path). No per-subject limits (rejected: one visitor can drain the budget).

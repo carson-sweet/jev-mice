@@ -1,19 +1,19 @@
 ---
 title: jev-mice API Design
-version: 1.0
+version: 1.1
 status: final
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19
 audience: hybrid
 nda: false
-changes: approved as final by Carson Sweet on 2026-09-19; paragraph numbers removed
-previous_file: jev-mice-api-design-deprecated-v1.0-20260919.md
+changes: minor. Applies the solution validation remediation: presigned object URLs and no container storage credential, the full control vocabulary pushed immediately, a world-state endpoint, a shared request-rate lease, multi-subject quota reservation, summary segments, share routes for chunk lookup, and a complete authorization matrix. Approved as final by Carson Sweet on 2026-09-19.
+previous_file: jev-mice-api-design-superseded-v1.0-20260919.md
 ---
 
 # jev-mice API Design
 
-**Version:** 1.0 (final)
+**Version:** 1.1 (final)
 
 **Date:** 2026-09-19
 
@@ -48,7 +48,7 @@ previous_file: jev-mice-api-design-deprecated-v1.0-20260919.md
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/auth/google` | Begin sign-in. Redirects to Google. Accepts `?next=` for a same-origin path to return to. |
+| GET | `/api/auth/google` | Begin sign-in. Redirects to Google. Accepts `next` only when it begins with a single slash, does not begin with two, and contains no scheme or authority; anything else is ignored rather than followed. |
 | GET | `/api/auth/google/callback` | Google returns here. Creates or updates the user, creates a session, sets the cookie, redirects to `next` or the library. |
 | POST | `/api/auth/signout` | Deletes the session from storage and clears the cookie. Always 204, even with no session. |
 
@@ -152,15 +152,16 @@ Revokes tokens, removes the object prefix, deletes the row. Returns `{ "deleted"
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/api/runs/:id/summary` | `application/gzip`, the summary series |
+| GET | `/api/runs/:id/summary` | JSON index of summary segments |
+| GET | `/api/runs/:id/summary/:seq` | `application/gzip`, one summary segment |
 | GET | `/api/runs/:id/chunks` | JSON chunk index |
 | GET | `/api/runs/:id/chunks/:seq` | `application/gzip`, one chunk |
 | GET | `/api/runs/:id/chunks/at/:tick` | 302 to the chunk containing that tick |
 | GET | `/api/runs/:id/export` | `application/x-tar`, the whole record |
 
-Chunks are immutable, so they carry `Cache-Control: private, max-age=31536000, immutable` and an ETag. Summary and snapshot carry `no-store`, because both are rewritten at every boundary. This is the difference that lets replay scrub backwards without refetching anything.
+Chunks and summary segments are immutable, so both carry `Cache-Control: private, max-age=31536000, immutable` and an ETag. Only the snapshot is mutable, and it is never served on a public route. This is what lets replay scrub backwards without refetching anything.
 
-`chunks/at/:tick` exists so the browser never needs the index to jump to a tick; a scrub is one redirect and one object.
+`chunks/at/:tick` exists so the browser never needs the index to jump to a tick. It redirects to this service's own `chunks/:seq` route, never to a storage URL, because a storage URL would grant access on possession alone and outlive both revocation and deletion.
 
 Export streams a tar assembled on the fly from the objects, never buffered. The response sets `Content-Disposition` and, when the size is known from the chunk index, `Content-Length`, so the browser can show real progress.
 
@@ -173,12 +174,15 @@ Export streams a tar assembled on the fly from the objects, never buffered. The 
 | DELETE | `/api/runs/:id/share/:tokenId` | Revoke. |
 | GET | `/api/share/:token` | Public read-only view of the run. |
 | GET | `/api/share/:token/summary` | As above, by token. |
+| GET | `/api/share/:token/summary/:seq` | As above, by token. |
+| GET | `/api/share/:token/chunks` | Chunk index, by token. |
+| GET | `/api/share/:token/chunks/at/:tick` | Chunk lookup by tick, by token. |
 | GET | `/api/share/:token/chunks/:seq` | As above, by token. |
 | GET | `/api/share/:token/stream` | WebSocket, read-only. |
 
 The token appears in a response body exactly once, when it is created. Afterwards only its hash exists, so the list route shows a prefix for recognition and never the whole thing. An owner who loses a link revokes it and makes another.
 
-A revoked, deleted, or expired target returns `404 share_not_found` with no distinction between the cases, so a token cannot be used to probe what exists.
+A revoked, deleted or expired target returns `404 share_not_found` with no distinction between the cases, so a token cannot be used to probe what exists. A share holder reaches the same record routes an owner does, including the chunk index and the lookup by tick, because replay needs both; everything under a share token is read-only.
 
 Share routes are unavailable in public mode: `POST` returns `403 sharing_disabled`.
 
@@ -231,7 +235,9 @@ type ClientMessage =
 
 **Frames are deltas against the last frame or snapshot**, packed positionally rather than as objects, because these are the only high-rate messages. A frame carries only entities that moved or changed state, so a quiet tick costs a few dozen bytes.
 
-**`inspect` is a subscription, not a request.** Selecting an animal sends one `inspect` with its id; the object then pushes a fresh `inspect` message whenever that animal's decision changes, until the viewer sends `inspect: null`. This keeps the panel live during a chase without the browser polling.
+**`inspect` is a subscription, not a request.** Selecting an animal sends one `inspect` with its id; the object then pushes a fresh `inspect` whenever that animal's decision changes, until the viewer sends `inspect: null`.
+
+**The opening `snapshot` comes from the running simulation.** The object answers from the last frame it broadcast when that is under a second old, and otherwise asks the container for its current world state. It is never read from stored data, which lags by up to a chunk.
 
 **`resync` requests a fresh snapshot** and is what the client sends if it detects a gap in tick numbers. It is a safety valve, not a normal path.
 
@@ -245,9 +251,9 @@ This is the private contract that makes server-side simulation work. The contain
 
 ### 9.1 Trust and identity
 
-At start, the Run object generates a callback token and passes it to the container in its environment along with the run id, the configuration, the seed, the TypeSafe key, and write-only object-store credentials. Every call the container makes carries `Authorization: Bearer <callbackToken>` and a run id in the path, and the object rejects any call whose token does not match the one it issued for that run. One container can therefore only ever report into the run it was started for.
+At start the Run object generates a report token and passes it to the container with the run id, the configuration, the seed and the decision key. Every call the container makes carries that token, and the object rejects any call whose token is not the one it issued for the container currently running. The token is regenerated on every start, including a restart after a watchdog timeout, so a process the system has replaced cannot report into its replacement's run.
 
-**Object-store credentials given to a container allow writing objects and nothing else.** No delete, no list, no read. A container that is somehow subverted can write garbage into its own run's prefix; it cannot destroy or read another run. Deletion uses a separate, fuller credential that only the Worker holds. This is tighter than the architecture described and costs nothing.
+**A container holds no object-store credential at all.** The coordinator chooses every key and hands the container a presigned URL good for one object and a short window: three uploads for each boundary, and one download of the snapshot when a run is resuming. A container therefore cannot name a key, cannot reach an object it was not given, and cannot delete or list anything. This replaces the write-only credential of the previous version, which could not be scoped to a prefix and could not grant the read that resume needs.
 
 ### 9.2 Container to Run object
 
@@ -270,9 +276,7 @@ interface ChunkReport {
   eventCount:  number
   bytesRaw:    number
   bytesGzip:   number
-  chunkKey:    string      // already written by the container
-  summaryKey:  string      // already rewritten
-  snapshotKey: string      // already replaced
+  // no keys: the coordinator chose them and presigned them
   usage: { requests: number; inputTokens: number
            fallbacks: number; model: string | null }
   totals: { currentTick: number; requests: number
@@ -280,15 +284,19 @@ interface ChunkReport {
 }
 
 interface ChunkAck {
-  control:   { desired: 'run' | 'pause' | 'stop'; speed: number }
+  control:   { desired: 'run' | 'pause' | 'step' | 'stop'
+               speed: number; seq: number }
   allowance: { tokens: number; degraded: boolean
-               reason?: 'quota' | 'global_budget' | 'disabled' }
+               reason?: 'quota' | 'address_quota' | 'global_budget' | 'disabled' }
+  rate:      { requestsPerMinute: number }   // this run's lease, FR-073
+  presigned: { chunk: string; summary: string; snapshot: string
+               expiresAt: string }           // for the next boundary
 }
 ```
 
-**The container writes its own objects and reports keys, rather than sending bytes.** Megabytes never pass through the Worker or the object, so their memory stays flat no matter how large a run is. The order is strict: write chunk, write summary, write snapshot, then report. A crash before the report leaves orphaned objects that the next successful report or the retention sweep cleans up; a crash after it leaves a consistent record.
+**The container uploads its own objects through presigned URLs and reports sizes, not keys.** Megabytes never pass through the Worker or the object, so their memory stays flat no matter how large a run is, and because the container cannot name a key it cannot name someone else's. The order is strict: upload chunk, upload summary segment, upload snapshot, then report. A crash before the report leaves objects the next successful report or the retention sweep cleans up; a crash after it leaves a consistent record.
 
-**The response carries both control and the next allowance**, so a steady-state run makes exactly one internal call per chunk. Pausing a run does not require pushing anything to the container; it simply learns at the next boundary. Stopping immediately is the exception and uses the push channel below.
+**The acknowledgement carries everything the container needs to continue**: the control state, the token allowance, this run's share of the deployment's request budget, and the presigned URLs for the next boundary. A steady-state run therefore makes one internal call per chunk. The request lease is what makes FR-073 enforceable: a container may not issue more requests per minute than it holds, and because every lease comes from one budget the deployment cannot breach the published limit however many runs are active.
 
 **Frames are best effort.** `/frames` batches the deltas accumulated since the last post, and the object drops them if no viewer is connected. A failed frame post is logged and forgotten; it never retries, because a stale frame is worthless.
 
@@ -296,33 +304,36 @@ interface ChunkAck {
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/control` | Push an immediate stop or pause rather than waiting for the next boundary |
+| POST | `/control` | Push run, pause, step, stop or a speed change, applied at the next tick rather than the next chunk |
 | GET | `/inspect/:agentId` | Current decision detail for one animal |
+| GET | `/world` | Current world state, for a viewer that is connecting |
 | GET | `/health` | Liveness for the object's watchdog |
 
-Only two things need pushing rather than waiting: a stop, because a user who clicks stop expects it to stop, and an inspector subscription, because the panel must be live. Everything else rides on the chunk acknowledgement.
+Control is pushed rather than carried on the acknowledgement, because a chunk boundary can be two minutes away and a person who presses pause expects it to pause. The container applies a pushed command at its next tick and ignores one whose sequence number it has already seen. `step` advances exactly one tick from a paused state, which is why the container's vocabulary has to carry it rather than stopping at run, pause and stop.
 
-**Watchdog.** The object sets an alarm for twice the expected chunk interval. If neither a chunk nor a health response has arrived by then, it treats the container as dead, starts a new one with `resumeFrom` pointing at the last snapshot, and sends watchers a `banner` that the run is resuming. Two consecutive failed resumes mark the run failed.
+`/world` exists because the coordinator holds no entity state and the stored snapshot lags by up to a chunk. It returns what a connecting viewer needs and nothing more.
+
+**Watchdog.** The object sets an alarm for twice the expected chunk interval. If neither a chunk nor a health response has arrived by then it treats the container as dead, generates a fresh report token, presigns a read of the last snapshot, starts a replacement, and tells watchers the run is resuming. The old token stops working at that moment, so a container that revives cannot report into its replacement's run. Two consecutive failed resumes mark the run failed.
 
 ### 9.4 A chunk boundary, end to end
 
 ```
-container: gzip chunk, PUT runs/{id}/chunks/000007.json.gz
-container: gzip summary, PUT runs/{id}/summary.json.gz
-container: gzip snapshot, PUT runs/{id}/snapshot.json.gz
-container -> object: POST /internal/runs/{id}/chunk  { keys, usage, totals }
-  object: insert run_chunks row
-  object: update runs row (current_tick, chunk_count, totals, jev_model)
-  object: insert jev_usage row
-  object: QuotaCounter.commit(subjectKey, actual) -> refund or overage
-  object: GlobalLimits.commit(costMicros)
-  object: QuotaCounter.reserve(subjectKey, nextEstimate) -> granted or denied
-  object: write cursor {currentTick, nextChunkSeq, lastSnapshotKey}
-object -> container: 200 { control, allowance }
-container: continue, or switch to baseline rules if allowance.degraded
+container: gzip chunk, summary segment, snapshot
+container: PUT each through the presigned URL issued with the last acknowledgement
+container -> object: POST /internal/runs/{id}/chunk  { sizes, counts, usage, totals }
+  object: insert run_chunks row; update runs row; insert jev_usage row
+  object: QuotaCounter.commit(subject, actual) for every applicable subject
+  object: GlobalLimits.commit(costMicros); GlobalLimits.releaseRate(runId)
+  object: for each applicable subject, QuotaCounter.reserve(next estimate)
+            -> first refusal denies the allowance and names which subject refused
+  object: GlobalLimits.leaseRate(runId) -> this run's share of the request budget
+  object: presign the next chunk, summary and snapshot uploads
+  object: write cursor { currentTick, nextChunkSeq, lastSnapshotKey }
+object -> container: 200 { control, allowance, rate, presigned }
+container: continue, or switch to code-only rules if allowance.degraded
 ```
 
-Reservation happens after commitment in the same call, so a run can never spend a chunk it was not granted, and the unspent part of the previous estimate is returned before the next one is taken.
+Reservation happens after commitment in the same call, so a run can never spend an allowance it was not granted, and the unspent part of the previous estimate is returned before the next is taken. Every applicable budget is consulted, not just the subject's: an anonymous run is checked against both its session and the address it was started from, and the first refusal decides.
 
 ## 10. Durable Object interfaces
 
@@ -337,6 +348,7 @@ interface RunObject {
   attachViewer(ws: WebSocket, canControl: boolean): Promise<void>
   state(): Promise<{ status: RunStatus; currentTick: number
                      queuePosition?: number }>
+  world(): Promise<WorldState>   // last broadcast frame, or a fetch from the container
   terminate(reason: 'deleted' | 'expired'): Promise<void>
 }
 
@@ -345,6 +357,8 @@ interface QuotaCounterObject {
                     limit: number; resetsAt: string }>
   reserve(tokens: number): Promise<{ granted: boolean; tokens: number
                                      reason?: 'quota' }>
+  // one instance per subject key; the caller consults every applicable
+  // subject in turn and stops at the first refusal
   commit(actual: { tokens: number; requests: number }): Promise<void>
   release(tokens: number): Promise<void>
 }
@@ -355,9 +369,12 @@ interface GlobalLimitsObject {
                                            queuePosition?: number }>
   release(runId: string): Promise<{ startedNext?: string }>
   commit(costMicros: number): Promise<void>
-  snapshot(): Promise<{ activeRuns: number; globalLimit: number
-                        costMicrosToday: number; budgetMicros: number
-                        queueLength: number }>
+  leaseRate(runId: string): Promise<{ requestsPerMinute: number }>
+  releaseRate(runId: string): Promise<void>
+  stats(): Promise<{ activeRuns: number; globalLimit: number
+                     costMicrosToday: number; budgetMicros: number
+                     queueLength: number; rateLeased: number
+                     rateBudget: number }>
 }
 ```
 
@@ -368,8 +385,11 @@ interface GlobalLimitsObject {
 | Route group | Owner | Other signed-in user | Share token holder | Anonymous creator | Anonymous other |
 |---|---|---|---|---|---|
 | Create run | yes | yes | n/a | yes | yes |
+| Validate a configuration | yes | yes | yes | yes | yes |
 | Read own library | yes | own only | no | single current run | no |
-| Read run detail, summary, chunks | yes | no | yes, read-only | yes | no |
+| Read run detail, summary index, summary segment, chunk index, chunk, chunk-by-tick | yes | no | yes, read-only | yes | no |
+| Open the run stream | yes, with control | no | yes, without control | yes, with control | no |
+| Open the share stream | n/a | n/a | yes, without control | n/a | n/a |
 | Control run | yes | no | no | yes | no |
 | Delete run | yes | no | no | yes | no |
 | Create or revoke share | yes | no | no | no, disabled | no |
@@ -377,7 +397,7 @@ interface GlobalLimitsObject {
 | Account routes | self | self | n/a | n/a | n/a |
 | Internal routes | no | no | no | no | no |
 
-Every run route resolves the run and compares its owner to the caller's subject before doing anything else, including the read routes. There is no route where ownership is implied by possession of an id.
+Every run route resolves the run and compares its owner to the caller's subject before doing anything else, including the read routes and both socket upgrades. There is no route where ownership is implied by possession of an identifier. The socket upgrade additionally checks the request's origin, because a socket carries the same control authority as the control route and the cookie policy that protects the latter does not protect a handshake. A share token grants read only: a control message arriving on a share socket is answered with an error rather than relying on the client to hide the button.
 
 ## 12. Error codes
 
@@ -398,25 +418,17 @@ Every run route resolves the run and compares its owner to the caller's subject 
 | `storage_unavailable` | 503 | Object store unreachable; nothing changed |
 | `container_start_failed` | 503 | Simulation could not be started |
 | `rate_limited` | 429 | Too many API calls from one subject |
+| `address_quota_exhausted` | 402 | The network address's daily budget is spent |
+| `origin_rejected` | 403 | Socket upgrade from an origin that is not this app |
 
 ## 13. Changes to earlier documents
 
-**Containers write objects directly and report keys.** The architecture described chunks posting to the object, which would push megabytes through it. This keeps memory flat and the data path short.
-
-**Container object-store credentials are write-only.** A subverted container cannot delete or read anything.
-
-**Control and allowance ride on the chunk acknowledgement**, so steady state is one internal call per chunk, with a push channel reserved for immediate stops and inspector subscriptions.
-
-**`GET /api/runs/:id/chunks/at/:tick`** is new; replay scrubbing needs no client-side index.
-
-**Inspect is a subscription over the socket**, not a request, which the flows implied but did not state.
+The container uploads through presigned URLs and holds no storage credential, which is what removes the unvalidated-key path entirely rather than adding a check for it. Control, the token allowance, this run's request-rate lease and the next presigned URLs all ride on the chunk acknowledgement, so steady state is one internal call per chunk; the push channel carries the whole control vocabulary including step, because a boundary can be two minutes away. A world-state endpoint exists so a connecting viewer has a source. Quota reservation consults every applicable subject and stops at the first refusal. Summary segments replace the single rewritten summary object. Share holders reach the chunk index and the lookup by tick, which replay needs. The authorization matrix now covers both sockets, the share sub-routes and configuration validation, and the socket upgrade checks its origin.
 
 ## 14. Open questions
 
-Whether frames should move to a binary encoding. JSON with positional packing is comfortable at the sizes measured on paper; measuring a Large run before optimizing is the proposal.
+Whether frames should move to a binary encoding. Measuring a Large run before optimizing is the proposal.
 
-Whether the export tar should include the snapshot. Excluding it is the proposal, since it is a resume artifact rather than part of the record.
+Whether the export archive should include the snapshot. Excluding it is the proposal, since it is a resume artifact rather than part of the record.
 
-Whether a share link should be able to carry a starting tick, so an owner can point someone at the moment the colony collapsed. Yes is the proposal, as a query parameter rather than a property of the token.
-
-Whether `/api/config/validate` should be called on every keystroke or only on blur and submit. On blur and submit is the proposal, with the engine's validator also running client-side for instant feedback.
+Whether a share link should carry a starting tick, so an owner can point someone at the moment a colony collapsed. Yes is the proposal, as a query parameter rather than a property of the token.

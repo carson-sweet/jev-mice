@@ -2,7 +2,7 @@
 id: ISSUE-001
 title: "WP-1 capacity and request budget"
 type: story
-status: new
+status: done
 priority: P0
 effort: l
 epic: null
@@ -31,3 +31,7 @@ tech spec 5.2/9, FR-073/074/086, NFR-001/008, SM-01, architecture 8, interface d
 ## Blocked by
 
 D-1
+
+## Resolution
+
+2026-09-19. Applied in the document revisions committed with the remediation: requirements v3.1, architecture v2.2, data model v1.1, interface design v1.1, technical specification v1.1, user flows v1.1, decision records ADR-021 to ADR-024, and six amended records. Verified by the re-validation pass.

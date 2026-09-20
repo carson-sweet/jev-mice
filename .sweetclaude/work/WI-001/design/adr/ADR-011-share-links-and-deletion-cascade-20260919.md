@@ -33,6 +33,10 @@ Unguessable tokens are the standard for link sharing without accounts on the vie
 
 Easier: sharing without viewer accounts, clean deletion. Harder: a shared link can die when the owner deletes; the share page must say so plainly.
 
+## Correction, 2026-09-19
+
+Written before chunking and before token hashing. A share route serves a run's chunks and summary segments, not a single blob; only a hash of a token is stored, per the data model; and account export lists run identifiers and sizes rather than blob sizes.
+
 ## Alternatives Considered
 
 Public runs by user id (rejected: guessable). Retain shared runs anonymized after deletion (rejected: complicates deletion semantics for little gain).

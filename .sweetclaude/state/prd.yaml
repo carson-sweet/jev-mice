@@ -19,7 +19,7 @@ epics:
   title: Library, sharing, export
 - id: EP-10
   title: Quotas, public mode, operations
-functional_requirements_count: 141
+functional_requirements_count: 146
 nfrs:
 - performance
 - rendering
@@ -35,8 +35,8 @@ nfrs:
 success_metrics_count: 18
 compliance_frameworks_applied:
 - gdpr_floor
-current_version: '3.0'
-current_file: .sweetclaude/product/jev-mice-prd-final-v3.0-20260919.md
+current_version: '3.1'
+current_file: .sweetclaude/product/jev-mice-prd-final-v3.1-20260919.md
 open_questions:
 - share link starting tick
 - keeping runs past 30 days without export

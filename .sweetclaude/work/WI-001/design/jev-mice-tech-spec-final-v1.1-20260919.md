@@ -1,19 +1,19 @@
 ---
 title: jev-mice Technical Specification
-version: 1.0
+version: 1.1
 status: final
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19
 audience: hybrid
 nda: false
-changes: approved as final by Carson Sweet on 2026-09-19; paragraph numbers removed
-previous_file: jev-mice-tech-spec-deprecated-v1.0-20260919.md
+changes: minor. Applies the solution validation remediation: spatial-sort batching and the corrected capacity arithmetic, the fear term written into the danger formula, streaming metrics, a declared exclusion list for stream comparison, first-party browser error reporting, and the lint, accessibility and authorization test gaps closed. Approved as final by Carson Sweet on 2026-09-19.
+previous_file: jev-mice-tech-spec-superseded-v1.0-20260919.md
 ---
 
 # jev-mice Technical Specification
 
-**Version:** 1.0 (final)
+**Version:** 1.1 (final)
 
 **Date:** 2026-09-19
 
@@ -204,7 +204,7 @@ One generator, `xoshiro128**`, seeded by expanding the run's 32-bit seed through
 export interface Rng { next(): number; state(): RngState; restore(s: RngState): void }
 ```
 
-**Every draw in the engine comes from this one object, and `Math.random` appears nowhere.** A lint rule forbids it inside `packages/engine`. Two runs with the same seed, configuration, and decision answers draw the same numbers in the same order, which is the whole basis of replay and resume.
+**Every draw in the engine comes from this one object.** A `no-restricted-globals` rule forbids `Math.random`, `Date`, `fetch`, `performance` and the document inside `packages/engine`, rather than forbidding only the first by convention. A clock read is the one that silently destroys determinism, so it is the one most worth the rule.
 
 ### 5.2 Tick order
 
@@ -218,8 +218,8 @@ The order below is fixed. Changing it changes outcomes for the same seed, so it 
  4  reflexes: for each mouse in ascending id order,
        cat adjacent          -> intent = flee   (preempts, no decision)
        on food, not full     -> intent = eat    (preempts, no decision)
- 5  collect decision-ready agents; group mice by 16x16 tile, at most 8 per batch;
-    cats individually
+ 5  collect decision-ready agents; order them by a deterministic spatial sort
+    and fill batches of at most 8; cats batched with each other, never with mice
  6  await every batch for this tick; apply answers in ascending agent id order
  7  move: for each agent due to move this tick, in ascending id order
  8  resolve interactions in this order: trap entry, capture,
@@ -232,7 +232,7 @@ The order below is fixed. Changing it changes outcomes for the same seed, so it 
 
 **Step 6 is the subtle one.** Decision batches are network calls that return in whatever order the network gives them. The engine waits for all of them, then applies them sorted by agent id. Applying an answer the moment it arrives would make the outcome depend on network timing, and replay would diverge from the live run it was recorded from. This single rule is what lets an asynchronous decision source sit inside a deterministic engine.
 
-**Ascending id order, everywhere.** Ids are assigned from a monotonic counter, never reused, and every loop that can draw randomness or mutate shared state iterates in that order rather than in insertion or map order.
+**Ascending id order, everywhere.** Ids are assigned from a monotonic counter, never reused, and every loop that can draw randomness or mutate shared state iterates in that order rather than in insertion or map order. The spatial sort used for batching is a sort key, not an iteration order: it decides who shares a request, never who is applied first.
 
 ### 5.3 Signal fields
 
@@ -244,8 +244,10 @@ Distance is Chebyshev, matching eight-neighbor movement, written `d`.
 food(c)    = Σ piles p            1 / (1 + d(c,p))
            + Σ traps t unknown    0.5 / (1 + d(c,t))
 
-danger(c)  = Σ cats k in range    4 / (1 + d(c,k))²
-           + Σ traps t known      2 / (1 + d(c,t))²
+danger(c)  = Σ cats k in range    4 / (1 + d(c,k)/f)²
+           + Σ traps t known      2 / (1 + d(c,t)/f)²
+             where f is the fear factor: unconcerned 0.5, wary 1.0,
+             alarmed 1.5, panicked 2.0
 
 mate(c)    = Σ eligible q in range  1 / (1 + d(c,q))
 
@@ -255,7 +257,9 @@ explore(c) = alignment of (c − position) with the mouse's momentum vector,
              the normalized sum of its last 8 displacements, mapped to [0,1]
 ```
 
-**Food and shelter fall off linearly, danger quadratically.** A smell should pull from across the room; a cat should dominate only near it and fade fast, so that a hungry mouse two rooms from a cat is not paralyzed. The constants 4 and 2 make a cat outweigh a known trap at equal distance, which matches what the mice should have learned.
+**Food and shelter fall off linearly, danger quadratically.** A smell should pull from across the room; a cat should dominate only near it and fade fast, so a hungry mouse two rooms from a cat is not paralyzed. The constants 4 and 2 make a cat outweigh a known trap at equal distance, which matches what the mice should have learned.
+
+**Fear divides the distance, it does not multiply the result.** This is the one place the formula has to be written exactly. Because each field is normalized across the nine candidate cells before weighting, a factor applied to the whole field cancels out and has no effect whatsoever: scaling every candidate by the same constant leaves the normalized values identical. Dividing the distance instead changes the shape of the gradient, which is what FR-043 asks for and what a frightened mouse should do. A test asserts the normalized danger values differ between fear levels, because this is a defect that would otherwise build cleanly and do nothing.
 
 **Traps a mouse does not know about contribute to `food`, at half weight.** That is the deception, expressed directly: the same object is food to the naive and danger to the experienced, and which one it is depends entirely on that mouse's memory.
 
@@ -538,10 +542,15 @@ Four tests, run as their own step in the checks, over a fixed fixture configurat
 test('same seed and provider yields an identical event stream')
 test('replaying a record reproduces its stream with zero provider calls')
 test('snapshot round trip is invisible: 500 straight === 250 + restore + 250')
-test('baseline and Jev runs on one seed diverge only at decision events')
+test('baseline and model runs on one seed diverge only at decision events')
+test('fear changes the normalized danger gradient, not just its magnitude')
 ```
 
-The third is the one that finds the bug nobody else would. Any piece of state omitted from the snapshot, any generator draw made out of order, any timer stored somewhere the serializer does not walk, shows up here as a diverging event stream and nowhere else.
+The third is the one that finds the bug nobody else would. Any piece of state omitted from the snapshot, any generator draw made out of order, any timer stored somewhere the serializer does not walk, shows up here as a diverging stream and nowhere else.
+
+**Comparison excludes wall-clock fields by a declared list.** `latencyMs`, and anything else recording how long something took rather than what happened, differ on every re-simulation and would make an exact comparison impossible. The list lives beside the comparison function, so adding a timing field to an event forces a decision about it rather than silently breaking the test.
+
+**These tests use a recorded provider and therefore prove a property of the engine, not of the service.** A run resumed live after a failure re-asks the decision model and may diverge from the run it replaces, because the model is self-consistent but not guaranteed identical. That is expected and NFR-004 says so; what the service guarantees for a live resume is only that the stream has no gap and no repeated tick, which is FR-095 and has its own test against a killed process.
 
 The Jev-facing tests use a recorded provider: a fixture of real responses captured once from the live service, replayed deterministically. No test hits the network, and the engine suite runs with no key present.
 
@@ -550,43 +559,57 @@ The Jev-facing tests use a recorded provider: a fixture of real responses captur
 Both metrics are computed by the same code the tests use and the analysis screens use, so a number on screen and a number in a test result can never disagree.
 
 ```ts
-// Flee-or-hide under threat: at least 80% of qualifying decisions must put
-// a combined 0.5 or more on flee plus hide.
-export function fleeOrHideRate(record: RunRecord): Metric {
+// Both metrics stream chunks and never hold a record. The same reducers
+// back the analysis screens, so a number on screen and a number in a test
+// result cannot disagree, and neither can breach NFR-011.
+
+export async function fleeOrHideRate(chunks: AsyncIterable<Chunk>): Promise<Metric> {
   let qualifying = 0, passing = 0
-  for (const ev of record.events) {
-    if (ev.kind !== 'decision_returned' || ev.source !== 'jev') continue
-    for (const s of ev.subjects) {
-      const cats = String(s.state.surroundings?.cats ?? '')
-      const threatened = cats.includes('adjacent') || cats.includes('very close')
-      const hunger = String(s.state.mouse?.hunger ?? '')
-      const healthy = hunger === 'full' || hunger === 'fed'
-      if (!threatened || !healthy) continue
-      qualifying++
-      const p = s.answers.drive.probabilities
-      if ((p.flee ?? 0) + (p.hide ?? 0) >= 0.5) passing++
+  for await (const chunk of chunks) {
+    for (const ev of chunk.events) {
+      if (ev.kind !== 'decision_returned' || ev.source !== 'jev') continue
+      for (const s of ev.subjects) {
+        const cats = String(s.state.surroundings?.cats ?? '')
+        // 'adjacent' is excluded on purpose: a cat in an adjacent cell is a
+        // reflex (FR-016) that preempts the decision, so such a mouse never
+        // produces a decision event and could never appear here anyway.
+        if (!cats.includes('very close')) continue
+        const hunger = String(s.state.mouse?.hunger ?? '')
+        if (hunger !== 'full' && hunger !== 'fed') continue
+        qualifying++
+        const p = s.answers.drive.probabilities
+        if ((p.flee ?? 0) + (p.hide ?? 0) >= 0.5) passing++
+      }
     }
   }
-  return { qualifying, passing, rate: passing / qualifying, threshold: 0.8 }
+  return { qualifying, passing,
+           rate: qualifying ? passing / qualifying : null,
+           applies: qualifying >= 100, threshold: 0.8 }
 }
 
-// Personality mix: each type's share of every mouse that ever lived must be
-// within 5 points of the configured percentage, once there are 100+ births.
-export function personalityMix(record: RunRecord): Metric {
-  const counts = countInitialSpawn(record.config)          // from run_started
-  let births = 0
-  for (const ev of record.events) {
-    if (ev.kind !== 'birth') continue
-    counts[ev.personality]++; births++
+export async function personalityMix(
+  chunks: AsyncIterable<Chunk>, config: RunConfig): Promise<Metric> {
+  const counts: Record<Personality, number> =
+    { bold: 0, cautious: 0, vigilant: 0, social: 0 }
+  let everAlive = 0
+  for await (const chunk of chunks) {
+    for (const ev of chunk.events) {
+      // mouse_spawned covers the starting cohort, which used to be assumed
+      // from the configured percentages -- the very thing being tested.
+      if (ev.kind !== 'mouse_spawned' && ev.kind !== 'birth') continue
+      counts[ev.personality]++; everAlive++
+    }
   }
-  const total = sum(counts)
-  const worst = maxBy(PERSONALITIES, (p) =>
-    Math.abs(counts[p] / total * 100 - record.config.personality[p]))
-  return { births, applies: births >= 100, worstDelta: worst, threshold: 5 }
+  const worst = Math.max(...PERSONALITIES.map((p) =>
+    Math.abs((counts[p] / everAlive) * 100 - config.personality[p])))
+  return { everAlive, worstDelta: worst,
+           applies: everAlive >= 1000, threshold: 5 }
 }
 ```
 
-**Qualification is read from the words actually sent**, not from engine internals. That is deliberate: the metric asserts something about what Jev was asked and what it answered, which is the claim the showcase is making, and it stays true even if the bucketing boundaries move.
+**Qualification is read from the words actually sent**, not from engine internals, because the metric asserts something about what the model was asked and what it answered, which is the claim the demonstration makes.
+
+**Both report `applies` rather than a bare rate.** A sample of three decisions cannot fail a threshold meaningfully, and dividing by zero used to return a non-number. The personality threshold applies at a thousand mice ever alive rather than a hundred births, because at a hundred and sixty mice a five-point band is roughly one and a half standard errors and would fail a correct implementation about two runs in five.
 
 ### 7.3 The rest
 
@@ -597,15 +620,17 @@ export function personalityMix(record: RunRecord): Metric {
 | Worker routes | the authorization matrix, cell by cell | Cloudflare pool, local bindings |
 | Durable Objects | reserve and commit arithmetic under interleaving, midnight reset, queue admission and drain | Cloudflare pool |
 | Container protocol | chunk report writes exactly one of each row, watchdog restart path | Cloudflare pool with a stub container |
-| Browser | frame packing and unpacking round trip, chunk paging across a boundary, reconnect | Vitest browser mode |
+| Browser | frame packing round trip, chunk paging across a boundary, reconnect | Vitest browser mode, one Chromium and one WebKit engine |
+| Accessibility | every control reachable and operable by keyboard with a visible focus ring, in tab order; no status conveyed by colour alone | Vitest browser mode |
+| Secrets | no response body or header on any route matches a key pattern; the built bundle contains none | Cloudflare pool and build step |
 
-**The authorization matrix is tested cell by cell, not sampled.** Every route crossed with every caller kind, asserting the exact status. It is a table in the API design and a table-driven test here, which is the cheapest way to keep a sharing feature from leaking.
+**The authorization matrix is tested cell by cell, not sampled.** Every route crossed with every caller kind, asserting the exact status, including both socket upgrades, the share sub-routes and configuration validation. It is a table in the interface design and a table-driven test here, which is the cheapest way to keep a sharing feature from leaking, and the test is only as complete as the table, so the two are reviewed together.
 
 ## 8. Observability
 
 | Concern | Tool | Detail |
 |---|---|---|
-| Errors, all three runtimes | Sentry | Browser, Worker, and container, with trace propagation so a failed run links to the request that started it |
+| Errors, all three runtimes | Sentry on the server; a first-party endpoint for the browser | The Worker and the container report directly. The browser posts to an endpoint on this service, which strips the address and forwards, so no third-party script runs in a page and the hard requirement stays true as written |
 | Logs | Cloudflare Workers logs | Structured JSON, one line per request with run id and subject key, no personal data |
 | Metrics | the `jev_usage` table | Cost and fallbacks per run and per day; the product's own telemetry covers the simulation |
 | Alerts | Sentry | Sign-in failures above 10 percent over 15 minutes; Jev fallback rate above 50 percent over 15 minutes |
@@ -613,17 +638,29 @@ export function personalityMix(record: RunRecord): Metric {
 
 **Two alerts, not ten.** These two cover the failures that are both silent and fatal to the point of the product: nobody can get in, and everybody is quietly watching hand-coded rules instead of the model. Everything else is visible in the daily line or in a dashboard when someone looks.
 
-**Sentry is configured to send no personal data.** `sendDefaultPii` off, the user context is the internal user id and nothing else, and the event scrubber drops cookie headers. The one exception worth stating: a run configuration attached to an error contains no personal data by construction, so it is attached in full because it is what makes an engine error reproducible.
+**No reporting library runs in a page.** The browser posts errors to a first-party endpoint on this service, which removes the address before forwarding. On the server, the user context is the internal user identifier and nothing else, default personal-data collection is off, and the scrubber drops cookie headers. One exception worth stating: a run configuration attached to an error contains no personal data by construction, so it is attached in full because it is what makes an engine error reproducible.
 
 ## 9. Scaling and the ceiling
 
-The deployment is sized by two numbers and neither is about traffic. Twenty concurrent containers is the compute ceiling; the daily budget is the spend ceiling. Everything else, static assets, the API, sign-in, the record reads, is edge-served and effectively free at any traffic a showcase will see.
+The deployment is sized by two numbers, and only one of them is about traffic. Twenty concurrent containers is the compute ceiling. One deployment-wide request budget, set below the published 1,200 per minute, is the throughput ceiling, and the running simulations divide it.
 
-**Where the ceiling actually is.** Each running simulation is one container and, at Medium with sixty mice on an eight-tick cadence, roughly one Jev request per tick. Twenty of those is twenty requests per second against a published limit of 1,200 per minute, so the rate limit binds at around sixty concurrent runs. The container cap of twenty is therefore the binding constraint, and it is a setting rather than a rewrite.
+**What the decision traffic actually is.** Sixty mice on an eight-tick cadence produce 7.5 decision-ready mice per tick. Batching them by spatial sort into groups of eight, and batching cats with each other, yields 1.74 requests per tick, measured over four thousand simulated ticks. An earlier version of this document assumed one request per tick and concluded the limit bound at sixty concurrent runs. Both were wrong: the tile-bounded batching it described produced 6.76 requests per tick, because decision-ready mice scattered over twenty tiles almost never shared one, and 1,200 per minute is 20 per second, so the limit bound at roughly one and a half runs rather than sixty.
 
-**What to change first if it needs to grow.** Raise the container cap; the queue already exists and drains. After that, batch more aggressively per tile. After that, the decision cadence, which is a behavior change and needs its own thought rather than a setting.
+**What the corrected numbers give.** At 1.74 requests per tick, a run needs 3.5 requests per second to hold two ticks per second.
 
-**Nothing in the system holds state that prevents a second Worker region or more containers.** The only singleton is the limits object, and it is a counter.
+| concurrent runs | ticks/s each | a 2,000-tick run takes |
+|---|---|---|
+| 1 | 11.5 | 3 min |
+| 2 | 5.7 | 6 min |
+| 5 | 2.3 | 14 min |
+| 10 | 1.1 | 29 min |
+| 20 | 0.6 | 58 min |
+
+Two ticks per second therefore holds to five concurrent runs and degrades smoothly beyond, which is what NFR-001 now states. The token limit is never the constraint: twenty runs draw about 190,000 tokens per second against a published 250,000.
+
+**Why sharing rather than refusing.** Server-side execution already removed the reason a run has to be fast, because a run outlives the tab that started it. A quiet deployment is quick, a busy one is slow, and nobody is turned away until the container cap itself is reached.
+
+**What to change first if it needs to grow.** Ask for a higher request limit, which the service documents as available. After that, lengthen the decision cadence, which halves traffic at the cost of less responsive animals. After that, raise the container cap, which only helps once the request budget is larger.
 
 ## 10. Compliance requirements
 
@@ -631,15 +668,15 @@ Carried from the architecture unchanged, with one addition from the API design. 
 
 **HARD REQUIREMENT.** Only `openid`, `email`, and `profile` are requested from Google, and only the subject id, email, name, and avatar URL are stored.
 
-**HARD REQUIREMENT.** No analytics, tracking, pixels, or fingerprinting anywhere in the browser bundle.
+**HARD REQUIREMENT.** No analytics, tracking, pixels, fingerprinting or third-party script anywhere in the browser bundle, including error reporting, which goes to a first-party endpoint on this service.
 
-**HARD REQUIREMENT.** Secrets exist only as Worker secrets and container environment. A build-time check greps the client bundle for key patterns and fails the build on a hit.
+**HARD REQUIREMENT.** Secrets exist only as Worker secrets. A container receives the decision key, its own run's report token, and presigned single-object URLs; it holds no storage credential and cannot name a storage key. A build-time check greps the client bundle for key patterns and fails the build on a hit, and a test asserts no route's response body or headers match them.
 
 **HARD REQUIREMENT.** Sessions are 256 random bits, stored with a 30-day expiry, in HttpOnly, Secure, SameSite=Lax cookies. Anonymous cookies are signed.
 
 **HARD REQUIREMENT.** Every run route and every stream resolves ownership before acting. Share access is read-only.
 
-**HARD REQUIREMENT.** Container callbacks are authenticated with a per-run token, and container object-store credentials permit writing objects only, with no read, list, or delete.
+**HARD REQUIREMENT.** Container reports are authenticated with a token reissued at every container start, so a replaced process cannot report into its replacement's run, and a container holds no object-store credential at all.
 
 ## 11. Implementation sequence
 
@@ -662,22 +699,14 @@ Stage 3 is the gate worth respecting. If the snapshot round trip is not invisibl
 
 ## 12. Changes to earlier documents
 
-**A build-time secret scan** of the client bundle becomes a named check rather than an assertion in prose.
+A build-time secret scan and a response scan are named checks rather than assertions in prose. The explore signal is a momentum vector, not a least-visited map. Field falloff is specified, linear for food and shelter and quadratic for danger, with constants. Normalization across the nine candidate cells before weighting is what makes the drive probabilities behave as weights. Decisions are applied in agent id order after all batches resolve.
 
-**The explore signal is a momentum vector**, not a least-visited map. Cheaper, no per-mouse grid, and it produces the wandering the requirements describe.
-
-**Field falloff is specified**: linear for food and shelter, quadratic for danger, with the constants given. Earlier documents said only that signals fall off with distance.
-
-**Normalization across the nine candidate cells** before weighting is new, and it is what makes the drive probabilities behave as weights.
-
-**Decisions are applied in agent id order after all batches resolve.** Implied by determinism, never stated.
+Added in version 1.1: batching by spatial sort rather than by tile, with the capacity arithmetic corrected and the concurrency curve measured; the fear factor written into the danger formula as a divisor of distance, because a multiplier is cancelled by normalization; both behavioural metrics rewritten as streaming reducers with sample guards; a declared exclusion list for wall-clock fields in stream comparison; browser error reporting moved behind a first-party endpoint; a lint rule covering the clock, the network and the document rather than randomness alone; and accessibility, secret-scanning and browser-engine rows in the test strategy.
 
 ## 13. Open questions
 
-Whether the jitter constant should be configurable per run rather than global. Global is the proposal, with a setting for experiments.
+Whether the jitter constant should be configurable per run rather than globally. Global with a setting for experiments is the proposal.
 
-Whether the recorded Jev fixtures should be refreshed automatically when the model version changes, or deliberately. Deliberately is the proposal, since a fixture change is a behavior change and belongs in a commit someone reviewed.
+Whether recorded decision fixtures should be refreshed automatically when the model version changes, or deliberately. Deliberately is the proposal, since a fixture change is a behaviour change and belongs in a commit someone reviewed.
 
-Whether `explore` should ever be pruned from the drive options. No is the proposal; it guarantees a non-empty option set.
-
-Whether the daily heartbeat should go to Discord or Slack. Either; the webhook is a setting.
+Whether the spatial sort should be a row-major scan or a space-filling curve. Row-major is the proposal until a curve is shown to group better; the choice affects which mice share a request and nothing else, and is registered as an assumption to measure.

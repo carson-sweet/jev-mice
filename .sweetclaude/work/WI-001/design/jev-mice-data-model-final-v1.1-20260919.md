@@ -1,19 +1,19 @@
 ---
 title: jev-mice Data Model
-version: 1.0
+version: 1.1
 status: final
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19
 audience: hybrid
 nda: false
-changes: approved as final by Carson Sweet on 2026-09-19; paragraph numbers removed
-previous_file: jev-mice-data-model-deprecated-v1.0-20260919.md
+changes: minor. Applies the solution validation remediation: per-chunk summary segments replacing the rewritten whole-run object, the snapshot's whole-series tail removed, a per-account session index, spawn and resume events, error and timing columns, the anonymous address binding, the shared request budget, and the usage-row and address-hash corrections. Approved as final by Carson Sweet on 2026-09-19.
+previous_file: jev-mice-data-model-superseded-v1.0-20260919.md
 ---
 
 # jev-mice Data Model
 
-**Version:** 1.0 (final)
+**Version:** 1.1 (final)
 
 **Date:** 2026-09-19
 
@@ -118,7 +118,7 @@ export const users = pgTable('users', {
 
 `is_owner` is recomputed at each sign-in from the OWNER_EMAILS setting and stored, so that authorization checks on later requests are a column read rather than a settings parse. Removing an address from the setting takes effect at that user's next sign-in; revoking immediately means also clearing the column.
 
-These five fields are the complete inventory of personal data in the system. Nothing else in any store describes a person.
+These are the only fields describing a person's identity. One other piece of personal data exists, and naming it here is what makes the inventory honest: `runs.address_hash`, a salted hash of the network address a run was started from, kept only so the per-address budget can be enforced. The salt rotates daily, so a hash cannot be correlated across days, and the column is left null for signed-in runs, where the account already identifies the subject.
 
 ### 3.2 runs
 
@@ -151,6 +151,11 @@ export const runs = pgTable('runs', {
   costMicros:    bigint('cost_micros',  { mode: 'number' }).notNull().default(0),
   pricePerMtokMicros: integer('price_per_mtok_micros').notNull(),
   fallbackCount: integer('fallback_count').notNull().default(0),
+  rateLimitRefusals: integer('rate_limit_refusals').notNull().default(0),
+  errorCount:    integer('error_count').notNull().default(0),
+  activeSeconds: integer('active_seconds').notNull().default(0),
+  decisionCount: integer('decision_count').notNull().default(0),
+  addressHash:   text('address_hash'),
 
   countsAgainstActiveLimit: boolean('counts_against_active_limit').notNull().default(true),
 
@@ -275,7 +280,7 @@ One row per chunk, not per call. At 250-tick chunks a long run produces eighty r
 
 `subject_key` is `user:{uuid}`, `anon:{cookie id}`, or `ip:{hash}`, matching the Durable Object naming exactly so the ledger and the gate can be reconciled. Addresses appear only as a salted hash and only for rate limiting.
 
-`run_id` is nullable so that a usage row survives its run being deleted by the retention sweep while the day's accounting is still open. Account deletion is different: it cascades these rows away, because they are attached to a person.
+`run_id` is not null and cascades, so a usage row goes with its run. The day's enforcement does not depend on these rows: the quota counters are the authority while a day is open and this table is the durable ledger afterwards. Removing a swept run's rows is also what FR-126 requires, since a row carrying `anon:{cookie id}` would otherwise outlive the anonymous run it describes.
 
 ### 3.6 pending_object_deletions
 
@@ -298,27 +303,35 @@ This table is what makes deletion honest across two stores. Rows in Postgres van
 ## 4. R2 object layout
 
 ```
-runs/{runId}/chunks/{seq}.json.gz     one per chunk, seq zero-padded to 6
-runs/{runId}/summary.json.gz            rewritten at every chunk boundary
+runs/{runId}/chunks/{seq}.json.gz       one per chunk, seq zero-padded to 6
+runs/{runId}/summary/{seq}.json.gz      one segment per chunk, same tick range
 runs/{runId}/snapshot.json.gz           replaced at every chunk boundary
 runs/{runId}/export.tar                 built on demand, not retained
 ```
 
 All three durable objects are gzip over JSON, written by the container with `CompressionStream` and read by the browser with `DecompressionStream`. No server-side decompression happens on the read path: chunks are streamed to the browser compressed and expanded there, which keeps the Worker's memory flat regardless of run size.
 
-**Chunks are immutable once written.** Summary and snapshot are overwritten in place. That asymmetry matters for caching: a chunk can be served with a long immutable cache header, while summary and snapshot must not be cached.
+**Chunks and summary segments are immutable once written**, so both can carry a long immutable cache header. Only the snapshot is overwritten in place, and it is never served to a viewer. One exception is handled rather than asserted: a container that dies mid-chunk is replaced and rewrites the same sequence number, so a chunk key becomes immutable when the coordinator records its index row, and nothing serves a chunk before then.
 
-**Deleting a run deletes the prefix.** Because every object for a run sits under `runs/{runId}/`, deletion is a prefix listing and a batch delete, and there is no way to miss an object belonging to a run.
+**Deleting a run deletes the prefix.** Every object for a run sits under `runs/{runId}/`, so deletion is a prefix listing and a batch delete and there is no way to miss one. Only the Worker holds a credential that can list or delete. A container holds no storage credential at all and is handed a presigned URL for each single object it writes.
 
 ## 5. KV
 
 ```
 key    sess:{token}
 value  { "userId": "<uuid>", "createdAt": "<iso8601>" }
-ttl    30 days, refreshed on use when older than one day
+ttl    30 days from issue, never extended
+
+key    usess:{userId}:{token}
+value  ""                        existence only; an index, not a record
+ttl    the same 30 days
 ```
 
-Sessions are the only KV use. The token is 256 bits of randomness from `crypto.getRandomValues`, and the key is the token itself rather than a hash, because KV keys are not enumerable and the value carries nothing an attacker could not obtain with the token anyway.
+Sessions are the only KV use. The token is 256 bits from `crypto.getRandomValues`, and the key is the token itself rather than a hash, because KV keys are not enumerable and the value carries nothing an attacker could not obtain with the token anyway.
+
+The second key is an index, and it exists because deletion needs it. Listing the `usess:{userId}:` prefix gives every live session of an account, which is what lets signing out everywhere and deleting an account invalidate sessions on other devices. Without it the only reachable session is the one making the request, and FR-132 could not be met.
+
+The lifetime is absolute, not sliding: thirty days from issue, never extended on use, matching FR-078. A session middleware that finds no matching user row treats the session as invalid and clears it, so a session outliving a deleted account fails closed.
 
 **Anonymous visitors have no KV entry.** Their cookie is `anon:{id}.{hmac}`, verified with the signing key on each request. There is nothing to store and nothing to expire; the cookie's own lifetime is the session.
 
@@ -333,11 +346,13 @@ Three classes. Each holds a handful of small keys and is authoritative only whil
 | `meta` | `{ runId, ownerKey, status, totalTicks, configHash, containerId, callbackToken }` | Identity and authorization for the container's callbacks |
 | `cursor` | `{ currentTick, nextChunkSeq, lastSnapshotKey, lastChunkAt }` | Where the run is; what resume restores from |
 | `allowance` | `{ granted, spent, deniedAt, degraded }` | The current chunk's token allowance and whether decisions have fallen back |
-| `control` | `{ desired: 'run' \| 'pause' \| 'stop', speed }` | Commands from viewers, read by the container at each tick boundary |
+| `control` | `{ desired: 'run' \| 'pause' \| 'step' \| 'stop', speed, seq }` | Commands from viewers, pushed to the container immediately; `seq` lets the container ignore a stale push |
+| `presigned` | `{ chunk, summary, snapshot, expiresAt }` | The single-object upload URLs issued for the next boundary |
+| `lastFrame` | `{ tick, payload, at }` | The most recent broadcast frame, for a connecting viewer |
 
 Viewer WebSockets are held as hibernatable attachments rather than storage keys, so an idle run with watchers costs nothing while no frames are flowing.
 
-`callbackToken` is generated at start, passed to the container in its environment, and required on every callback. It is the only thing preventing one container from reporting into another run.
+`callbackToken` is generated afresh at every container start, including a restart after a watchdog timeout, so a process the system has replaced cannot report into its replacement's run. Alongside it the object holds `presigned`, the three single-object upload URLs it issued for the next boundary, and `lastFrame`, the most recent frame it broadcast, kept only while a viewer is attached and used to answer a connecting viewer without waking the container.
 
 ### 6.2 QuotaCounter, one per subject, named by subject key
 
@@ -355,11 +370,14 @@ An alarm at the next UTC midnight resets `usage` and advances `day`. Reservation
 | `day` | `'YYYY-MM-DD'` in UTC |
 | `budget` | `{ costMicros, reservedMicros }` |
 | `capacity` | `{ activeRuns }` |
+| `rate` | `{ budgetRpm, leased, holders }` |
 | `queue` | ordered array of `{ runId, subjectKey, enqueuedAt }` |
 
-**Naming note.** The architecture called this object GlobalBudget. It also has to hold the global active-run count and the queue, because a run's start needs both answers and two singletons would mean two round trips and a race between them. The name GlobalLimits replaces GlobalBudget wherever that appears in the decision records.
+**Naming note.** The architecture called this object GlobalLimits. It also has to hold the global active-run count and the queue, because a run's start needs both answers and two singletons would mean two round trips and a race between them. The name GlobalLimits replaces GlobalLimits wherever that appears in the decision records.
 
 The queue is an array rather than a table because it is short by construction: it only exists when twenty containers are already running, and a queued run's position is its index.
+
+`rate` is what makes FR-073 enforceable. The object holds one deployment-wide request-per-minute budget, below the published limit, and leases a share of it to each running simulation at every chunk boundary. A simulation must hold a lease to issue requests and may not exceed it, so the deployment cannot breach the published limit however many runs are active. When leases are divided among many runs each one ticks more slowly, which is the intended behaviour rather than a failure.
 
 ## 7. Engine types
 
@@ -378,6 +396,9 @@ interface EventBase { tick: Tick; seq: number }
 type SimEvent =
   | (EventBase & { kind: 'run_started';   config: RunConfig; seed: number;
                     engineVersion: string })
+  | (EventBase & { kind: 'mouse_spawned'; id: AgentId; sex: Sex;
+                    personality: Personality })
+  | (EventBase & { kind: 'run_resumed';   fromTick: Tick; attempt: number })
   | (EventBase & { kind: 'tick_advanced'; population: number })
   | (EventBase & { kind: 'moved';         id: AgentId; from: Cell; to: Cell })
   | (EventBase & { kind: 'decision_requested'; batchId: string;
@@ -439,6 +460,10 @@ interface DecisionSubject {
 
 **`death` carries exactly one cause**, which the type enforces rather than a validator checking after the fact.
 
+**`mouse_spawned` exists so the starting cohort is recorded rather than assumed.** Without it the personality-mix check can only read births and has to take the initial draw from the configured percentages, which is the thing it is supposed to be testing.
+
+**`latencyMs` and any other wall-clock field are excluded from stream comparison** by a declared list the replay test uses, because they differ on every re-simulation and would otherwise make an exact comparison impossible.
+
 **`decision_returned` is the large event** and the reason chunks are capped by bytes as well as by ticks. It preserves the request and the response verbatim, because the inspector's promise is that nothing was reworded between the API and the screen.
 
 ### 7.2 Chunk
@@ -457,10 +482,11 @@ interface Chunk {
 ### 7.3 Summary series
 
 ```ts
-interface SummarySeries {
+interface SummarySegment {
   runId:      string
-  fromTick:   Tick            // always 0
-  toTick:     Tick            // last completed tick
+  seq:        number          // matches its chunk
+  fromTick:   Tick            // first tick of this chunk
+  toTick:     Tick            // last tick of this chunk
   length:     number
   series: {
     miceTotal:      number[]
@@ -484,9 +510,11 @@ interface SummarySeries {
 }
 ```
 
-**Columnar, not one object per tick.** Parallel arrays gzip far better than repeated keys, and they are the shape uPlot already wants, so the chart path has no transformation step. Twenty thousand ticks across seventeen series is under a megabyte raw and a small fraction of that compressed.
+**Columnar, not one object per tick.** Parallel arrays gzip far better than repeated keys, and they are the shape uPlot already wants, so the chart path has no transformation step.
 
-The comparison view reads only this object for each run, never a chunk, which is what makes overlaying two long runs instant.
+**One segment per chunk, never rewritten.** An earlier version kept a single object covering tick zero to now and rewrote it at every boundary, which forced the container to hold the whole series for the life of a run and made bytes written grow with the square of its length. A segment covers only its own chunk's ticks, so memory is flat and writes are linear. A reader wanting the whole run fetches the segments and concatenates; at twenty thousand ticks that is eighty small objects totalling well under a megabyte compressed.
+
+The comparison view reads only these segments for each run, never a chunk, which is what makes overlaying two long runs quick.
 
 ### 7.4 Snapshot
 
@@ -505,13 +533,15 @@ interface Snapshot {
   food:          FoodState[]     // position, present, respawnAt
   traps:         TrapState[]     // position, occupantId, respawnAt
   holes:         HoleState[]     // position, occupancy
-  summaryTail:   SummarySeries   // the series so far, to continue appending
+  summaryTail:   SummarySegment  // only the current chunk's segment
 }
 ```
 
 **The snapshot is the strongest test fixture in the project.** Running five hundred ticks straight must produce the same events as running two hundred fifty, serializing, restoring, and running two hundred fifty more. If any piece of state is missed here, that test fails, which is why resume and determinism are one problem rather than two.
 
 `version` is present from the first release so a later engine can refuse or migrate an incompatible snapshot rather than resuming into nonsense.
+
+The snapshot carries only the current chunk's summary segment, not the run's whole series. Earlier segments are already written and immutable, so a resumed container needs nothing but the one it was part way through.
 
 ## 8. Lifecycle and retention
 
@@ -533,12 +563,13 @@ interface Snapshot {
 
 Deleting a run: revoke tokens, delete the R2 prefix, delete the row in one statement; cascades remove chunks, tokens, and the usage link. Any object that fails to delete goes to the retry table.
 
-Deleting an account is the same at larger scope, with one honest qualification. Two stores cannot be made atomic with each other, so the guarantee is stated where it can be kept:
+Deleting an account is the same at larger scope, across four stores rather than two, with one honest qualification.
 
 1. Verify R2 is reachable. If not, change nothing and tell the user to try again.
 2. In one Postgres transaction, delete the user row. Cascades remove every run, chunk row, share token, and usage row.
-3. Delete the session from KV and clear the cookie.
-4. Delete each run's R2 prefix, enqueuing failures for retry.
+3. Delete every session of that account, found by listing the `usess:{userId}:` index, and clear the cookie on this device.
+4. Tell each of that account's run coordinators to terminate, and discard its quota counter, so no coordinator state outlives the account.
+5. Delete each run's object prefix, enqueuing failures for retry.
 
 From the user's point of view this is all-or-nothing: either nothing is removed, or the account and everything indexed under it are gone at once, with any stragglers in storage swept up afterwards. The flow's wording, that nothing is removed on partial failure, holds for step one, which is where a partial failure can realistically be caught. It is worth saying plainly that step four is eventually consistent rather than implying a guarantee the stores cannot give.
 
@@ -553,6 +584,8 @@ From the user's point of view this is all-or-nothing: either nothing is removed,
 | Share page | run by token hash | `share_tokens` primary key |
 | Account usage | today's usage for a subject | `jev_usage_subject_day_idx` |
 | Retention sweep | runs past expiry | `runs_expiry_idx` |
+| Sign out everywhere | sessions of one account | KV prefix `usess:{userId}:` |
+| Estimate for a new run | recent runs' decisions, tokens and active time | `runs_user_recent_idx` |
 | Deletion retries | due object deletions | `pending_deletions_due_idx` |
 
 ## 11. Migration strategy
@@ -565,20 +598,10 @@ Rollback for the first migration is dropping the schema, which is acceptable onl
 
 ## 12. Changes to earlier documents
 
-**Share tokens are stored as SHA-256 hashes**, not as the tokens themselves. Tighter than the sharing decision described.
+Share tokens are stored as SHA-256 hashes rather than as the tokens themselves. GlobalLimits becomes GlobalLimits and holds the budget, the active-run count, the queue and the shared request-rate budget. Account deletion is atomic in the index and eventually consistent in storage, with a retry table making the difference invisible. `pending_object_deletions` appears in no earlier document. One active run per subject is enforced by the database rather than by application code.
 
-**GlobalBudget becomes GlobalLimits** and holds the global budget, the active-run count, and the queue together, so starting a run asks one object one question.
-
-**Account deletion is atomic in the index and eventually consistent in storage**, with a retry table making the difference invisible. The flows describe the user-visible behavior correctly; this states the mechanism.
-
-**A new table, `pending_object_deletions`**, appears in no earlier document.
-
-**One active run per subject is enforced by the database.** Earlier documents treated it as an application check.
+Added in version 1.1: a per-account session index, without which sessions on other devices cannot be revoked. Per-chunk summary segments in place of a rewritten whole-run object. A snapshot that carries only the current segment. Spawn and resume events. Error, refusal, timing and decision-count columns on a run, so the throughput and error metrics have fields to read. An address hash on a run, so an anonymous budget survives a cleared cookie, named openly as personal data. A request-rate budget in the limits object. Presigned upload URLs and a cached frame in the run coordinator.
 
 ## 13. Open questions
 
-Whether `jev_usage.run_id` should survive retention deletion as a null, as specified here, or whether usage rows should be deleted with their run. Keeping them is the proposal, so a day's spend still reconciles after a short-lived anonymous run is swept.
-
-Whether address hashes for rate limiting should be salted per day, which would prevent correlating one address across days at the cost of losing multi-day abuse detection. Per-day salt is the proposal.
-
-Whether the summary series should also be chunked for very long runs. At twenty thousand ticks it is comfortably under a megabyte, so no is the proposal, revisited if the tick ceiling rises.
+None. The three left open in version 1.0 are settled: usage rows go with their run, which FR-126 requires; address hashes are salted per day, which is what makes them uncorrelatable across days; and the summary is now segmented, so the question of whether it should be no longer arises.

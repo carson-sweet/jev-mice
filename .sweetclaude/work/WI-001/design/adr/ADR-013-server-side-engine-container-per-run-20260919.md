@@ -15,7 +15,7 @@ previous_file: none
 
 **Date:** 2026-09-19
 
-**Status:** Accepted
+**Status:** Accepted. Storage path partially superseded by ADR-022 on 2026-09-19: the container no longer writes objects with its own credentials and no longer chooses keys.
 
 ## Context
 

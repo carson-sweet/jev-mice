@@ -1,19 +1,19 @@
 ---
 title: jev-mice User Flows
-version: 1.0
+version: 1.1
 status: final
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19
 audience: hybrid
 nda: false
-changes: approved as final by Carson Sweet on 2026-09-19; paragraph numbers removed; the four open questions adopted as proposed
-previous_file: jev-mice-user-flows-deprecated-v1.0-20260919.md
+changes: minor. Applies the solution validation remediation: the chart count corrected to seven, the price field removed from the configuration form, export progress stated in bytes, the account deletion order aligned with the data model, immediate control, and the corrected requirement citations. Approved as final by Carson Sweet on 2026-09-19.
+previous_file: jev-mice-user-flows-superseded-v1.0-20260919.md
 ---
 
 # jev-mice User Flows
 
-**Version:** 1.0 (final)
+**Version:** 1.1 (final)
 
 **Date:** 2026-09-19
 
@@ -67,9 +67,9 @@ Success: configure screen ready. There is no library, no account screen, and no 
 
 ## F-03 Configure and start a run
 
-For the watcher and the researcher above all; Carson uses it to hit limits on purpose. Entry point: "New run" in the header or the library's empty state. Requirements FR-053 to FR-056, FR-003, FR-043.
+For the watcher and the researcher above all; Carson uses it to hit limits on purpose. Entry point: "New run" in the header or the library's empty state. Requirements FR-053 to FR-056, FR-140, FR-003, FR-051, FR-052.
 
-1. User opens Configure → form renders with Medium defaults (FR-055): preset, tick count, seed (random, with a regenerate button and a lock toggle), male and female mice, cats, traps, food piles, mouseholes, food respawn, nutrition decay, four personality percentages with a live sum, Jev on or off, price per million tokens. A right-hand panel shows the derived caps for the preset and a cost estimate: expected Jev tokens and dollars for this configuration at the configured price.
+1. User opens Configure → form renders with Medium defaults (FR-055): preset, tick count, seed (random, with a regenerate button and a lock toggle), male and female mice, cats, traps, food piles, mouseholes, food respawn, nutrition decay, four personality percentages with a live sum, Jev on or off, and whether decisions come from the model or from code-only rules (the price per million tokens is a deployment setting, not a field here). A right-hand panel shows the derived caps for the preset and a cost estimate: expected Jev tokens and dollars for this configuration at the configured price.
 2. User edits fields → inline validation on each change: values outside range or above a cap show the cap next to the field (FR-054); the personality sum shows red until it reads 100.
 3. User clicks Import → file picker → configuration and seed load from JSON and validate as in step 2 (FR-056). User clicks Export → JSON downloads.
 4. User clicks Start → server validates again, then checks in order:
@@ -84,9 +84,9 @@ Success: live view showing tick 0 and the first frames. Errors: validation messa
 
 For everyone. Entry point: a run starting (F-03), the library's Open on a running run, or a reconnect. Requirements FR-064, FR-066 to FR-068.
 
-1. Live view opens → WebSocket connects → a full snapshot renders the grid: mice by sex and personality, cats by mode, traps live or occupied, food piles, mouseholes empty, adult, or brood; nutrition band on each mouse. Meter shows tick, ticks per second, requests, tokens, cost. Six charts begin filling from the summary series.
+1. Live view opens → WebSocket connects → a full snapshot renders the grid: mice by sex and personality, cats by mode, traps live or occupied, food piles, mouseholes empty, adult, or brood; nutrition band on each mouse. Meter shows tick, ticks per second, requests, tokens, cost. Seven charts begin filling from the summary segments: population by sex and personality, mice sheltering, deaths by cause, mean nutrition, mean fear, decisions per tick, and cumulative cost.
 2. Frames arrive at display rate → the grid animates; charts extend.
-3. User presses Pause → the server pauses the engine; frames stop; controls show Resume and Step. Step advances one tick. Resume continues. Speed sets a target tick rate the server honors when Jev latency allows.
+3. User presses Pause → the command is pushed to the simulation and takes effect at its next tick, not at the next chunk boundary; frames stop; controls show Resume and Step. Step advances one tick. Resume continues. Speed sets a target tick rate the server honors when Jev latency allows.
 4. User presses Stop → confirmation "Stop this run at tick N? The record so far is kept." → run status becomes cancelled; view switches to replay mode at the last tick.
 5. Run reaches its tick count → "Completed" banner; controls change to Replay, Compare, Share, Export.
    → Connection drops: banner "Reconnecting" with the last tick seen; on reconnect a fresh snapshot replaces the grid and frames resume; the run never paused.
@@ -133,8 +133,8 @@ Success: every run the user owns is one click from replay, comparison, or sharin
 
 For everyone. Entry point: Open on a completed, failed, or cancelled run; the Replay control on a finished live view; a share link. Requirements FR-062, FR-065.
 
-1. Replay view renders the grid at tick 0, the six charts complete from the summary series, and a scrubber spanning the run with chunk boundaries faintly marked.
-2. User presses Play → frames are reconstructed from the loaded chunk at the chosen speed. Scrubbing to a tick outside the loaded chunk shows a brief loading state while that chunk downloads and decompresses, then renders.
+1. Replay view renders the grid at tick 0, the seven charts complete from the summary segments, and a scrubber spanning the run with chunk boundaries faintly marked.
+2. User presses Play → frames are reconstructed from the loaded chunk at the chosen speed. Scrubbing to a tick outside the loaded chunk asks the service which chunk holds that tick, downloads and decompresses it, then renders. A share viewer reaches the same lookup, because replay needs it.
 3. User clicks an animal → inspector as in F-05, sourced from the chunk in view.
 4. User clicks a point on a chart → scrubber jumps to that tick.
    → A chunk fails to download: "Could not load ticks N to M. Retry." Playback pauses at the boundary.
@@ -173,7 +173,7 @@ For the researcher above all, and for anyone who wants to keep a run past 30 day
 
 1. User clicks Export → menu offers "Configuration and seed (JSON)" and "Full record (archive)".
 2. Configuration and seed downloads immediately as one JSON file that the configure screen can import.
-3. Full record starts a download of one archive containing the configuration, the summary series, and every chunk; a progress indicator shows chunks fetched over total. For a long Large run this is hundreds of megabytes and the indicator says so before starting.
+3. Full record starts a download of one archive containing the configuration, the summary series, and every chunk; a progress indicator shows bytes received against the total, which the chunk index makes known before the download starts. For a long Large run this is hundreds of megabytes and the indicator says so before starting.
    → The download is interrupted: the user restarts it; nothing server-side changes.
    → The run is still running: Full record exports what exists so far and says which tick it ends at.
 
@@ -197,7 +197,7 @@ For signed-in users. Entry point: avatar in the header.
 
 1. Account page shows the stored profile (Google id, email, name, avatar) with a line stating that this is everything stored about the person; today's Jev usage and budget; run count and storage used; sign out.
 2. Export my data → downloads a JSON of the profile, run metadata, and usage rows, and lists run ids the user can export individually with F-11.
-3. Delete account → dialog lists what will be removed: N runs, N share links, storage, usage, the account itself. User types DELETE to confirm → server revokes shares, deletes objects, rows, user, and session, in that order → landing on the sign-in page with "Your account and N runs were deleted."
+3. Delete account → dialog lists what will be removed: N runs, N share links, storage, usage, the account itself. User types DELETE to confirm → the service checks storage is reachable, then removes the account and everything indexed under it in one transaction, invalidates every session on every device, and removes the stored objects afterwards, retrying any that fail → landing on the sign-in page with "Your account and N runs were deleted."
    → Deletion partially fails (storage unavailable): nothing is removed, and the page says to try again; deletion is all or nothing from the user's point of view.
 
 Success: a clean account and a clean exit. Errors: the all-or-nothing rule above.

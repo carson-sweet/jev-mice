@@ -1,0 +1,1 @@
+../work/WI-001/design/jev-mice-architecture-final-v2.2-20260919.md

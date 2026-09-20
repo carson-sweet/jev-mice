@@ -33,6 +33,10 @@ One metering checkpoint per few hundred ticks instead of one per call, no Durabl
 
 Easier: throughput, simpler public API, honest accounting from the SDK's own usage numbers. Harder: the key exists in container environments as well as Worker secrets, and an allowance can be overspent by at most one chunk before reconciliation.
 
+## Correction, 2026-09-19
+
+The object named GlobalBudget here is called GlobalLimits from the data model onward, because it also holds the active-run count, the queue and the shared request-rate budget. The name in this record is historical.
+
 ## Alternatives Considered
 
 Route calls through the Durable Object (rejected: connection ceiling and latency). Browser calls a metered Worker route (rejected: the browser no longer runs the engine).

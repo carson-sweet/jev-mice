@@ -15,7 +15,7 @@ previous_file: none
 
 **Date:** 2026-09-19
 
-**Status:** Accepted
+**Status:** Accepted. Storage path partially superseded by ADR-022 on 2026-09-19. The snapshot is read on resume through a presigned URL.
 
 ## Context
 

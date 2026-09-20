@@ -1,12 +1,12 @@
 # Requirements Traceability Map
 
-Source: jev-mice-prd-draft-v3.0-20260919.md. Stories are written in planning and will be added here.
+Source: jev-mice-prd-final-v3.1-20260919.md. Stories are written in planning and will be added here.
 
 | Epic | Requirements | Success metrics | Stories | Tests |
 |---|---|---|---|---|
 | EP-1 Engine core | FR-001 to FR-052, FR-069 | SM-06, SM-09 | pending | pending |
 | EP-2 Jev decision layer | FR-058, FR-070 to FR-074, contract section 5 | SM-02, SM-07, SM-08 | pending | pending |
-| EP-3 Configuration and personality mix | FR-042, FR-043, FR-053 to FR-056, FR-140 | SM-06 | pending | pending |
+| EP-3 Configuration and personality mix | FR-051 to FR-056, FR-140 | SM-06 | pending | pending |
 | EP-4 Server-side execution and resume | FR-091 to FR-101 | SM-11, SM-12 | pending | pending |
 | EP-5 Run lifecycle and capacity | FR-083 to FR-090 | SM-01 | pending | pending |
 | EP-6 Records, replay, comparison | FR-057, FR-059 to FR-063, FR-102 to FR-104 | SM-03, SM-04, SM-05 | pending | pending |

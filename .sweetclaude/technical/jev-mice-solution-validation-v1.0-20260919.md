@@ -1,1 +1,0 @@
-../work/WI-001/design/jev-mice-solution-validation-v1.0-20260919.md

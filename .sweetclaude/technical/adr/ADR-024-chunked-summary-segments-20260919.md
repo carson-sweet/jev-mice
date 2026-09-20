@@ -1,0 +1,1 @@
+../../work/WI-001/design/adr/ADR-024-chunked-summary-segments-20260919.md

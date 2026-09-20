@@ -6,4 +6,5 @@ interfaces:
 auth: session cookie (google) or signed anonymous cookie; per-run callback token for
   containers
 status: final
-current_file: .sweetclaude/work/WI-001/design/jev-mice-api-design-final-v1.0-20260919.md
+current_file: .sweetclaude/work/WI-001/design/jev-mice-api-design-final-v1.1-20260919.md
+current_version: '1.1'

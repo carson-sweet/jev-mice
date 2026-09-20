@@ -15,7 +15,7 @@ previous_file: none
 
 **Date:** 2026-09-19
 
-**Status:** Accepted
+**Status:** Accepted. Partially superseded on 2026-09-19: the storage path by ADR-022, the single summary object by ADR-024.
 
 ## Context
 

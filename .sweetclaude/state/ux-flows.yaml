@@ -129,5 +129,6 @@ flows:
   error_states: []
 flow_count: 16
 source: requirements v2.1 and architecture v2.1 (no stories yet)
-current_file: .sweetclaude/work/WI-001/design/jev-mice-user-flows-final-v1.0-20260919.md
+current_file: .sweetclaude/work/WI-001/design/jev-mice-user-flows-final-v1.1-20260919.md
 status: final
+current_version: '1.1'

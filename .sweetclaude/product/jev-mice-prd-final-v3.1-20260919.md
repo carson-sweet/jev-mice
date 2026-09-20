@@ -1,19 +1,19 @@
 ---
 title: jev-mice Product Requirements Document
-version: 3.0
+version: 3.1
 status: final
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19
 audience: hybrid
 nda: false
-changes: approved as final by Carson Sweet on 2026-09-19
-previous_file: jev-mice-prd-deprecated-v3.0-20260919.md
+changes: minor. Applies the solution validation remediation across all eleven work packages. FR-142 to FR-146 added; no requirement withdrawn. Approved as final by Carson Sweet on 2026-09-19.
+previous_file: jev-mice-prd-superseded-v3.0-20260919.md
 ---
 
 # jev-mice Product Requirements Document
 
-**Version:** 3.0 (final)
+**Version:** 3.1 (final)
 
 **Date:** 2026-09-19
 
@@ -47,22 +47,22 @@ Each check is pass or fail on a Medium-preset run with default settings unless s
 
 | ID | Check | Measured by |
 |---|---|---|
-| SM-01 | A 2,000-tick run completes with zero rate-limit errors at 2 or more ticks per second average | Run totals: error count and wall time |
+| SM-01 | A 2,000-tick run alone in the deployment completes with zero rate-limit refusals at 2 or more ticks per second, measured over active simulation time | Run totals: rate-limit refusal count, other error count, and active simulation time, all recorded fields |
 | SM-02 | Clicking any living animal shows the exact state, every question, and the full probability distribution of its latest decision | Manual check against the decision event in the record |
-| SM-03 | Replaying a stored run reproduces its event stream exactly, with no decision calls to TypeSafe | Automated: replay and diff event streams; decision-call count is zero |
+| SM-03 | Replaying a stored run reproduces its event stream exactly, excluding the named wall-clock fields, with no decision calls | Automated: replay and diff streams with latency and timing fields excluded by a declared list; decision-call count is zero |
 | SM-04 | Two runs sharing a seed and differing in one setting load side by side with that setting highlighted and charts overlaid | Manual check in the comparison view |
-| SM-05 | A baseline run and a Jev run on the same seed compare with Jev on or off as the only highlighted difference | Manual check in the comparison view |
-| SM-06 | Over a run with 100 or more births, each personality's share of all mice ever alive is within 5 points of its configured percentage | Automated from birth events and the starting configuration |
-| SM-07 | For mice outside a hole with a cat adjacent or very close and nutrition at or above 60 percent, at least 80 percent of drive decisions put a combined 0.5 or more on flee plus hide | Automated from decision events |
+| SM-05 | A code-only run and a decision-model run on the same seed compare with the decision source as the only highlighted difference | Manual check in the comparison view; the decision source is part of what the view diffs |
+| SM-06 | Over a run reaching 1,000 or more mice ever alive, each personality's share is within 5 points of its configured percentage | Automated from spawn and birth events, both recorded. Below 1,000 the observed deviation is reported without a verdict, because a 5-point band at smaller samples is inside the noise |
+| SM-07 | For mice outside a hole with a cat very close and nutrition at or above 60 percent, at least 80 percent of drive decisions put a combined 0.5 or more on flee plus hide | Automated from decision events, streamed chunk by chunk, with a minimum of 100 qualifying decisions before a verdict. Mice with a cat adjacent are excluded because a reflex preempts their decision and they produce no decision event |
 | SM-08 | Jev cost for the run is under $0.50 at the configured price and is shown live | Run totals and the live meter |
 | SM-09 | Every death event carries exactly one cause: starvation, trap, or cat | Automated schema check on the record |
-| SM-10 | No secret appears in any browser-delivered asset or any API response | Automated: scan the built bundle in the build; inspect responses in tests |
+| SM-10 | No secret appears in any browser-delivered asset or any API response | Automated: the build scans the bundle for key patterns and fails on a hit; a test asserts no response body or header on any route matches those patterns |
 | SM-11 | A run continues to completion after the tab that started it is closed, and reopening the library shows it finished | Manual: start, close, return |
 | SM-12 | A run whose simulation process is killed mid-run resumes from its last chunk boundary and completes with an unbroken event stream | Automated: kill the process, assert the stream has no gap and no repeat |
 | SM-13 | No route returns another person's run, record, or account data | Automated: the authorization matrix tested cell by cell |
-| SM-14 | Deleting an account removes every run, chunk, share link, usage row, and stored object belonging to it | Automated: create, populate, delete, then assert nothing remains in any store |
+| SM-14 | Deleting an account removes every run, chunk, summary segment, share link, usage row, coordinator state and stored object belonging to it, and invalidates its sessions on every device | Automated: create, populate, sign in twice, delete, then assert nothing remains in any of the four stores and that the second session no longer authenticates |
 | SM-15 | A run whose budget is exhausted mid-run continues on baseline rules with a visible banner and does not fail | Automated: set a tiny budget, assert completion and a fallback event |
-| SM-16 | An anonymous run and everything about it is gone 24 hours after it was created | Automated: create, advance the clock, run the sweep, assert nothing remains |
+| SM-16 | An anonymous run and everything about it, including its usage records, is gone within 24 hours of its expiry | Automated: create, advance the clock past expiry plus the sweep interval, run the sweep, assert nothing remains in any store |
 | SM-17 | A viewer joining a running simulation sees the current state within 2 seconds, and a dropped connection recovers without a page reload | Manual and automated reconnect test |
 | SM-18 | A share link opens the run for someone with no account, and stops working the moment it is revoked | Automated |
 
@@ -102,7 +102,7 @@ FR-013: Nutrition shall decay by the configured rate per tick, default 0.5, insi
 
 FR-014: Movement cost shall depend on nutrition: 1 tick per cell at 60 or above, 2 ticks per cell from 30 to 59, 3 ticks per cell below 30.
 
-FR-015: A mouse due to move shall choose among its eight neighboring cells the one with the highest weighted signal sum plus a small seeded jitter, skipping cells occupied by another animal, never voluntarily entering a cell occupied by a cat, and entering a mousehole cell only when its intent is hide or nest and the hole is available.
+FR-015: A mouse due to move shall choose among its current cell and its eight neighboring cells the one with the highest weighted signal sum plus a small seeded jitter, skipping cells occupied by another animal, never voluntarily entering a cell occupied by a cat, and entering a mousehole cell only when its intent is hide or nest and the hole is available.
 
 FR-016: Reflexes shall preempt any current intent without a Jev decision: a cat in an adjacent cell sets the intent to flee; standing on a food pile with nutrition below 100 sets the intent to eat. Reflexes do not apply to a mouse inside a hole.
 
@@ -154,7 +154,7 @@ FR-036: A mouse shall perceive a trap as a food source unless it can currently s
 
 FR-037: Perception radius, measured as the larger of the horizontal and vertical distance, shall be 6 cells for mice, 8 for vigilant mice, and 8 for cats.
 
-FR-038: The engine shall maintain four signal fields per mouse: food (piles plus half-weight traps not known to it), danger (cats within perception and known traps), mate (eligible opposite-sex mice within perception), and shelter (available mouseholes per FR-011).
+FR-038: The engine shall maintain four signal fields per mouse: food (piles plus half-weight traps not known to it), danger (cats within perception and known traps), mate (eligible opposite-sex mice within perception), and shelter (available mouseholes per FR-011). A fifth term, exploration, shall favour cells continuing the mouse's recent direction of travel rather than a record of where it has been.
 
 FR-039: A death within a mouse's perception shall add a memory sentence to that mouse stating the kind of event (trap death, cat kill, narrow escape), its bearing, and a relative time bucket, whether the mouse is inside or outside a hole.
 
@@ -164,7 +164,7 @@ FR-041: Two mice within alarm range (1 cell, or 2 cells for social mice) shall e
 
 FR-042: A heard memory shall never be passed on. Only memories tagged seen are exchanged under FR-041.
 
-FR-043: The fear level recorded for a decision shall be the highest-probability level of the fear Score. It shall scale the reach of the danger field around cats and known traps by a fixed multiplier: unconcerned 0.5, wary 1.0, alarmed 1.5, panicked 2.0. Panicked shall also shorten the intent hold per FR-018. Fear shall not change the drive weights themselves.
+FR-043: The fear level recorded for a decision shall be the highest-probability level of the fear Score. It shall scale the distance over which danger is felt around cats and known traps by a fixed factor: unconcerned 0.5, wary 1.0, alarmed 1.5, panicked 2.0. The factor shall change the shape of the danger gradient across the candidate cells, not only its magnitude, because the fields are normalized across those cells before weighting and a magnitude scale would have no effect at all. Panicked shall also shorten the intent hold per FR-018. Fear shall not change the drive weights themselves.
 
 ### 4.6 Reproduction and personality
 
@@ -196,17 +196,17 @@ FR-055: Medium preset defaults shall be 30 male, 30 female, 4 cats, 8 traps, 20 
 
 FR-056: The system shall export the full configuration and seed as one file and import such a file, validating it as in FR-054.
 
-FR-140: The configuration screen shall show, before a run starts, the expected number of decisions, tokens, cost, and duration, each labelled as an estimate.
+FR-140: The configuration screen shall show, before a run starts, the expected number of decisions, tokens, cost and duration, each labelled as an estimate. Estimates shall be derived from recorded totals of recent completed runs, and the system shall record each run's decision count, token count and active simulation time for that purpose.
 
 ### 4.8 Telemetry and records
 
-FR-057: The engine shall emit a typed event for every state change, each carrying the tick and a monotonically increasing sequence number. Event kinds shall include at least: run started, tick advanced, moved, decision requested, decision returned, decision fallback, food eaten, food respawned, trap entered, evasion rolled, mouse trapped, trap respawned, hole entered, hole left, brood born, hole freed, cat targeted, cat pounced, capture, cat eating started, cat eating ended, mating, gestation started, birth, cap-limited birth, death, memory added, alarm exchanged, and run ended.
+FR-057: The engine shall emit a typed event for every state change, each carrying the tick and a monotonically increasing sequence number. Event kinds shall include at least: run started, mouse spawned, run resumed, tick advanced, moved, decision requested, decision returned, decision fallback, food eaten, food respawned, trap entered, evasion rolled, mouse trapped, trap respawned, hole entered, hole left, brood born, hole freed, cat targeted, cat pounced, capture, cat eating started, cat eating ended, mating, gestation started, birth, cap-limited birth, death, memory added, alarm exchanged, and run ended.
 
 FR-058: Each decision-returned event shall contain the complete state sent, every question with its options or levels, every probability and confidence returned, the intent label with its low-confidence flag, the fear level, the model identifier, the input token count, and the derived signal weights.
 
 FR-059: Every death event shall carry exactly one cause from the set starvation, trap, cat.
 
-FR-060: A run's record shall consist of its configuration, seed, engine version, model identifier, the ordered sequence of chunks covering every tick, the summary series, and the totals for requests, tokens, cost, fallbacks, and wall-clock time.
+FR-060: A run's record shall consist of its configuration, seed, engine version, model identifier, the ordered sequence of chunks covering every tick, one summary segment per chunk, and the totals for requests, tokens, cost, fallbacks, rate-limit refusals, other errors, and active simulation time excluding time paused or queued.
 
 FR-061: *Withdrawn in version 3.0.* Previously required run records to be stored in the browser's local database. Records are now stored by the service; see FR-098 to FR-104.
 
@@ -240,9 +240,9 @@ FR-071: A run's record shall state whether Jev was enabled and shall count fallb
 
 FR-072: No secret shall be delivered to the browser. The Jev key shall exist only in service configuration and in the environment of the simulation process.
 
-FR-073: Outbound Jev requests shall be rate-limited below the published service limit with a configurable ceiling, shall honor a retry-after response, and shall pass usage and model fields back unchanged.
+FR-073: Outbound decision requests shall be rate-limited below the published service limit against one budget shared by every simulation in the deployment, with a configurable ceiling. A simulation shall obtain its share of that budget before each chunk and shall not exceed it. A retry-after response shall be honored. Usage and model fields shall be passed back unchanged.
 
-FR-074: The simulation process shall divide the grid into fixed 16-by-16-cell tiles and group up to 8 decision-ready mice from the same tile on the same tick into one request, spilling further mice into additional requests. Cats shall never be grouped with mice.
+FR-074: The simulation process shall order the decision-ready mice of a tick by a deterministic spatial sort and group them into requests of up to 8, so that a request carries mice near one another without confining a group to a fixed region. Cats shall be grouped with each other the same way and shall never be grouped with mice.
 
 ### 4.13 Accounts and sign-in
 
@@ -252,7 +252,7 @@ FR-076: On first sign-in the system shall create an account holding the Google s
 
 FR-077: On every sign-in the system shall refresh the stored email, name, and avatar from the identity provider.
 
-FR-078: A session shall expire 30 days after it is issued and shall be carried in a cookie that page scripts cannot read.
+FR-078: A session shall expire 30 days after it is issued, whether or not it has been used in the meantime, and shall be carried in a cookie that page scripts cannot read.
 
 FR-079: The system shall provide a sign-out action that ends the session immediately.
 
@@ -270,7 +270,7 @@ FR-084: Only these transitions shall be permitted: queued to running or cancelle
 
 FR-085: A subject shall have at most one run in queued, running, or paused status at a time. Owners are exempt.
 
-FR-086: The deployment shall run at most 20 simulations at once, default, configurable.
+FR-086: The deployment shall run at most 20 simulations at once, default, configurable. With more than one running, the shared request budget of FR-073 shall be divided among them, so throughput per run falls as concurrency rises rather than any run being refused or the published limit exceeded.
 
 FR-087: A run that cannot start because the deployment is at capacity shall be queued, and the person shall see its position in the queue.
 
@@ -278,7 +278,7 @@ FR-088: A queued run shall start automatically when capacity frees, whether or n
 
 FR-089: A person shall be able to cancel a queued run, which removes it.
 
-FR-090: A run shall reach a terminal status exactly once, and its totals shall not change afterwards.
+FR-090: A run shall reach a terminal status exactly once, and its totals shall not change afterwards. The transition shall be idempotent, and any report arriving for a run already in a terminal status shall be discarded and recorded.
 
 ### 4.15 Server-side execution and resume
 
@@ -302,7 +302,7 @@ FR-098: The engine shall close a chunk at 250 ticks or 8 megabytes of uncompress
 
 FR-099: Each chunk shall be compressed and stored as one object, immutable once written.
 
-FR-100: The system shall maintain a summary series covering every tick, rewritten at each chunk boundary, holding population by sex and by personality, mice sheltering, deaths by cause, births, mean nutrition, mean fear, decisions, tokens, and cost.
+FR-100: The system shall write one summary segment per chunk, covering that chunk's ticks and holding population by sex and by personality, mice sheltering, deaths by cause, births, mean nutrition, mean fear, decisions, tokens, and cost. A segment shall be written once and never rewritten. A reader needing the whole run shall concatenate its segments.
 
 FR-101: No process shall hold an entire run record in memory at any time.
 
@@ -332,7 +332,7 @@ FR-111: The owner of a run shall be able to create a share link for it.
 
 FR-112: A share link shall carry an unguessable token, shown to the owner once, and the system shall store only a hash of it.
 
-FR-113: Anyone holding a live share link shall be able to watch or replay that run, including the inspector, without an account.
+FR-113: Anyone holding a live share link shall be able to watch or replay that run, including the inspector and including locating the chunk containing any given tick, without an account.
 
 FR-114: A share link shall grant read access only. No action that changes a run shall be reachable through one.
 
@@ -344,7 +344,7 @@ FR-116: A share link whose run is deleted, expired, or revoked shall return the 
 
 FR-117: The system shall meter Jev usage per subject per day, in input tokens and requests, resetting at midnight UTC.
 
-FR-118: The system shall enforce a daily Jev budget for each signed-in account, each anonymous session, and each network address, all configurable.
+FR-118: The system shall enforce a daily decision budget for each signed-in account, each anonymous session, and each network address, all configurable. Every applicable budget shall be consulted before a simulation is granted its next allowance, and the first refusal shall deny it. An anonymous simulation's budget shall be keyed primarily to the network address, so discarding a cookie does not reset it.
 
 FR-119: The system shall enforce a daily cost budget for the deployment as a whole, configurable.
 
@@ -362,7 +362,7 @@ FR-124: The deployment shall have a setting that makes authentication optional.
 
 FR-125: With authentication optional, a visitor without an account shall receive a signed anonymous session and shall be able to configure and run simulations under anonymous budgets.
 
-FR-126: An anonymous run and everything stored about it shall be removed 24 hours after it was created.
+FR-126: An anonymous run shall expire 24 hours after it was created, and everything stored about it, including any record of its decision usage, shall be removed within 24 hours of that expiry.
 
 FR-127: An anonymous visitor shall not be able to create share links, and the action shall not appear.
 
@@ -376,13 +376,25 @@ FR-130: A person shall be able to export their profile, run metadata, and usage 
 
 FR-131: A person shall be able to delete their account, after confirming by typing a word the interface names.
 
-FR-132: Deleting an account shall remove the profile and every run, chunk, summary, serialized state, share link, usage record, session, and stored object belonging to it.
+FR-132: Deleting an account shall remove the profile and every run, chunk, summary segment, serialized state, share link, usage record and stored object belonging to it, and shall invalidate every session of that account on every device, not only the one making the request.
 
 FR-133: If deletion cannot begin because storage is unreachable, the system shall change nothing and shall say so.
 
+### 4.23 Trust boundary and coordination
+
+FR-142: The coordinator shall choose every storage key a simulation writes and shall grant that simulation single-object, time-limited write access to each one. A simulation process shall hold no storage credential and shall not name a storage key.
+
+FR-143: A simulation resuming from a serialized state shall be granted single-object, time-limited read access to that state and to nothing else.
+
+FR-144: The token authenticating a simulation's reports shall be issued afresh on every simulation start, so that a process the system has replaced cannot report into its replacement's run.
+
+FR-145: A viewer connecting to a running simulation shall be served the current world state obtained from that simulation, not from stored data.
+
+FR-146: The system shall maintain an index of the sessions belonging to each account, sufficient to invalidate all of them.
+
 ### 4.22 Settings and operations
 
-FR-134: Authentication, Jev, every budget, the capacity limits, the retention periods, the chunk size, and the price per million tokens shall each be settings, changeable without a code change.
+FR-134: Authentication, decisions, every budget, the request-rate ceiling, the capacity limits, the retention periods, the chunk tick count and byte cap, and the price per million tokens shall each be deployment settings, changeable by editing configuration and redeploying rather than by changing program logic.
 
 FR-135: A signed-in person's runs shall be retained 30 days by default, owners' exempt, and the interface shall badge runs within 7 days of expiry.
 
@@ -422,13 +434,13 @@ FR-139: The system shall record no analytics about people and shall contain no t
 
 This section fixes what is asked, when, with what options, and what code does with the answer. Exact instruction and criteria wording is left to the technical specification, subject to the rules below.
 
-**State rules.** Every value sent to Jev is a word or short phrase, never a number, coordinate, or percentage. Distances are near, close, or far. Bearings are compass words. Nutrition is full, fed, hungry, very hungry, or starving. Cat state is words such as prowling, stalking toward you, eating. Shelter is described as a free mousehole near, close, or far, or none free. The mouse's personality description and its memory sentences, each marked seen or heard, are included verbatim. Only what is within perception, smell, or memory is sent.
+**State rules.** Every value sent to Jev is a word or short phrase, never a number, coordinate, or percentage. Distances are adjacent, very close, nearby, or far, on the boundaries fixed in the technical specification. Bearings are compass words. Nutrition is full, fed, hungry, very hungry, or starving. Cat state is words such as prowling, stalking toward you, eating. Shelter is described as a free mousehole adjacent, very close, nearby or far, or none in reach. The mouse's personality description and its memory sentences, each marked seen or heard, are included verbatim. Only what is within perception, smell, or memory is sent.
 
 **Mouse decision request.** One request per decision, containing the questions below. Questions marked speculative are always asked when their precondition holds and are read only when the drive answer makes them relevant. Mice inside holes make no requests.
 
 | Question | Type | Asked when | Options or levels | Code consumes it as |
 |---|---|---|---|---|
-| drive | Choice | Every mouse decision | explore always; eat if any food signal perceived; flee if danger perceived or a danger memory is fresh; hide if an available hole exists; seek mate if eligible and a candidate is visible; nest if pregnant past gestation and an available hole exists | Probabilities become weights on the signal fields: eat on food, flee away from danger, hide and nest on shelter, seek mate on mate, explore on least-visited. The highest option is the intent label; confidence below 0.5 sets the low-confidence flag |
+| drive | Choice | Every mouse decision | explore always; eat if any food signal perceived; flee if danger perceived or a danger memory is fresh; hide if an available hole exists; seek mate if eligible and a candidate is visible; nest if pregnant past gestation and an available hole exists | Probabilities become weights on the signal terms: eat on food, flee away from danger, hide and nest on shelter, seek mate on mate, explore on continuing the current direction of travel. The highest option is the intent label; confidence below 0.5 sets the low-confidence flag |
 | fear | Score | Every mouse decision | unconcerned, wary, alarmed, panicked | Highest level maps to the danger-field reach multiplier 0.5, 1.0, 1.5, 2.0; panicked halves the intent hold; recorded for the mean-fear chart |
 | approach suspect food | Noul | Speculative: nearest food signal is at a location with a death or escape memory | yes or no | Read only when drive is eat: below 0.5 removes that source from the food field for this intent |
 | mate choice | Choice | Speculative: eligible and one or more candidates visible | One option per visible candidate, described by personality, condition, and distance, plus none | Read only when drive is seek mate: sets the approach target; none means wait |
@@ -441,39 +453,39 @@ This section fixes what is asked, when, with what options, and what code does wi
 | target | Choice | One or more mice outside holes in perception and the cat is prowling or resting, or its target was lost, caught, or dropped | One option per visible mouse, described by apparent speed, isolation, proximity to other mice, distance, and whether it is heading for a hole, plus none worth it | Sets the target; none worth it keeps prowling |
 | mode | Choice | Same request as target | prowl, stalk, pounce (only if a target is within 3 cells and cooldown is zero), rest | Sets the mode for the next intent |
 
-**Batching rule.** Up to 8 mice from the same 16-by-16 tile share one request. Each mouse's state sits under its own key, and every question's instruction names that key. Cats are never batched with mice.
+**Batching rule.** Up to 8 mice share one request, chosen by a deterministic spatial sort so that a group is made of mice near one another. Each mouse's state sits under its own key, and every question's instruction names that key. Cats are grouped with each other and never with mice.
 
-**Baseline substitution.** When Jev is off or a decision falls back, the same questions are answered by fixed rules: drive weights from nutrition band, danger presence, and shelter availability; fear from nearest cat distance; approach suspect food as no when a death memory exists; mate choice as nearest candidate; nest site as safe when no cat has been perceived within 100 ticks. The event records which source answered.
+**Baseline substitution.** When Jev is off or a decision falls back, the same questions are answered by fixed rules: drive weights from nutrition band, danger presence, and shelter availability; fear from nearest cat distance; approach suspect food as yes only when nutrition is very low, deliberately blunt so the rule is visibly a rule; mate choice as nearest candidate; nest site as safe when no cat has been perceived within 100 ticks and no known trap lies within five cells, and uneasy otherwise. The event records which source answered.
 
 ## 6. Non-Functional Requirements
 
-NFR-001 Simulation throughput: a Medium default run with Jev on shall sustain at least 2 ticks per second on the server; with Jev off, at least 30 ticks per second.
+NFR-001 Simulation throughput: with decisions on, a Medium default run shall sustain at least 2 ticks per second while no more than five simulations are running in the deployment, and shall degrade predictably rather than fail beyond that as the shared request budget is divided. With decisions off, at least 30 ticks per second regardless of concurrency. The rate a run is achieving shall be visible while it runs.
 
-NFR-002 Viewer rendering: the live view shall hold at least 30 frames per second on the Large preset at its caps on a current laptop, independent of the tick rate the server is achieving.
+NFR-002 Viewer rendering: the live view shall render at least 30 frames per second on the Large preset at its caps on a current laptop, independent of the rate at which simulation frames arrive, which may be lower.
 
-NFR-003 Cost: a 2,000-tick Medium default run shall cost under $0.50 at the configured price, and the live meter shall never lag the true total by more than one chunk.
+NFR-003 Cost: a 2,000-tick Medium default run whose population stays near its starting size shall cost under $0.50 at the configured price. Because decision volume scales with living population and the Medium cap is 160 mice, a run that breeds successfully may exceed that; the live meter shall never lag the true total by more than one chunk, and the daily budgets of FR-118 are what bound spend, not this figure.
 
-NFR-004 Reproducibility: the engine shall be deterministic given seed, configuration, and the sequence of decision answers. Replay shall reproduce a stored stream exactly, and resuming from a serialized state shall produce the same stream as running straight through.
+NFR-004 Reproducibility: the engine shall be deterministic given seed, configuration and the sequence of decision answers. Replaying a stored run shall reproduce its event stream exactly, excluding fields that record wall-clock measurement. Restoring a serialized state and continuing shall produce the same stream as running straight through when the same answers are supplied. A run resumed live after a failure re-asks the decision model and may therefore diverge from the run it replaces; that is expected, and only the no-gap, no-repeat guarantee of FR-095 applies to it.
 
 NFR-005 Secrets: every secret shall exist only in service configuration and process environment. No browser-delivered asset and no API response shall contain key material, checked in the build.
 
-NFR-006 Data minimization: the only personal data collected shall be the Google subject identifier, email address, display name, and avatar URL of a signed-in person. No analytics, tracking, or fingerprinting shall be present. Simulation telemetry describes simulated animals and a subject's own usage.
+NFR-006 Data minimization: the only personal data collected shall be the Google subject identifier, email address, display name and avatar URL of a signed-in person, together with a salted hash of the network address retained solely for rate limiting, which is also personal data and is rotated daily. No analytics, tracking, fingerprinting, or third-party script shall be present in any page served to a person. Error reports from the browser shall be forwarded by the service rather than sent from the page, with the address removed. Simulation telemetry describes simulated animals and a subject's own usage.
 
-NFR-007 Browser support: current desktop releases of Chrome, Firefox, and Safari, with no dependency on local storage for correctness.
+NFR-007 Browser support: current desktop releases of Chrome, Firefox and Safari, with no dependency on local storage for correctness. Browser tests shall run against at least one Chromium engine and one WebKit engine.
 
 NFR-008 Rate-limit resilience: no run shall fail because the decision service rate-limited a request. The service shall back off and the run shall fall back to baseline rules.
 
-NFR-009 Accessibility: all controls shall be operable by keyboard, and no state shall be conveyed by color alone.
+NFR-009 Accessibility: all controls shall be operable by keyboard with a visible focus indicator and a logical order, and no state shall be conveyed by colour alone. Both halves shall be covered by tests.
 
-NFR-010 Engine isolation: the engine shall have no dependency on a browser, a network, a clock, or any coordination protocol, and shall run headless under Node for tests and for baseline-only runs.
+NFR-010 Engine isolation: the engine shall have no dependency on a browser, a network, a clock, or any coordination protocol, and shall run headless under Node for tests and for baseline-only runs. The prohibition on reading a clock, reaching the network, touching a document, or drawing randomness outside the injected generator shall be enforced by a lint rule rather than by convention, because a clock read is the one that silently destroys determinism.
 
-NFR-011 Bounded memory: no process shall hold more than one chunk of a run in memory. Memory use shall not grow with a run's length or with its tick count.
+NFR-011 Bounded memory: no process shall hold more than one chunk and its summary segment in memory. Memory use shall not grow with a run's length or tick count, and this shall hold for the analysis views as well as the simulation, so any computation over a whole record shall stream its chunks rather than load them.
 
 NFR-012 Availability: the service shall remain able to sign people in, list runs, and replay stored runs while the decision service is unavailable.
 
-NFR-013 Start latency: a run shall begin producing frames within 10 seconds of being started, when capacity is available.
+NFR-013 Start latency: a run shall begin producing frames within 10 seconds of being started when capacity is available, and shall be reported as failed to start after 30 seconds. The 10 seconds is the target and the 30 seconds is the timeout.
 
-NFR-014 Stream latency: a viewer shall receive the current state within 2 seconds of connecting, and frames within 200 milliseconds of the tick they describe, under normal conditions.
+NFR-014 Stream latency: a viewer shall receive the current world state within 2 seconds of connecting, sourced from the running simulation rather than from stored data, and shall then receive frames within 200 milliseconds of the tick they describe under normal conditions.
 
 NFR-015 Storage growth: storage shall be bounded by the retention policy, and expired data shall be removed within 24 hours of expiry.
 
@@ -487,7 +499,7 @@ Ten epics, ordered so each can be built and tested on what precedes it. Story su
 
 **EP-2 Jev decision layer** (FR-058, FR-070 to FR-074, section 5). As an evaluator, I can see the exact words Jev received and the distribution it returned. As Carson, I can switch a decision between Jev and baseline and watch the movement change. As Carson, I can run sixty mice without hitting a rate limit.
 
-**EP-3 Configuration and personality mix** (FR-053 to FR-056, FR-140, FR-042, FR-043). As a watcher, I can set 70 percent bold and see the mix hold across births. As a researcher, I can export a configuration and seed and hand it to someone else. As a watcher, I cannot start a run that exceeds the grid's caps, and I can see what a run will cost before I start it.
+**EP-3 Configuration and personality mix** (FR-051 to FR-056, FR-140). As a watcher, I can set 70 percent bold and see the mix hold across births. As a researcher, I can export a configuration and seed and hand it to someone else. As a watcher, I cannot start a run that exceeds the grid's caps, and I can see what a run will cost before I start it.
 
 **EP-4 Server-side execution and resume** (FR-091 to FR-097, FR-098 to FR-101). As a watcher, I can start a long run, close the tab, and come back to find it finished. As Carson, I can kill the simulation process and watch the run pick up where it left off. As an operator, no process grows in memory as a run gets longer.
 
@@ -531,19 +543,22 @@ Delivered since the previous version and no longer outstanding: system architect
 
 ## 12. Changes from version 2.1
 
-| Requirement | Change |
+Recorded in version 3.0 and unchanged: the out-of-scope list lost the single-user and browser-storage items; FR-061 was withdrawn; FR-060, FR-062, FR-068 and FR-072 to FR-074 were revised for the hosted shape; NFR-001, NFR-002, NFR-006, NFR-010 and NFR-011 were revised or replaced; the success metrics were rewritten and eight added; ten requirement groups and FR-075 to FR-141 were added; FR-001 to FR-052, the activity cost table and the decision contract carried over.
+
+## 13. Changes in version 3.1
+
+Applies the solution validation remediation. Nothing is withdrawn and no number is reused.
+
+| Area | Change |
 |---|---|
-| Out-of-scope list | "Multi-user or shared sessions", "one person, one browser, one run at a time", "a server-side telemetry store", and browser-only storage removed; the product is a hosted multi-tenant service |
-| FR-061 | Withdrawn. Browser-local record storage replaced by FR-098 to FR-104 |
-| FR-062 | Revised. Replay reads stored chunks rather than a local record, and the promise is no decision call rather than no network request |
-| FR-060 | Revised. A record is chunks plus a summary series, not one document |
-| FR-068 | Revised. Controls are applied by the service, not the browser |
-| FR-072 to FR-074 | Revised. The key lives in service configuration and the simulation process; rate limiting and batching moved out of the browser |
-| NFR-001, NFR-002 | Revised. Tick rate is a server property; viewer frame rate is separate from it |
-| NFR-006 | Revised. Personal data is now present and is enumerated and minimized, rather than absent |
-| NFR-010 | Revised. Engine isolation now also excludes coordination protocols |
-| NFR-011 | Replaced. Bounded memory per process, rather than a 100 megabyte export cap |
-| SM-01 to SM-10 | Revised for the hosted shape; SM-11 to SM-18 added for runs outliving tabs, resume, authorization, deletion, budget degradation, anonymous retention, reconnection, and sharing |
-| New groups | 4.13 accounts, 4.14 lifecycle and capacity, 4.15 server execution and resume, 4.16 record storage, 4.17 library and export, 4.18 sharing, 4.19 quotas, 4.20 public mode, 4.21 account data, 4.22 settings and operations |
-| New requirements | FR-075 to FR-141 |
-| Unchanged | FR-001 to FR-052, the activity cost table, and the decision contract in section 5 |
+| Capacity | FR-073 gains a shared deployment request budget and a ceiling; FR-074 replaces tile-bounded batching with a spatial sort; FR-086 divides the budget across concurrent runs; NFR-001 becomes tiered |
+| Trust boundary | FR-142 to FR-144 added: the coordinator names every key and grants single-object access, resume gets a scoped read, the report token rotates on every start |
+| Viewer | FR-145 added and NFR-014 revised: the opening state comes from the running simulation |
+| Memory | FR-060 and FR-100 replace the rewritten whole-run summary with one segment per chunk; NFR-011 extends the bound to the analysis views |
+| Fear | FR-043 states that the factor scales the distance danger is felt over and must change the gradient's shape, because a magnitude scale is cancelled by normalization |
+| Control | FR-090 makes the terminal transition idempotent and discards late reports |
+| Quotas | FR-118 consults every applicable budget and keys anonymous budgets to the address |
+| Sessions | FR-078 fixes the lifetime as absolute; FR-132 and FR-146 make every session revocable |
+| Metrics | SM-01, SM-03, SM-05, SM-06, SM-07, SM-10, SM-14 and SM-16 revised so each can be measured with what the design records; NFR-004 scoped honestly for a live resume |
+| Privacy | NFR-006 names the address hash as personal data, requires daily rotation, and moves browser error reporting behind the service |
+| Corrections | FR-015 nine candidates; FR-038 the exploration term; FR-057 spawn and resume events; FR-113 chunk lookup by tick; FR-126 within 24 hours of expiry; FR-134 settings stated honestly; FR-140 an estimate with a source; the four-bucket distance vocabulary; the baseline rule for suspect food; the epic list citing FR-051 and FR-052 rather than FR-042 and FR-043 |

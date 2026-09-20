@@ -33,6 +33,10 @@ Keeps Carson's intent that public mode stores as little as possible about anonym
 
 Easier: no anonymous library, no anonymous sharing, small anonymous footprint. Harder: a retention sweep must exist from the first release.
 
+## Correction, 2026-09-19
+
+The clause permitting the browser to mirror chunks into local storage is withdrawn. No other document implements it, the flows contradict it, and NFR-007 bars depending on local storage for correctness. An anonymous run is gone when its retention expires.
+
 ## Alternatives Considered
 
 Keep anonymous records indefinitely (rejected: storage abuse). Stream to the browser and store nothing (rejected: a dropped connection loses the run).

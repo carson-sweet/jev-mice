@@ -2,7 +2,7 @@
 id: ISSUE-010
 title: "WP-10 privacy and observability"
 type: story
-status: new
+status: done
 priority: P1
 effort: s
 epic: null
@@ -31,3 +31,7 @@ tech spec 8, architecture 6, data model 3.1/3.5/13, compliance context, assumpti
 ## Blocked by
 
 D-2, D-3
+
+## Resolution
+
+2026-09-19. Applied in the document revisions committed with the remediation: requirements v3.1, architecture v2.2, data model v1.1, interface design v1.1, technical specification v1.1, user flows v1.1, decision records ADR-021 to ADR-024, and six amended records. Verified by the re-validation pass.

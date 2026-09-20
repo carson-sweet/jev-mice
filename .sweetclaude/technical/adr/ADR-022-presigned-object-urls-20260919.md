@@ -1,0 +1,1 @@
+../../work/WI-001/design/adr/ADR-022-presigned-object-urls-20260919.md

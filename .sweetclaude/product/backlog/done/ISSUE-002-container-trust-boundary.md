@@ -2,7 +2,7 @@
 id: ISSUE-002
 title: "WP-2 container trust boundary"
 type: story
-status: new
+status: done
 priority: P0
 effort: m
 epic: null
@@ -31,3 +31,7 @@ interface design 9.1/9.2/9.3, architecture 5/6, ADR-013/014/019, data model 4, t
 ## Blocked by
 
 nothing — can start immediately
+
+## Resolution
+
+2026-09-19. Applied in the document revisions committed with the remediation: requirements v3.1, architecture v2.2, data model v1.1, interface design v1.1, technical specification v1.1, user flows v1.1, decision records ADR-021 to ADR-024, and six amended records. Verified by the re-validation pass.

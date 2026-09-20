@@ -301,3 +301,13 @@
 **Structure:** 4 decisions for Carson, 11 work packages, 6 of which need no decision
 
 **Open:** D-1 capacity approach, D-2 browser error reporting, D-3 geographic scoping, D-4 personality metric threshold
+
+## 2026-09-20T02:59:11Z — remediation applied and re-validated
+
+**Status:** completed
+
+**Verdict:** PASSES. 0 blocking, 0 high. Implementation authorized.
+
+**Produced:** requirements v3.1 (146 FRs), architecture v2.2, data model v1.1, interface design v1.1, technical specification v1.1, user flows v1.1, ADR-021 to ADR-024, six amended records, wireframe corrections, solution validation report v1.1
+
+**Backlog:** ISSUE-001 to ISSUE-011 closed

@@ -23,7 +23,7 @@ ADR-010 defined three packages. Server-side execution adds a Node container imag
 
 ## Decision
 
-packages/engine (pure TypeScript, ADR-001); apps/web (React viewer); apps/worker (Hono API, Run Durable Object, QuotaCounter and GlobalBudget Durable Objects, Container binding, Drizzle schema); apps/sim (Node process for the container image: loads the engine, runs the loop, talks to its Run Durable Object, calls TypeSafe). The engine exports contract, event, chunk, summary, and record types; web, worker, and sim import them. Nothing imports into engine. Supersedes ADR-010.
+packages/engine (pure TypeScript, ADR-001); apps/web (React viewer); apps/worker (Hono API, Run Durable Object, QuotaCounter and GlobalLimits Durable Objects, Container binding, Drizzle schema); apps/sim (Node process for the container image: loads the engine, runs the loop, talks to its Run Durable Object, calls TypeSafe). The engine exports contract, event, chunk, summary, and record types; web, worker, and sim import them. Nothing imports into engine. Supersedes ADR-010.
 
 ## Rationale
 
