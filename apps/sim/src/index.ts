@@ -117,7 +117,10 @@ export function createSimulation(opts: SimulationOptions): Simulation {
         id: m.id, x: m.at.x, y: m.at.y, nutrition: Math.round(m.nutrition),
         intent: m.intent, fear: m.fear, inHole: m.inHole !== null,
       })),
-      cats: (w?.cats ?? []).map((c) => ({ id: c.id, x: c.at.x, y: c.at.y, mode: c.mode })),
+      cats: (w?.cats ?? []).map((c) => ({
+        id: c.id, x: c.at.x, y: c.at.y, mode: c.mode,
+        nutrition: Math.round(c.nutrition), hungry: c.hungry,
+      })),
       food: (w?.food ?? []).filter((f) => f.present).map((f) => ({ id: f.id, x: f.at.x, y: f.at.y })),
       traps: (w?.traps ?? []).map((t) => ({
         id: t.id, x: t.at.x, y: t.at.y, occupied: t.occupantId !== null })),

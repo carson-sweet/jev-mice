@@ -1,30 +1,10 @@
 // The world, drawn on a canvas. Nothing here decides anything; it renders the
-// last frame the server sent and reports what was clicked.
+// last frame the server sent and reports what was clicked. Every shape comes
+// from the shared glyph set, which is what the legend draws from too.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 import type { Frame } from '@jev-mice/sim'
-
-const COLOURS = {
-  bg: '#0b0d10',
-  grid: '#151a21',
-  food: '#4ade80',
-  trap: '#f87171',
-  trapOccupied: '#7f1d1d',
-  hole: '#475569',
-  holeUsed: '#94a3b8',
-  cat: '#fb923c',
-  selected: '#facc15',
-}
-
-/** Nutrition drives the fill, so a starving mouse reads as pale at a glance. */
-function mouseColour(nutrition: number, inHole: boolean): string {
-  if (inHole) return '#334155'
-  const t = Math.max(0, Math.min(100, nutrition)) / 100
-  const r = Math.round(180 - 60 * t)
-  const g = Math.round(110 + 110 * t)
-  const b = Math.round(220 - 40 * t)
-  return `rgb(${String(r)},${String(g)},${String(b)})`
-}
+import { COLOURS, catShade, drawGlyph, mouseShade } from './glyphs'
 
 export function Grid({ frame, width, height, selected, onSelect }: {
   frame: Frame | null
@@ -35,6 +15,17 @@ export function Grid({ frame, width, height, selected, onSelect }: {
 }): React.ReactElement {
   const ref = useRef<HTMLCanvasElement>(null)
   const cell = useRef(8)
+  const [, bump] = useReducer((n: number) => n + 1, 0)
+
+  // A paused or finished run sends no more frames, so without this the map
+  // would keep whatever size the window had when the last one arrived.
+  useEffect(() => {
+    const parent = ref.current?.parentElement
+    if (!parent) return
+    const observer = new ResizeObserver(() => { bump() })
+    observer.observe(parent)
+    return () => { observer.disconnect() }
+  }, [])
 
   useEffect(() => {
     const canvas = ref.current
@@ -53,7 +44,7 @@ export function Grid({ frame, width, height, selected, onSelect }: {
     canvas.style.height = `${String(height * size)}px`
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-    ctx.fillStyle = COLOURS.bg
+    ctx.fillStyle = COLOURS.background
     ctx.fillRect(0, 0, width * size, height * size)
 
     if (size >= 6) {
@@ -66,40 +57,29 @@ export function Grid({ frame, width, height, selected, onSelect }: {
     }
     if (!frame) return
 
-    const box2 = (x: number, y: number, colour: string, inset = 1): void => {
-      ctx.fillStyle = colour
-      ctx.fillRect(x * size + inset, y * size + inset, size - inset * 2, size - inset * 2)
-    }
-
+    // Terrain first, animals last, so nothing standing on a hole is hidden.
     for (const h of frame.holes) {
-      box2(h.x, h.y, h.occupancy === 'empty' ? COLOURS.hole : COLOURS.holeUsed, 2)
+      drawGlyph(ctx, h.occupancy === 'empty' ? 'hole' : 'holeOccupied',
+                h.x * size, h.y * size, size)
     }
-    for (const f of frame.food) box2(f.x, f.y, COLOURS.food, 2)
-    for (const t of frame.traps) box2(t.x, t.y, t.occupied ? COLOURS.trapOccupied : COLOURS.trap, 2)
-
+    for (const f of frame.food) drawGlyph(ctx, 'food', f.x * size, f.y * size, size)
+    for (const t of frame.traps) {
+      drawGlyph(ctx, t.occupied ? 'trapOccupied' : 'trap', t.x * size, t.y * size, size)
+    }
     for (const m of frame.mice) {
-      ctx.fillStyle = mouseColour(m.nutrition, m.inHole)
-      ctx.beginPath()
-      ctx.arc(m.x * size + size / 2, m.y * size + size / 2, Math.max(1.5, size / 2 - 1), 0, Math.PI * 2)
-      ctx.fill()
+      if (m.inHole) continue
+      drawGlyph(ctx, 'mouse', m.x * size, m.y * size, size, mouseShade(m.nutrition))
       if (m.id === selected) {
         ctx.strokeStyle = COLOURS.selected
         ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.arc(m.x * size + size / 2, m.y * size + size / 2, Math.max(2, size / 2), 0, Math.PI * 2)
         ctx.stroke()
       }
     }
-
     for (const c of frame.cats) {
-      ctx.fillStyle = COLOURS.cat
-      const cx = c.x * size + size / 2
-      const cy = c.y * size + size / 2
-      const r = Math.max(2, size / 2)
-      ctx.beginPath()
-      ctx.moveTo(cx, cy - r)
-      ctx.lineTo(cx + r, cy + r)
-      ctx.lineTo(cx - r, cy + r)
-      ctx.closePath()
-      ctx.fill()
+      drawGlyph(ctx, c.hungry ? 'catHungry' : 'cat', c.x * size, c.y * size, size,
+                catShade(c.nutrition))
     }
   }, [frame, width, height, selected])
 
@@ -115,7 +95,7 @@ export function Grid({ frame, width, height, selected, onSelect }: {
         const rect = e.currentTarget.getBoundingClientRect()
         const x = Math.floor((e.clientX - rect.left) / cell.current)
         const y = Math.floor((e.clientY - rect.top) / cell.current)
-        const hit = frame.mice.find((m) => m.x === x && m.y === y)
+        const hit = frame.mice.find((m) => !m.inHole && m.x === x && m.y === y)
         onSelect(hit?.id ?? null)
       }}
     />

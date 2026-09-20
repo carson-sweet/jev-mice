@@ -7,7 +7,7 @@ import type {
   DecisionSubject, Drive, FearLevel, Memory, Personality, Sex, Tick, WorldView,
 } from './types.js'
 import {
-  BATCH_SIZE, DRIVES, FEAR_LEVELS, NUTRITION_BANDS, PERCEPTION, PERSONALITY_TEXT, TIMING,
+  BATCH_SIZE, CAT, DRIVES, FEAR_LEVELS, NUTRITION_BANDS, PERSONALITY_TEXT, TIMING,
 } from './types.js'
 import { chebyshev } from './signals.js'
 import { bearingFrom } from './memory.js'
@@ -167,8 +167,9 @@ export function composeRequests(
     const questions: Record<string, unknown> = {}
     const contexts: Record<string, unknown> = {}
     for (const c of group) {
+      const reach = c.hungry ? CAT.perceptionHungry : CAT.perception
       const seen = world.mice
-        .filter((m) => !m.inHole && chebyshev(m.at, c.at) <= PERCEPTION.cat)
+        .filter((m) => !m.inHole && chebyshev(m.at, c.at) <= reach)
         .sort((a, b) => (a.id < b.id ? -1 : 1))
       const candidates = seen.map((m) => ({
         id: m.id,
@@ -180,7 +181,11 @@ export function composeRequests(
       contexts[c.id] = { at: c.at, mode: c.mode, candidates: seen.map((m) => ({
         id: m.id, distance: chebyshev(m.at, c.at), nutrition: m.nutrition })) }
       state[c.id] = {
-        cat: { doing: c.mode === 'rest' ? 'resting' : `${c.mode}ing` },
+        cat: {
+          doing: c.mode === 'rest' ? 'resting' : `${c.mode}ing`,
+          hunger: c.nutrition >= CAT.hungryBelow ? 'well fed'
+            : c.nutrition > CAT.leaveAt * 2 ? 'hungry' : 'starving, ready to move on',
+        },
         mice: candidates.map((x) => x.description),
       }
       questions[`target_${c.id}`] = catTargetQuestion(c.id, candidates)

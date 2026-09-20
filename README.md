@@ -76,6 +76,20 @@ When the service is slow, over budget or unreachable, that batch is answered by
 the fixed rules and the run continues. The record says which decisions were
 judged and which were computed, so the two are never confused.
 
+## Reading the map
+
+Shape carries what a thing is and shade carries its condition, so the map does
+not depend on colour alone. A mouse is a blue circle, a cat a red triangle,
+food a green square, a trap an orange diamond and a mousehole a grey ring. The
+four solid shapes stay distinct down to a few pixels, which is why the same
+glyphs work on the large preset as on the small one. The key under the map draws
+its swatches with the same function the map uses, so the two cannot drift apart.
+
+A cat has its own hunger. It decays slowly, a mouse restores half of it, and a
+cat below half sees further, springs from further away and stops resting after
+losing a mouse. At a tenth or less it leaves the map to look elsewhere, which is
+the only way predation pressure is ever removed from a run.
+
 ## What the numbers say
 
 The colony is bistable under the fixed rules, and the threshold is sharp.

@@ -6,6 +6,7 @@ import { Grid } from './Grid'
 import { Chart } from './Chart'
 import { Inspector } from './Inspector'
 import { Configure } from './Configure'
+import { Legend } from './Legend'
 
 const MAX_POINTS = 600
 
@@ -174,11 +175,18 @@ export function App(): React.ReactElement {
           </ul>
         </aside>
 
-        <main className="flex min-w-0 flex-1 items-center justify-center overflow-hidden p-4">
+        {/* No items-center on the column: it would shrink the grid's wrapper to
+            the canvas the canvas is sized from, and the map would collapse. */}
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4">
           {run
-            ? <Grid frame={frame} width={world.width} height={world.height}
-                    selected={selected} onSelect={setSelected} />
-            : <p className="max-w-sm text-center text-sm text-zinc-500">
+            ? <>
+                <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+                  <Grid frame={frame} width={world.width} height={world.height}
+                        selected={selected} onSelect={setSelected} />
+                </div>
+                <Legend />
+              </>
+            : <p className="m-auto max-w-sm text-center text-sm text-zinc-500">
                 Set the starting conditions and start a run. The world appears here and
                 keeps going on the server, so closing this page does not stop it.
               </p>}

@@ -8,7 +8,7 @@ import type {
   Snapshot, Tick, WorldView,
 } from './types.js'
 import {
-  ALARM_RANGE, BATCH_SIZE, DRIVES, ENGINE_VERSION, JITTER, NUTRITION_BANDS,
+  ALARM_RANGE, BATCH_SIZE, CAT, DRIVES, ENGINE_VERSION, JITTER, NUTRITION_BANDS,
   PERCEPTION, PERSONALITIES, PUP_NUTRITION, TIMING,
 } from './types.js'
 import { capsFor, drawPersonality, PRESETS } from './config.js'
@@ -53,6 +53,7 @@ interface CatState {
   pounceCooldown: number; patience: number
   lastSighting: Cell | null; sightingUntil: Tick
   busyUntil: Tick
+  nutrition: number
   bestDistance: number
   drift: { dx: number; dy: number }
 }
@@ -184,6 +185,7 @@ function build(
     for (let i = 0; i < Math.min(config.cats, caps.cats); i++) {
       const c = freeCell((x, y) => hasHole(x, y) || occupiedByAnimal(x, y))
       cats.push({ id: `c${pad(i + 1)}`, x: c.x, y: c.y, mode: 'prowl', target: null,
+        nutrition: CAT.startingNutrition,
         pounceCooldown: 0, patience: 0, lastSighting: null, sightingUntil: 0,
         busyUntil: 0, bestDistance: Infinity, drift: { dx: 0, dy: 0 } })
     }
@@ -387,6 +389,7 @@ function build(
     finishEating()
     resolveTrapEntries()
     resolveCaptures()
+    resolveCatHunger()
     resolveHoleEntries()
     resolveMating()
     resolveBirths()
@@ -412,7 +415,8 @@ function build(
       tick - m.intentSetAt >= intentHold(m.fear)).map((m) => m.id)
     const readyCats = [...cats].sort(byId).filter((c) =>
       c.mode !== 'eating' && (c.target === null || !mice.some((m) => m.id === c.target))
-      && mice.some((m) => !m.inHole && chebyshev({ x: m.x, y: m.y }, { x: c.x, y: c.y }) <= PERCEPTION.cat))
+      && mice.some((m) => !m.inHole
+        && chebyshev({ x: m.x, y: m.y }, { x: c.x, y: c.y }) <= catPerception(c)))
       .map((c) => c.id)
     if (ready.length === 0 && readyCats.length === 0) return
 
@@ -522,6 +526,35 @@ function build(
     m.nutrition >= NUTRITION_BANDS.fed ? TIMING.moveFed
       : m.nutrition >= NUTRITION_BANDS.hungry ? TIMING.moveHungry : TIMING.moveStarving
 
+  const isHungry = (c: CatState): boolean => c.nutrition < CAT.hungryBelow
+  const catPerception = (c: CatState): number =>
+    isHungry(c) ? CAT.perceptionHungry : CAT.perception
+  const catPounceRange = (c: CatState): number =>
+    isHungry(c) ? CAT.pounceRangeHungry : CAT.pounceRange
+  const catPounceCooldown = (c: CatState): number =>
+    isHungry(c) ? CAT.pounceCooldownHungry : CAT.pounceCooldown
+
+  /**
+   * Hunger, then departure. A cat that is not succeeding here leaves rather
+   * than haunting an empty map forever, which is the only way a predator is
+   * ever removed from a run.
+   */
+  function resolveCatHunger(): void {
+    const leaving: CatState[] = []
+    for (const c of [...cats].sort(byId)) {
+      c.nutrition = Math.max(0, c.nutrition - CAT.decayPerTick)
+      if (c.nutrition <= CAT.leaveAt) leaving.push(c)
+    }
+    for (const c of leaving) {
+      emit({ kind: 'cat_left', id: c.id, reason: 'starving',
+             nutrition: Math.round(c.nutrition * 100) / 100,
+             at: { x: c.x, y: c.y } } as never)
+      cats = cats.filter((o) => o.id !== c.id)
+      // Nothing else needs unpicking: no mouse holds a cat's id, and a mouse
+      // that was fleeing this one simply stops perceiving it and re-decides.
+    }
+  }
+
   function moveCat(c: CatState): void {
     // Covers the tick a meal ends and the rest that follows losing a target.
     if (tick < c.busyUntil) return
@@ -529,8 +562,11 @@ function build(
     if (c.target && !target) {
       c.lastSighting = c.lastSighting ?? null
       c.sightingUntil = tick + TIMING.catReturnToSighting
-      c.target = null; c.mode = 'rest'; c.busyUntil = tick + TIMING.catRest
-      emit({ kind: 'cat_targeted', id: c.id, target: null, mode: 'rest' } as never)
+      const restless = isHungry(c)
+      c.target = null
+      c.mode = restless ? 'prowl' : 'rest'
+      if (!restless) c.busyUntil = tick + TIMING.catRest
+      emit({ kind: 'cat_targeted', id: c.id, target: null, mode: c.mode } as never)
       return
     }
     if (target) {
@@ -543,10 +579,10 @@ function build(
         emit({ kind: 'cat_targeted', id: c.id, target: null, mode: 'prowl' } as never)
         return
       }
-      if (d <= 3 && c.pounceCooldown === 0) {
+      if (d <= catPounceRange(c) && c.pounceCooldown === 0) {
         const from = { x: c.x, y: c.y }
         stepToward(c, target.x, target.y, 2)
-        c.pounceCooldown = TIMING.pounceCooldown
+        c.pounceCooldown = catPounceCooldown(c)
         c.mode = 'pounce'
         emit({ kind: 'cat_pounced', id: c.id, target: target.id, from, to: { x: c.x, y: c.y } } as never)
         return
@@ -629,6 +665,10 @@ function build(
       kill(prey, 'cat', { x: c.x, y: c.y })
       c.mode = 'eating'; c.busyUntil = tick + TIMING.catEat; c.target = null
       emit({ kind: 'cat_eating_started', id: c.id } as never)
+      const restored = Math.min(CAT.mealRestores, CAT.startingNutrition - c.nutrition)
+      c.nutrition = Math.min(CAT.startingNutrition, c.nutrition + CAT.mealRestores)
+      emit({ kind: 'cat_fed', id: c.id, restored: Math.round(restored * 100) / 100,
+             nutrition: Math.round(c.nutrition * 100) / 100 } as never)
     }
   }
 
@@ -779,6 +819,7 @@ function build(
         id: c.id, at: { x: c.x, y: c.y }, mode: c.mode, target: c.target,
         pounceCooldown: c.pounceCooldown, patience: c.patience,
         lastSighting: c.lastSighting ? { ...c.lastSighting } : null,
+        nutrition: c.nutrition, hungry: isHungry(c),
       })),
       food: food.map((f) => ({ id: f.id, at: { x: f.x, y: f.y }, present: f.present })),
       traps: traps.map((t) => ({ id: t.id, at: { x: t.x, y: t.y }, occupantId: t.occupantId })),

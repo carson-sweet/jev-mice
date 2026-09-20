@@ -75,6 +75,10 @@ export interface MouseView {
 export interface CatView {
   id: AgentId; at: Cell; mode: CatMode; target: AgentId | null
   pounceCooldown: number; patience: number; lastSighting: Cell | null
+  /** Percent, like a mouse's. A meal restores it; nothing else does. */
+  nutrition: number
+  /** Below CAT.hungryBelow. Hunts further, springs sooner, does not rest. */
+  hungry: boolean
 }
 
 export interface FoodView { id: string; at: Cell; present: boolean }
@@ -118,6 +122,9 @@ export type SimEvent =
   | (EventBase & { kind: 'capture'; catId: AgentId; mouseId: AgentId })
   | (EventBase & { kind: 'cat_eating_started'; id: AgentId })
   | (EventBase & { kind: 'cat_eating_ended'; id: AgentId })
+  | (EventBase & { kind: 'cat_fed'; id: AgentId; restored: number; nutrition: number })
+  | (EventBase & { kind: 'cat_left'; id: AgentId; reason: 'starving'; nutrition: number
+                   at: Cell })
   | (EventBase & { kind: 'mating'; a: AgentId; b: AgentId; holeId: string })
   | (EventBase & { kind: 'gestation_started'; id: AgentId })
   | (EventBase & { kind: 'birth'; motherId: AgentId; pupId: AgentId
@@ -198,6 +205,28 @@ export const TIMING = {
 } as const
 
 export const PERCEPTION = { mouse: 6, vigilantMouse: 8, cat: 8 } as const
+
+/**
+ * A cat's own hunger. A cat that is not catching mice hunts harder and then
+ * gives up on the area entirely, which is what stops a barren map from holding
+ * predators forever. Decay is a tenth of a mouse's, so a cat outlasts any one
+ * mouse but not a long drought.
+ */
+export const CAT = {
+  startingNutrition: 100,
+  decayPerTick: 0.1,
+  /** What one mouse is worth. Less than full, so a cat must keep hunting. */
+  mealRestores: 50,
+  hungryBelow: 50,
+  /** At or below this it leaves to look elsewhere. */
+  leaveAt: 10,
+  perception: 8,
+  perceptionHungry: 11,
+  pounceRange: 3,
+  pounceRangeHungry: 4,
+  pounceCooldown: 20,
+  pounceCooldownHungry: 10,
+} as const
 export const ALARM_RANGE = { normal: 1, social: 2 } as const
 export const NUTRITION_BANDS = { fed: 60, hungry: 30 } as const
 export const PUP_NUTRITION = 75

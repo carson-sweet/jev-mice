@@ -43,7 +43,8 @@ export interface Frame {
   population: number
   mice: { id: string; x: number; y: number; nutrition: number; intent: string | null
           fear: string; inHole: boolean }[]
-  cats: { id: string; x: number; y: number; mode: string }[]
+  cats: { id: string; x: number; y: number; mode: string
+          nutrition: number; hungry: boolean }[]
   food: { id: string; x: number; y: number }[]
   traps: { id: string; x: number; y: number; occupied: boolean }[]
   holes: { id: string; x: number; y: number; occupancy: string }[]
