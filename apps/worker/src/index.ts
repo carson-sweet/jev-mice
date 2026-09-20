@@ -11,6 +11,7 @@
 import { Hono } from 'hono'
 import { defaultConfig, validateConfig, type Preset, type RunConfig } from '@jev-mice/engine'
 import { SPEED, type Decider } from '@jev-mice/sim'
+import { beaconTag } from './analytics.js'
 import { httpsRedirect } from './https.js'
 import type { Env } from './env.js'
 
@@ -142,6 +143,20 @@ app.get('/api/runs/:id/summary/:seq', (c) =>
 app.all('/api/*', (c) => c.json({ error: 'no such route' }, 404))
 
 // Everything else is the viewer, served from the built assets.
-app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw))
+//
+// The usage beacon is added here rather than baked into the built page, so the
+// token stays a deployment setting and a build carries no site's identity. A
+// deployment without a token serves the page untouched.
+app.all('*', async (c) => {
+  const response = await c.env.ASSETS.fetch(c.req.raw)
+  const tag = beaconTag(c.env.CF_ANALYTICS_TOKEN)
+  if (tag === null) return response
+  if (!(response.headers.get('content-type') ?? '').includes('text/html')) return response
+  return new HTMLRewriter()
+    .on('body', {
+      element(el) { el.append(tag, { html: true }) },
+    })
+    .transform(response)
+})
 
 export default app

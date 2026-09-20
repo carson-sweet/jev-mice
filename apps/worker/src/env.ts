@@ -15,6 +15,11 @@ export interface Env {
   /** Dollars a day, across every visitor. Past it, runs fall back to the rules. */
   JEV_DAILY_BUDGET_USD?: string
   JEV_PRICE_PER_MTOK?: string
+  /**
+   * Cloudflare Web Analytics. Absent means no beacon is injected at all, which
+   * is what local development and any self-hosted copy get.
+   */
+  CF_ANALYTICS_TOKEN?: string
 }
 
 export const numberFrom = (v: string | undefined, fallback: number): number => {

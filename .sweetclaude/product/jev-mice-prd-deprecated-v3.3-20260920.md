@@ -1,7 +1,7 @@
 ---
 title: jev-mice Product Requirements Document
 version: 3.3
-status: final
+status: deprecated
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19

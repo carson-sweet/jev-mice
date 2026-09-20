@@ -52,4 +52,8 @@ bucket_name = "jev-mice-records"
 JEV_DAILY_BUDGET_USD = "20"
 JEV_PRICE_PER_MTOK = "0.28"
 
+# Cloudflare Web Analytics. Cookieless, no cross-site identity. Empty means no
+# beacon is injected, which is what local development gets.
+CF_ANALYTICS_TOKEN = ""
+
 # TYPESAFE_API_KEY is a secret, set with: wrangler secret put TYPESAFE_API_KEY
