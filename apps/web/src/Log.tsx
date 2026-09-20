@@ -3,7 +3,7 @@
 // judgment becomes legible, because a choice and its consequence sit on one
 // line.
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { LogEntry } from '@jev-mice/sim'
 import { COLOURS, type GlyphKind } from './glyphs'
 import { glyphUrl } from './glyphCache'
@@ -38,19 +38,67 @@ const MARK = 12
  * and GPU memory that the JS heap never showed -- the tab died at a flat six
  * megabytes with no error. The glyph is drawn once per kind and shown here.
  */
-function Mark({ kind }: { kind: LogEntry['kind'] }): React.ReactElement {
-  const dpr = useDevicePixelRatio()
+function Mark({ kind, dpr }: {
+  kind: LogEntry['kind']
+  /**
+   * Passed in, not read here. This hook registers a matchMedia listener, and
+   * the log has four hundred rows: reading it per row meant four hundred media
+   * queries and four hundred listeners, torn down and rebuilt every time the
+   * list changed. The panel reads it once.
+   */
+  dpr: number
+}): React.ReactElement {
   return (
     <img
       src={glyphUrl(GLYPH[kind], MARK, dpr, TINT[kind])}
-      width={MARK}
-      height={MARK}
-      className="mt-[3px] shrink-0"
+      // Both the explicit size and self-start are load-bearing. A flex row
+      // stretches its items to the row's height by default, and an img with no
+      // CSS size obeys that: the marks came out 12 by 30. The canvas this
+      // replaced carried the same explicit style for the same reason.
+      style={{ width: MARK, height: MARK }}
+      className="mt-[3px] shrink-0 self-start"
       alt=""
       aria-hidden="true"
     />
   )
 }
+
+/**
+ * One line, memoised.
+ *
+ * Without this every batch of events re-rendered all four hundred lines,
+ * because appending to the list produces a new array and React re-runs each
+ * child. Measured at the fastest pace: 858 ms of the main thread blocked out
+ * of six seconds, with a worst task of 98 ms, which is what made turning the
+ * speed up feel like slowing down. The entries themselves are never mutated,
+ * so comparing by reference is enough to skip a line that has not changed.
+ */
+const Row = memo(function Row({ entry, dpr, onHover }: {
+  entry: LogEntry
+  dpr: number
+  onHover: ((ids: readonly string[]) => void) | undefined
+}): React.ReactElement {
+  return (
+    <li
+      onMouseEnter={() => { onHover?.(subjectsOf(entry)) }}
+      onMouseLeave={() => { onHover?.([]) }}
+      className="flex gap-2 rounded px-1 text-xs leading-snug hover:bg-zinc-800/60"
+    >
+      <Mark kind={entry.kind} dpr={dpr} />
+      <span className="min-w-0">
+        <span className="tabular-nums text-zinc-600">{entry.tick}</span>
+        {' '}
+        <span className="text-zinc-300">{entry.text}</span>
+        {entry.decision !== undefined && (
+          <span className="text-zinc-500">
+            {' '}It was set to {entry.decision}
+            {entry.decidedBy === 'jev' ? ', judged by Jev' : ', by the rules'}.
+          </span>
+        )}
+      </span>
+    </li>
+  )
+})
 
 /** Every id a line mentions, so hovering it can point at all of them. */
 function subjectsOf(e: LogEntry): string[] {
@@ -66,6 +114,7 @@ export function Log({ entries, decidedBy, onHover }: {
 }): React.ReactElement {
   const box = useRef<HTMLDivElement>(null)
   const [pinned, setPinned] = useState(true)
+  const dpr = useDevicePixelRatio()
 
   // Follows the newest line, unless the reader has scrolled up to look at
   // something, in which case it stays where they put it.
@@ -111,24 +160,7 @@ export function Log({ entries, decidedBy, onHover }: {
             </p>
           : <ol className="space-y-1">
               {entries.map((e) => (
-                <li key={e.seq}
-                    onMouseEnter={() => { onHover?.(subjectsOf(e)) }}
-                    onMouseLeave={() => { onHover?.([]) }}
-                    className="flex gap-2 rounded px-1 text-xs leading-snug
-                               hover:bg-zinc-800/60">
-                  <Mark kind={e.kind} />
-                  <span className="min-w-0">
-                    <span className="tabular-nums text-zinc-600">{e.tick}</span>
-                    {' '}
-                    <span className="text-zinc-300">{e.text}</span>
-                    {e.decision !== undefined && (
-                      <span className="text-zinc-500">
-                        {' '}It was set to {e.decision}
-                        {e.decidedBy === 'jev' ? ', judged by Jev' : ', by the rules'}.
-                      </span>
-                    )}
-                  </span>
-                </li>
+                <Row key={e.seq} entry={e} dpr={dpr} onHover={onHover} />
               ))}
             </ol>}
       </div>
