@@ -317,3 +317,13 @@
 **Status:** skipped
 
 **Reason:** requires personas, which were declined; real reactions to the running product are preferred. Recorded as decision 58 and lr-009 so it resurfaces when the product is watchable.
+
+## 2026-09-20T03:12:52Z — phase transition DESIGN -> PLAN (WI-001)
+
+**Status:** completed
+
+**Gate:** 8 of 8 criteria met, no waivers
+
+**Improvement check-in:** nothing to change (lr-010, confirmation)
+
+**Scope chosen:** all ten epics, Gherkin format, TDD Level 3

@@ -12,7 +12,7 @@ active_work_item:
   id: WI-001
   type: net-new-feature
   workflow: [DISCOVER, DEFINE, DESIGN, PLAN, IMPLEMENT, VERIFY, SHIP]
-  phase: DESIGN
+  phase: PLAN
   title: "Jev-driven mice, cats, traps, and food ecology simulation as a browser app with configurable starting conditions and full telemetry"
   started: 2026-09-19
   entry_category: cold-start

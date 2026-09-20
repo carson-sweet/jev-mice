@@ -37,7 +37,7 @@ work:
     - IMPLEMENT
     - VERIFY
     - SHIP
-    phase: DESIGN
+    phase: PLAN
     title: Jev-driven mice, cats, traps, and food ecology simulation as a browser
       app with configurable starting conditions and full telemetry
     started: '2026-09-19'
@@ -102,4 +102,9 @@ work_history:
   from: DEFINE
   to: DESIGN
   at: '2026-09-19T22:21:31Z'
+- id: WI-001
+  event: phase_transition
+  from: DESIGN
+  to: PLAN
+  at: '2026-09-20T03:12:52Z'
 learnings: []
