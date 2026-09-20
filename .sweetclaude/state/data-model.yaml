@@ -1,0 +1,19 @@
+stores:
+- neon postgres 17 (drizzle)
+- cloudflare r2
+- cloudflare kv
+- durable object storage
+tables:
+- users
+- runs
+- run_chunks
+- share_tokens
+- jev_usage
+- pending_object_deletions
+engine_types:
+- SimEvent union
+- Chunk
+- SummarySeries
+- Snapshot
+status: final
+current_file: .sweetclaude/work/WI-001/design/jev-mice-data-model-final-v1.0-20260919.md

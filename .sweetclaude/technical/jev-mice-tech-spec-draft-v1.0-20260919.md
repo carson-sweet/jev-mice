@@ -1,1 +1,0 @@
-../work/WI-001/design/jev-mice-tech-spec-draft-v1.0-20260919.md

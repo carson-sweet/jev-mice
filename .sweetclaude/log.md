@@ -235,3 +235,11 @@
 **Compliance requirements applied:** six hard requirements carried from the architecture plus the container callback token and write-only object credentials
 
 **Open questions:** three in the data model, four in the API design, four in the tech spec
+
+## 2026-09-20T01:15:42Z — data model, API design, tech spec approved as final v1.0
+
+**Status:** completed
+
+**Produced:** three final documents in .sweetclaude/work/WI-001/design/; data-model.yaml and api-design.yaml added
+
+**Note:** wireframes not started; Carson asked whether they were ready

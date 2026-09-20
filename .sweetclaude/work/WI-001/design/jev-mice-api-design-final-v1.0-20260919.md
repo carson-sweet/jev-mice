@@ -1,19 +1,19 @@
 ---
 title: jev-mice API Design
 version: 1.0
-status: draft
+status: final
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19
 audience: hybrid
 nda: false
-changes: initial draft
-previous_file: none
+changes: approved as final by Carson Sweet on 2026-09-19; paragraph numbers removed
+previous_file: jev-mice-api-design-deprecated-v1.0-20260919.md
 ---
 
 # jev-mice API Design
 
-**Version:** 1.0 (draft)
+**Version:** 1.0 (final)
 
 **Date:** 2026-09-19
 
@@ -25,24 +25,24 @@ previous_file: none
 
 ## 1. Conventions
 
-[1] **Base path.** Everything public is under `/api`. Everything private to the system is under `/internal` and is unreachable from outside, enforced by a token check rather than by network topology.
+**Base path.** Everything public is under `/api`. Everything private to the system is under `/internal` and is unreachable from outside, enforced by a token check rather than by network topology.
 
-[2] **Authentication.** A session cookie named `jm_session` carrying an opaque token, or, in public mode, `jm_anon` carrying `id.hmac`. Both are HttpOnly, Secure, SameSite=Lax. The API accepts no other credential; there are no API keys for callers.
+**Authentication.** A session cookie named `jm_session` carrying an opaque token, or, in public mode, `jm_anon` carrying `id.hmac`. Both are HttpOnly, Secure, SameSite=Lax. The API accepts no other credential; there are no API keys for callers.
 
-[3] **Content types.** JSON in and out, except chunk, summary, snapshot, and export responses, which are `application/gzip` or `application/x-tar` streamed to the client without server-side decompression.
+**Content types.** JSON in and out, except chunk, summary, snapshot, and export responses, which are `application/gzip` or `application/x-tar` streamed to the client without server-side decompression.
 
-[4] **Errors.** One envelope, always, with a stable machine code and a sentence a person can read.
+**Errors.** One envelope, always, with a stable machine code and a sentence a person can read.
 
 ```json
 { "error": { "code": "run_active", "message": "You already have a run in progress.",
              "detail": { "runId": "..." } } }
 ```
 
-[5] **Idempotency.** Creating a run relies on the database's one-active-run constraint rather than an idempotency key: a duplicate submission hits the unique index and returns `run_active` with the existing run's id, which is the answer the interface wants anyway.
+**Idempotency.** Creating a run relies on the database's one-active-run constraint rather than an idempotency key: a duplicate submission hits the unique index and returns `run_active` with the existing run's id, which is the answer the interface wants anyway.
 
-[6] **Versioning.** No version in the path. The browser and the API ship together from one repository and one deploy, so they are never out of step. The engine's own formats carry versions because they outlive a deploy in storage; routes do not.
+**Versioning.** No version in the path. The browser and the API ship together from one repository and one deploy, so they are never out of step. The engine's own formats carry versions because they outlive a deploy in storage; routes do not.
 
-[7] **Time and numbers.** All timestamps are ISO 8601 in UTC. Money is integer micros of a dollar. Tokens and ticks are integers. Nothing on the wire is a float except the probabilities Jev returned, which are passed through unchanged.
+**Time and numbers.** All timestamps are ISO 8601 in UTC. Money is integer micros of a dollar. Tokens and ticks are integers. Nothing on the wire is a float except the probabilities Jev returned, which are passed through unchanged.
 
 ## 2. Authentication
 
@@ -52,9 +52,9 @@ previous_file: none
 | GET | `/api/auth/google/callback` | Google returns here. Creates or updates the user, creates a session, sets the cookie, redirects to `next` or the library. |
 | POST | `/api/auth/signout` | Deletes the session from storage and clears the cookie. Always 204, even with no session. |
 
-[8] The middleware handles state and the token exchange. The callback's only application logic is the user upsert, the owner-allowlist check, and session creation.
+The middleware handles state and the token exchange. The callback's only application logic is the user upsert, the owner-allowlist check, and session creation.
 
-[9] When authentication is switched off, `/api/auth/google` returns `404 auth_disabled`. Nothing in the interface links to it in that mode.
+When authentication is switched off, `/api/auth/google` returns `404 auth_disabled`. Nothing in the interface links to it in that mode.
 
 ## 3. Session, quota, configuration
 
@@ -73,7 +73,7 @@ Returns who the caller is and what they may do. The browser calls it once at loa
                "globalLimit": 20 } }
 ```
 
-[10] For an anonymous caller `subject.kind` is `"anon"`, `id` is the cookie id, and the personal fields are absent. For an allowlisted owner `quota.unlimited` is true and the remaining figures are omitted rather than set to a sentinel.
+For an anonymous caller `subject.kind` is `"anon"`, `id` is the cookie id, and the personal fields are absent. For an allowlisted owner `quota.unlimited` is true and the remaining figures are omitted rather than set to a sentinel.
 
 ### GET /api/quota
 
@@ -93,7 +93,7 @@ Takes a candidate configuration, returns the engine validator's verdict plus the
                  "basis": "measured median latency over the last 100 runs" } }
 ```
 
-[11] Validation is the engine's, imported by the Worker, so the screen and the simulation can never disagree about what is legal. The estimate is explicitly labelled with its basis, because it is a projection and the interface says so.
+Validation is the engine's, imported by the Worker, so the screen and the simulation can never disagree about what is legal. The estimate is explicitly labelled with its basis, because it is a projection and the interface says so.
 
 ## 4. Runs
 
@@ -120,7 +120,7 @@ Responses:
 | 402 | `error.code: "quota_exhausted"`, `detail: { tokensRemaining, estimate, maxTicksThatFit }` | The estimate exceeds the remaining budget |
 | 422 | `error.code: "config_invalid"`, `detail.errors[]` | Validator rejected it |
 
-[12] The 402 carries `maxTicksThatFit` so the interface can offer to trim the run rather than only refusing it, which is what the configure flow promises. A caller who would rather run without Jev resubmits with `jevEnabled: false`, which skips the quota check entirely.
+The 402 carries `maxTicksThatFit` so the interface can offer to trim the run rather than only refusing it, which is what the configure flow promises. A caller who would rather run without Jev resubmits with `jevEnabled: false`, which skips the quota check entirely.
 
 ### GET /api/runs
 
@@ -158,11 +158,11 @@ Revokes tokens, removes the object prefix, deletes the row. Returns `{ "deleted"
 | GET | `/api/runs/:id/chunks/at/:tick` | 302 to the chunk containing that tick |
 | GET | `/api/runs/:id/export` | `application/x-tar`, the whole record |
 
-[13] Chunks are immutable, so they carry `Cache-Control: private, max-age=31536000, immutable` and an ETag. Summary and snapshot carry `no-store`, because both are rewritten at every boundary. This is the difference that lets replay scrub backwards without refetching anything.
+Chunks are immutable, so they carry `Cache-Control: private, max-age=31536000, immutable` and an ETag. Summary and snapshot carry `no-store`, because both are rewritten at every boundary. This is the difference that lets replay scrub backwards without refetching anything.
 
-[14] `chunks/at/:tick` exists so the browser never needs the index to jump to a tick; a scrub is one redirect and one object.
+`chunks/at/:tick` exists so the browser never needs the index to jump to a tick; a scrub is one redirect and one object.
 
-[15] Export streams a tar assembled on the fly from the objects, never buffered. The response sets `Content-Disposition` and, when the size is known from the chunk index, `Content-Length`, so the browser can show real progress.
+Export streams a tar assembled on the fly from the objects, never buffered. The response sets `Content-Disposition` and, when the size is known from the chunk index, `Content-Length`, so the browser can show real progress.
 
 ## 6. Sharing
 
@@ -176,11 +176,11 @@ Revokes tokens, removes the object prefix, deletes the row. Returns `{ "deleted"
 | GET | `/api/share/:token/chunks/:seq` | As above, by token. |
 | GET | `/api/share/:token/stream` | WebSocket, read-only. |
 
-[16] The token appears in a response body exactly once, when it is created. Afterwards only its hash exists, so the list route shows a prefix for recognition and never the whole thing. An owner who loses a link revokes it and makes another.
+The token appears in a response body exactly once, when it is created. Afterwards only its hash exists, so the list route shows a prefix for recognition and never the whole thing. An owner who loses a link revokes it and makes another.
 
-[17] A revoked, deleted, or expired target returns `404 share_not_found` with no distinction between the cases, so a token cannot be used to probe what exists.
+A revoked, deleted, or expired target returns `404 share_not_found` with no distinction between the cases, so a token cannot be used to probe what exists.
 
-[18] Share routes are unavailable in public mode: `POST` returns `403 sharing_disabled`.
+Share routes are unavailable in public mode: `POST` returns `403 sharing_disabled`.
 
 ## 7. Account
 
@@ -190,11 +190,11 @@ Revokes tokens, removes the object prefix, deletes the row. Returns `{ "deleted"
 | GET | `/api/account/export` | JSON of profile, run metadata, usage rows |
 | DELETE | `/api/account` | Delete everything |
 
-[19] `DELETE /api/account` requires `{ "confirm": "DELETE" }` in the body, matching what the interface asks the user to type. It checks storage reachability first and returns `503 storage_unavailable` without changing anything if that check fails. On success it returns a summary of what was removed and clears the session cookie.
+`DELETE /api/account` requires `{ "confirm": "DELETE" }` in the body, matching what the interface asks the user to type. It checks storage reachability first and returns `503 storage_unavailable` without changing anything if that check fails. On success it returns a summary of what was removed and clears the session cookie.
 
 ## 8. Viewer WebSocket
 
-[20] `GET /api/runs/:id/stream` and `GET /api/share/:token/stream`, upgraded. The Worker authorizes the request, then hands the socket to the run's Run object, which owns it from then on. Sockets use hibernation, so a run with watchers and no frames in flight costs nothing.
+`GET /api/runs/:id/stream` and `GET /api/share/:token/stream`, upgraded. The Worker authorizes the request, then hands the socket to the run's Run object, which owns it from then on. Sockets use hibernation, so a run with watchers and no frames in flight costs nothing.
 
 ### Server to client
 
@@ -227,27 +227,27 @@ type ClientMessage =
   | { t: 'ping' }
 ```
 
-[21] **A viewer always receives `hello` then `snapshot` before any frame**, whether it is the first connection, a reconnect, or a late join. There is no incremental catch-up path to get wrong: reconnecting is the same code as connecting.
+**A viewer always receives `hello` then `snapshot` before any frame**, whether it is the first connection, a reconnect, or a late join. There is no incremental catch-up path to get wrong: reconnecting is the same code as connecting.
 
-[22] **Frames are deltas against the last frame or snapshot**, packed positionally rather than as objects, because these are the only high-rate messages. A frame carries only entities that moved or changed state, so a quiet tick costs a few dozen bytes.
+**Frames are deltas against the last frame or snapshot**, packed positionally rather than as objects, because these are the only high-rate messages. A frame carries only entities that moved or changed state, so a quiet tick costs a few dozen bytes.
 
-[23] **`inspect` is a subscription, not a request.** Selecting an animal sends one `inspect` with its id; the object then pushes a fresh `inspect` message whenever that animal's decision changes, until the viewer sends `inspect: null`. This keeps the panel live during a chase without the browser polling.
+**`inspect` is a subscription, not a request.** Selecting an animal sends one `inspect` with its id; the object then pushes a fresh `inspect` message whenever that animal's decision changes, until the viewer sends `inspect: null`. This keeps the panel live during a chase without the browser polling.
 
-[24] **`resync` requests a fresh snapshot** and is what the client sends if it detects a gap in tick numbers. It is a safety valve, not a normal path.
+**`resync` requests a fresh snapshot** and is what the client sends if it detects a gap in tick numbers. It is a safety valve, not a normal path.
 
-[25] **Share viewers get `canControl: false`** and any control message they send is answered with `error: forbidden`. The server does not rely on the client hiding buttons.
+**Share viewers get `canControl: false`** and any control message they send is answered with `error: forbidden`. The server does not rely on the client hiding buttons.
 
-[26] **Backpressure.** If a socket's buffered amount exceeds a threshold, frames for that socket are dropped rather than queued, and the next delivered frame is preceded by a `snapshot`. A slow viewer degrades to fewer updates; it never slows the run or the other viewers.
+**Backpressure.** If a socket's buffered amount exceeds a threshold, frames for that socket are dropped rather than queued, and the next delivered frame is preceded by a `snapshot`. A slow viewer degrades to fewer updates; it never slows the run or the other viewers.
 
 ## 9. Container and Run object protocol
 
-[27] This is the private contract that makes server-side simulation work. The container never talks to the browser and never talks to Postgres; everything it reports goes to its own Run object, and everything it is told comes from there.
+This is the private contract that makes server-side simulation work. The container never talks to the browser and never talks to Postgres; everything it reports goes to its own Run object, and everything it is told comes from there.
 
 ### 9.1 Trust and identity
 
-[28] At start, the Run object generates a callback token and passes it to the container in its environment along with the run id, the configuration, the seed, the TypeSafe key, and write-only object-store credentials. Every call the container makes carries `Authorization: Bearer <callbackToken>` and a run id in the path, and the object rejects any call whose token does not match the one it issued for that run. One container can therefore only ever report into the run it was started for.
+At start, the Run object generates a callback token and passes it to the container in its environment along with the run id, the configuration, the seed, the TypeSafe key, and write-only object-store credentials. Every call the container makes carries `Authorization: Bearer <callbackToken>` and a run id in the path, and the object rejects any call whose token does not match the one it issued for that run. One container can therefore only ever report into the run it was started for.
 
-[29] **Object-store credentials given to a container allow writing objects and nothing else.** No delete, no list, no read. A container that is somehow subverted can write garbage into its own run's prefix; it cannot destroy or read another run. Deletion uses a separate, fuller credential that only the Worker holds. This is tighter than the architecture described and costs nothing.
+**Object-store credentials given to a container allow writing objects and nothing else.** No delete, no list, no read. A container that is somehow subverted can write garbage into its own run's prefix; it cannot destroy or read another run. Deletion uses a separate, fuller credential that only the Worker holds. This is tighter than the architecture described and costs nothing.
 
 ### 9.2 Container to Run object
 
@@ -259,7 +259,7 @@ type ClientMessage =
 | POST | `/internal/runs/:id/done` | `{ finalTick, totals }` | `204` |
 | POST | `/internal/runs/:id/failed` | `{ atTick, reason, detail? }` | `204` |
 
-[30] **The chunk report is the heartbeat of the system.** It is the only call that must not be lost, and it carries everything that has to become durable, in one round trip that also returns everything the container needs to keep going.
+**The chunk report is the heartbeat of the system.** It is the only call that must not be lost, and it carries everything that has to become durable, in one round trip that also returns everything the container needs to keep going.
 
 ```ts
 // POST /internal/runs/:id/chunk
@@ -286,11 +286,11 @@ interface ChunkAck {
 }
 ```
 
-[31] **The container writes its own objects and reports keys, rather than sending bytes.** Megabytes never pass through the Worker or the object, so their memory stays flat no matter how large a run is. The order is strict: write chunk, write summary, write snapshot, then report. A crash before the report leaves orphaned objects that the next successful report or the retention sweep cleans up; a crash after it leaves a consistent record.
+**The container writes its own objects and reports keys, rather than sending bytes.** Megabytes never pass through the Worker or the object, so their memory stays flat no matter how large a run is. The order is strict: write chunk, write summary, write snapshot, then report. A crash before the report leaves orphaned objects that the next successful report or the retention sweep cleans up; a crash after it leaves a consistent record.
 
-[32] **The response carries both control and the next allowance**, so a steady-state run makes exactly one internal call per chunk. Pausing a run does not require pushing anything to the container; it simply learns at the next boundary. Stopping immediately is the exception and uses the push channel below.
+**The response carries both control and the next allowance**, so a steady-state run makes exactly one internal call per chunk. Pausing a run does not require pushing anything to the container; it simply learns at the next boundary. Stopping immediately is the exception and uses the push channel below.
 
-[33] **Frames are best effort.** `/frames` batches the deltas accumulated since the last post, and the object drops them if no viewer is connected. A failed frame post is logged and forgotten; it never retries, because a stale frame is worthless.
+**Frames are best effort.** `/frames` batches the deltas accumulated since the last post, and the object drops them if no viewer is connected. A failed frame post is logged and forgotten; it never retries, because a stale frame is worthless.
 
 ### 9.3 Run object to container
 
@@ -300,9 +300,9 @@ interface ChunkAck {
 | GET | `/inspect/:agentId` | Current decision detail for one animal |
 | GET | `/health` | Liveness for the object's watchdog |
 
-[34] Only two things need pushing rather than waiting: a stop, because a user who clicks stop expects it to stop, and an inspector subscription, because the panel must be live. Everything else rides on the chunk acknowledgement.
+Only two things need pushing rather than waiting: a stop, because a user who clicks stop expects it to stop, and an inspector subscription, because the panel must be live. Everything else rides on the chunk acknowledgement.
 
-[35] **Watchdog.** The object sets an alarm for twice the expected chunk interval. If neither a chunk nor a health response has arrived by then, it treats the container as dead, starts a new one with `resumeFrom` pointing at the last snapshot, and sends watchers a `banner` that the run is resuming. Two consecutive failed resumes mark the run failed.
+**Watchdog.** The object sets an alarm for twice the expected chunk interval. If neither a chunk nor a health response has arrived by then, it treats the container as dead, starts a new one with `resumeFrom` pointing at the last snapshot, and sends watchers a `banner` that the run is resuming. Two consecutive failed resumes mark the run failed.
 
 ### 9.4 A chunk boundary, end to end
 
@@ -322,11 +322,11 @@ object -> container: 200 { control, allowance }
 container: continue, or switch to baseline rules if allowance.degraded
 ```
 
-[36] Reservation happens after commitment in the same call, so a run can never spend a chunk it was not granted, and the unspent part of the previous estimate is returned before the next one is taken.
+Reservation happens after commitment in the same call, so a run can never spend a chunk it was not granted, and the unspent part of the previous estimate is returned before the next one is taken.
 
 ## 10. Durable Object interfaces
 
-[37] The Worker's routes call these directly; they are the internal seam between routing and coordination.
+The Worker's routes call these directly; they are the internal seam between routing and coordination.
 
 ```ts
 interface RunObject {
@@ -361,7 +361,7 @@ interface GlobalLimitsObject {
 }
 ```
 
-[38] `release` returning `startedNext` is how the queue drains: finishing a run tells the limits object to admit the next one, and the object answers with whichever run it just started, so the Worker can wake that run's object without polling.
+`release` returning `startedNext` is how the queue drains: finishing a run tells the limits object to admit the next one, and the object answers with whichever run it just started, so the Worker can wake that run's object without polling.
 
 ## 11. Authorization
 
@@ -377,7 +377,7 @@ interface GlobalLimitsObject {
 | Account routes | self | self | n/a | n/a | n/a |
 | Internal routes | no | no | no | no | no |
 
-[39] Every run route resolves the run and compares its owner to the caller's subject before doing anything else, including the read routes. There is no route where ownership is implied by possession of an id.
+Every run route resolves the run and compares its owner to the caller's subject before doing anything else, including the read routes. There is no route where ownership is implied by possession of an id.
 
 ## 12. Error codes
 
@@ -401,22 +401,22 @@ interface GlobalLimitsObject {
 
 ## 13. Changes to earlier documents
 
-[40] **Containers write objects directly and report keys.** The architecture described chunks posting to the object, which would push megabytes through it. This keeps memory flat and the data path short.
+**Containers write objects directly and report keys.** The architecture described chunks posting to the object, which would push megabytes through it. This keeps memory flat and the data path short.
 
-[41] **Container object-store credentials are write-only.** A subverted container cannot delete or read anything.
+**Container object-store credentials are write-only.** A subverted container cannot delete or read anything.
 
-[42] **Control and allowance ride on the chunk acknowledgement**, so steady state is one internal call per chunk, with a push channel reserved for immediate stops and inspector subscriptions.
+**Control and allowance ride on the chunk acknowledgement**, so steady state is one internal call per chunk, with a push channel reserved for immediate stops and inspector subscriptions.
 
-[43] **`GET /api/runs/:id/chunks/at/:tick`** is new; replay scrubbing needs no client-side index.
+**`GET /api/runs/:id/chunks/at/:tick`** is new; replay scrubbing needs no client-side index.
 
-[44] **Inspect is a subscription over the socket**, not a request, which the flows implied but did not state.
+**Inspect is a subscription over the socket**, not a request, which the flows implied but did not state.
 
 ## 14. Open questions
 
-[45] Whether frames should move to a binary encoding. JSON with positional packing is comfortable at the sizes measured on paper; measuring a Large run before optimizing is the proposal.
+Whether frames should move to a binary encoding. JSON with positional packing is comfortable at the sizes measured on paper; measuring a Large run before optimizing is the proposal.
 
-[46] Whether the export tar should include the snapshot. Excluding it is the proposal, since it is a resume artifact rather than part of the record.
+Whether the export tar should include the snapshot. Excluding it is the proposal, since it is a resume artifact rather than part of the record.
 
-[47] Whether a share link should be able to carry a starting tick, so an owner can point someone at the moment the colony collapsed. Yes is the proposal, as a query parameter rather than a property of the token.
+Whether a share link should be able to carry a starting tick, so an owner can point someone at the moment the colony collapsed. Yes is the proposal, as a query parameter rather than a property of the token.
 
-[48] Whether `/api/config/validate` should be called on every keystroke or only on blur and submit. On blur and submit is the proposal, with the engine's validator also running client-side for instant feedback.
+Whether `/api/config/validate` should be called on every keystroke or only on blur and submit. On blur and submit is the proposal, with the engine's validator also running client-side for instant feedback.

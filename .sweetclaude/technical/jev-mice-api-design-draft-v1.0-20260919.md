@@ -1,1 +1,0 @@
-../work/WI-001/design/jev-mice-api-design-draft-v1.0-20260919.md

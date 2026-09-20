@@ -1,0 +1,9 @@
+interfaces:
+- public HTTP /api
+- viewer WebSocket
+- container to Run object /internal
+- durable object methods
+auth: session cookie (google) or signed anonymous cookie; per-run callback token for
+  containers
+status: final
+current_file: .sweetclaude/work/WI-001/design/jev-mice-api-design-final-v1.0-20260919.md
