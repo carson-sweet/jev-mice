@@ -13,3 +13,11 @@
 | 9 | 2026-09-19 | Twelve mouseholes for sixty mice on Medium produces real contention for shelter without stalling reproduction | Hide is free and meaningless, or pregnant females never find a hole and the colony cannot replace itself | Hole occupancy and births per 1,000 ticks in telemetry; sweep 6, 12, and 24 holes on the same seed before fixing the default |
 | 10 | 2026-09-19 | Users are in the United States, which is the basis for the reduced privacy obligations | The wider privacy baseline applies and the product does not meet it. Largest blast radius of any assumption here | Nothing in the design implements a geographic check and public mode invites anyone. Decide D-3: register as accepted risk with deletion, export and a privacy notice, or implement a gate |
 | 11 | 2026-09-19 | Batching eight mice chosen by spatial sort rather than by tile does not degrade decision quality | The capacity fix trades accuracy for throughput and the demonstration gets worse decisions | Compare decision quality metrics for tile-bounded and spatial-sort batching on the same seed before adopting |
+
+## A-010 (2026-09-20) The default run is meant to show the mechanics working
+
+Recorded because the specified medium defaults produce extinction on every seed
+under the fixed rules, and the first run a person starts is the one that has to
+demonstrate the product. Whether a default should sustain a colony or should
+simply be whatever the requirements state is an open decision (log entry 63).
+Measured evidence is in the log entry; the code ships the specified values.

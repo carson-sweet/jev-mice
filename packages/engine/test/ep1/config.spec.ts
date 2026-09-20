@@ -20,3 +20,4 @@ describe('A preset default', () => {
     }
   })
 })
+

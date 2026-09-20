@@ -1,0 +1,99 @@
+# jev-mice
+
+A tick-based ecology of mice, cats, traps, food and mouseholes where each
+animal's next move is a judgment rather than a rule. TypeSafe's Jev arbitrates
+the drives; the code narrows the legal options first and applies whatever comes
+back.
+
+Version 0.1.0 · 2026-09-20
+
+## Running it
+
+```bash
+npm install
+npm run build      # builds the viewer
+npm start          # serves it on http://localhost:8787
+```
+
+Without a key every decision is computed by the fixed rules, and the page says
+so. To have Jev judge them instead:
+
+```bash
+TYPESAFE_API_KEY=... npm start
+```
+
+The key is read in the host process and never reaches a browser.
+
+For viewer work, `npm run dev` serves the page with hot reload and proxies the
+API to a host already running on 8787.
+
+## What is here
+
+| Path | What it is |
+|---|---|
+| `packages/engine` | The simulation. Pure, seeded, no clock and no network. |
+| `packages/provider-jev` | Turns a batch of decisions into one request and back. |
+| `apps/sim` | The process that runs the loop and writes chunks. |
+| `apps/host` | The local server: runs, sockets, stored objects. |
+| `apps/web` | The viewer. |
+
+The engine never reaches for the clock, the network or the document, so a run
+with a given seed and a given provider produces the same event stream every
+time. The determinism suite is what holds that true:
+
+```bash
+npm test                  # everything
+npm run test:determinism  # the seed, replay and snapshot round trip
+npm run typecheck
+```
+
+## How a decision is made
+
+Code narrows first. A mouse is only offered drives its situation allows: `eat`
+only when it perceives food, `hide` only when a mousehole is free, `nest` only
+when it is carrying a litter past term. `explore` is always offered, so the
+option set is never empty.
+
+What Jev receives is words. A mouse's state has no coordinates, no tick numbers
+and no population counts, because numeric comparison over large states is where
+a System One model is weakest. Distances become "very close" or "nearby",
+nutrition becomes "hungry", and memories are sentences.
+
+Up to eight mice that are near one another share one request, which is what
+keeps the request rate inside the published limit. Grouping is by spatial sort
+rather than by map tile; confining a batch to a tile measured at 6.76 requests
+per tick against 1.74 for the sort.
+
+The probabilities come back as movement weights rather than as a single choice.
+A mouse that is 60 percent inclined to eat and 40 percent to flee moves on a
+field weighted 60/40, so the judgment shapes the path instead of switching it.
+
+Fear scales the distance danger is felt over, not the size of the danger. The
+signal fields are normalized across the nine cells a mouse can step to, so a
+multiplier would be cancelled exactly and do nothing.
+
+When the service is slow, over budget or unreachable, that batch is answered by
+the fixed rules and the run continues. The record says which decisions were
+judged and which were computed, so the two are never confused.
+
+## What the numbers say
+
+The colony is bistable under the fixed rules, and the threshold is sharp.
+Holding food at 50 piles on a 15-tick respawn and decay at 0.3, three cats
+leave a colony alive on all eight seeds tried and four collapse it. This is the
+behaviour the telemetry exists to study, not a defect, but it does mean a
+single run is not evidence of anything.
+
+**The defaults are one of the settings that collapse.** As the requirements
+specify them, the medium default drives the population to zero well before tick
+1000 on every seed tried. Turn the food up, the decay down, or a cat off, and
+the colony establishes. This is recorded as an open decision rather than
+quietly corrected, because the numbers are ones the requirements state.
+
+## Not built yet
+
+The hosted multi-tenant deployment: Cloudflare Workers, Durable Objects,
+Containers, R2, Neon and Google sign-in. The designs are complete and the
+simulation process already speaks the coordinator protocol that the Run object
+will answer, which is why the local host can stand in for it unchanged. What
+remains is the platform, and it needs accounts and credentials.
