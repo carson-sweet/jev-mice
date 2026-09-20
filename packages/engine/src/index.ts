@@ -27,3 +27,8 @@ export {
   narrate, CHANGES_POPULATION, NOT_WORTH_SAYING, type Narration,
 } from './narrate.js'
 export { fleeOrHideRate, personalityMix } from './metrics.js'
+export {
+  estimateSurvival,
+  type SurvivalCell, type SurvivalEstimate, type SurvivalTable,
+} from './survival.js'
+export { SURVIVAL_TABLE } from './survival-table.js'

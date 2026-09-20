@@ -5,6 +5,8 @@ import { useEffect, useId, useState } from 'react'
 import { capsFor, defaultConfig, validateConfig, PRESETS,
          type Personality, type Preset, type RunConfig } from '@jev-mice/engine'
 
+import { OddsPanel } from './OddsPanel.js'
+
 const PERSONALITIES: Personality[] = ['bold', 'cautious', 'vigilant', 'social']
 
 /**
@@ -245,6 +247,8 @@ export function Configure({ onStart, busy, jevAvailable }: {
           Leave it blank and a new seed is chosen for you.
         </span>
       </div>
+
+      <OddsPanel config={config} decider={decider} />
 
       {errors.length > 0 && (
         <ul className="rounded border border-amber-700/50 bg-amber-950/30 p-2 text-xs text-amber-200">

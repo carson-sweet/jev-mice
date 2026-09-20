@@ -26,22 +26,47 @@ export function capsFor(preset: Preset): Caps {
 
 export const TICK_RANGE = { min: 100, max: 20000 } as const
 
+/**
+ * The starting conditions each preset opens on, measured rather than chosen.
+ *
+ * Every one of these is a cell scripts/survival-sweep.mjs actually ran, and
+ * each survives roughly thirteen of sixteen seeds -- a colony that usually
+ * lasts the run but visibly might not. They were picked for being flat across
+ * run length as well: a set tuned only at two thousand turns would quietly
+ * become a death sentence at four thousand.
+ *
+ * Note what they have in common. Food respawns fast and cats are numerous, so
+ * the ceiling on the population is predation rather than starvation. That is
+ * the stable arrangement: a starvation-limited colony decays as the run goes
+ * on, a predation-limited one holds its level.
+ */
+const MEASURED_DEFAULTS: Record<Preset, {
+  cats: number; traps: number; foodPiles: number
+  mouseholes: number; foodRespawnTicks: number; mice: number
+}> = {
+  small: { cats: 1, traps: 4, foodPiles: 20, mouseholes: 16, foodRespawnTicks: 60, mice: 30 },
+  medium: { cats: 3, traps: 8, foodPiles: 60, mouseholes: 24, foodRespawnTicks: 60, mice: 60 },
+  large: { cats: 4, traps: 8, foodPiles: 80, mouseholes: 32, foodRespawnTicks: 60, mice: 60 },
+}
+
 export function defaultConfig(preset: Preset): RunConfig {
   // Clamped to the preset's own caps, so a default is always a configuration
-  // that preset accepts. The small map is too small for four cats.
+  // that preset accepts.
   const caps = capsFor(preset)
-  const mice = Math.min(60, caps.mice)
+  const d = MEASURED_DEFAULTS[preset]
   return {
     preset,
     ticks: 2000,
-    maleMice: Math.floor(mice / 2),
-    femaleMice: mice - Math.floor(mice / 2),
-    cats: Math.min(4, caps.cats),
-    traps: Math.min(8, caps.traps),
-    foodPiles: Math.min(20, caps.food),
-    mouseholes: Math.min(12, caps.mouseholes),
-    foodRespawnTicks: 40,
-    nutritionDecayPerTick: 0.5,
+    maleMice: Math.floor(d.mice / 2),
+    femaleMice: d.mice - Math.floor(d.mice / 2),
+    cats: Math.min(d.cats, caps.cats),
+    traps: Math.min(d.traps, caps.traps),
+    foodPiles: Math.min(d.foodPiles, caps.food),
+    mouseholes: Math.min(d.mouseholes, caps.mouseholes),
+    foodRespawnTicks: d.foodRespawnTicks,
+    // The sweep held this at 0.3, so the survival figure the configuration
+    // screen shows is only exact while the default matches it.
+    nutritionDecayPerTick: 0.3,
     startingNutrition: 100,
     personality: { bold: 25, cautious: 25, vigilant: 25, social: 25 },
   }

@@ -5,15 +5,31 @@ import { defaultConfig, validateConfig, type RunConfig } from '../../src/index.j
 import { medium } from '../helpers.js'
 
 describe('US-E03-01 Configure and validate a run', () => {
-  it('Medium defaults are what the requirements state', () => {
-    const c = defaultConfig('medium')
-    expect(c).toMatchObject({
-      preset: 'medium', ticks: 2000,
-      maleMice: 30, femaleMice: 30, cats: 4, traps: 8,
-      foodPiles: 20, mouseholes: 12,
-      foodRespawnTicks: 40, nutritionDecayPerTick: 0.5,
-      personality: { bold: 25, cautious: 25, vigilant: 25, social: 25 },
+  // The numbers below changed with requirements v3.3, which replaced one
+  // specified set with per-preset conditions chosen from a measured survival
+  // sweep. The old values are in v3.2; they drove every seed extinct.
+  it('Each preset opens on the conditions the requirements state', () => {
+    expect(defaultConfig('small')).toMatchObject({
+      preset: 'small', ticks: 2000,
+      maleMice: 15, femaleMice: 15, cats: 1, traps: 4,
+      foodPiles: 20, mouseholes: 16,
     })
+    expect(defaultConfig('medium')).toMatchObject({
+      preset: 'medium', ticks: 2000,
+      maleMice: 30, femaleMice: 30, cats: 3, traps: 8,
+      foodPiles: 60, mouseholes: 24,
+    })
+    expect(defaultConfig('large')).toMatchObject({
+      preset: 'large', ticks: 2000,
+      maleMice: 30, femaleMice: 30, cats: 4, traps: 8,
+      foodPiles: 80, mouseholes: 32,
+    })
+    for (const preset of ['small', 'medium', 'large'] as const) {
+      expect(defaultConfig(preset)).toMatchObject({
+        foodRespawnTicks: 60, nutritionDecayPerTick: 0.3,
+        personality: { bold: 25, cautious: 25, vigilant: 25, social: 25 },
+      })
+    }
   })
 
   it('A valid configuration produces no errors', () => {

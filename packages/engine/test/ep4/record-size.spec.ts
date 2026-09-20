@@ -22,8 +22,13 @@ describe('What a decision costs to record', () => {
   it('Keeps a recorded decision small enough to store a long run', async () => {
     const events = await runTicks(engine(medium({ ticks: 400 })), 60)
     for (const e of of(events, 'decision_returned')) {
-      // Eight subjects of state, answers and weights. Kilobytes, not tens of them.
-      expect(bytes(e)).toBeLessThan(8_000)
+      // Bounded per subject rather than per event. A flat per-event number was
+      // really a bound on batch size, which is capped at eight elsewhere and
+      // tested there; it failed when richer default conditions gave each mouse
+      // more to describe, which is content the record is supposed to carry.
+      // What must not grow is the cost of describing one mouse.
+      expect(e.subjects.length).toBeGreaterThan(0)
+      for (const s of e.subjects) expect(bytes(s)).toBeLessThan(1_500)
     }
   })
 

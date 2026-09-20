@@ -28,7 +28,12 @@ describe('US-E01-03 Nutrition, speed and starvation', () => {
   })
 
   it('Eating restores nutrition and consumes the pile', async () => {
-    const e = engine(medium({ cats: 0, traps: 0 }))
+    // Respawn off. The pile is read at the end of the run, not at the moment
+    // it was eaten, so with respawn on this was really asserting that 300
+    // ticks had not been long enough to put the pile back -- which stopped
+    // being true when the default interval changed. Turning respawn off
+    // isolates the rule under test: eating removes the pile.
+    const e = engine(medium({ cats: 0, traps: 0, foodRespawnTicks: 0 }))
     const evs = await runTicks(e, 300)
     const eaten = of(evs, 'food_eaten')
     expect(eaten.length).toBeGreaterThan(0)
