@@ -1,23 +1,25 @@
 epics:
 - id: EP-1
   title: Engine core
-  frs: FR-001 to FR-052, FR-069
 - id: EP-2
   title: Jev decision layer
-  frs: FR-016, FR-018 to FR-021, FR-024, FR-043, section 5, FR-070 to FR-074
 - id: EP-3
   title: Configuration and personality mix
-  frs: FR-051 to FR-056
 - id: EP-4
-  title: Telemetry, records, replay
-  frs: FR-057 to FR-063
+  title: Server-side execution and resume
 - id: EP-5
-  title: Live view and inspector
-  frs: FR-064 to FR-068
+  title: Run lifecycle and capacity
 - id: EP-6
-  title: Charts and comparison
-  frs: FR-063, FR-066
-functional_requirements_count: 74
+  title: Records, replay, comparison
+- id: EP-7
+  title: Viewer
+- id: EP-8
+  title: Accounts and sign-in
+- id: EP-9
+  title: Library, sharing, export
+- id: EP-10
+  title: Quotas, public mode, operations
+functional_requirements_count: 141
 nfrs:
 - performance
 - rendering
@@ -30,10 +32,16 @@ nfrs:
 - accessibility_baseline
 - engine_isolation
 - storage
-success_metrics_count: 10
+success_metrics_count: 18
 compliance_frameworks_applied:
 - gdpr_floor
-current_version: '2.1'
-current_file: .sweetclaude/product/jev-mice-prd-final-v2.1-20260919.md
-open_questions: []
-status: final
+current_version: '3.0'
+current_file: .sweetclaude/product/jev-mice-prd-draft-v3.0-20260919.md
+open_questions:
+- share link starting tick
+- keeping runs past 30 days without export
+- queue fairness
+status: draft
+withdrawn:
+- FR-061
+nfr_count: 16

@@ -243,3 +243,15 @@
 **Produced:** three final documents in .sweetclaude/work/WI-001/design/; data-model.yaml and api-design.yaml added
 
 **Note:** wireframes not started; Carson asked whether they were ready
+
+## 2026-09-20T01:27:53Z — product-prd v3.0 and product-brief v2.0 (scope-change revision)
+
+**Status:** completed (both drafts, awaiting review)
+
+**Produced:** .sweetclaude/product/jev-mice-prd-draft-v3.0-20260919.md (141 FRs, 16 NFRs, 18 success metrics, 10 epics); .sweetclaude/product/jev-mice-product-brief-draft-v2.0-20260919.md; traceability/requirements-map.md populated
+
+**Key decisions:** decision log 52-53. Permanent requirement numbering with FR-061 withdrawn. Requirements revised before wireframes rather than after.
+
+**Root cause recorded:** lr-007. The deployment answer during architecture invalidated the approved baseline and I logged it as a note instead of stopping for a decision, so five documents were produced with no current definition of done.
+
+**Open questions:** three in the requirements; Carson's review of both drafts
