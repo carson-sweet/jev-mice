@@ -5,7 +5,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { LogEntry } from '@jev-mice/sim'
-import { COLOURS, drawGlyph, type GlyphKind } from './glyphs'
+import { COLOURS, type GlyphKind } from './glyphs'
+import { glyphUrl } from './glyphCache'
 import { useDevicePixelRatio } from './dpr'
 
 /** Each kind reads as what it happened to, so the column scans by shape. */
@@ -31,24 +32,21 @@ const TINT: Record<LogEntry['kind'], string> = {
 
 const MARK = 12
 
+/**
+ * An image, not a canvas. There are seven kinds of mark and up to four hundred
+ * lines, and a canvas per line meant four hundred 2D contexts holding native
+ * and GPU memory that the JS heap never showed -- the tab died at a flat six
+ * megabytes with no error. The glyph is drawn once per kind and shown here.
+ */
 function Mark({ kind }: { kind: LogEntry['kind'] }): React.ReactElement {
-  const ref = useRef<HTMLCanvasElement>(null)
   const dpr = useDevicePixelRatio()
-  useEffect(() => {
-    const canvas = ref.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx) return
-    canvas.width = MARK * dpr
-    canvas.height = MARK * dpr
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, MARK, MARK)
-    drawGlyph(ctx, GLYPH[kind], 0, 0, MARK, TINT[kind])
-  }, [kind, dpr])
   return (
-    <canvas
-      ref={ref}
-      style={{ width: MARK, height: MARK }}
+    <img
+      src={glyphUrl(GLYPH[kind], MARK, dpr, TINT[kind])}
+      width={MARK}
+      height={MARK}
       className="mt-[3px] shrink-0"
+      alt=""
       aria-hidden="true"
     />
   )
@@ -112,8 +110,8 @@ export function Log({ entries, decidedBy, onHover }: {
               giving up on the area all appear here.
             </p>
           : <ol className="space-y-1">
-              {entries.map((e, i) => (
-                <li key={`${String(e.tick)}-${e.subject}-${e.kind}-${String(i)}`}
+              {entries.map((e) => (
+                <li key={e.seq}
                     onMouseEnter={() => { onHover?.(subjectsOf(e)) }}
                     onMouseLeave={() => { onHover?.([]) }}
                     className="flex gap-2 rounded px-1 text-xs leading-snug

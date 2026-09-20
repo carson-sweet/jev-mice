@@ -139,6 +139,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       const said = narrate(e)
       const d = said.subject === undefined ? undefined : lastDecision.get(said.subject)
       pendingLog.push({
+        seq: e.seq,
         tick: atTick,
         kind: KIND_OF[e.kind] ?? 'starved',
         subject: said.subject ?? '',

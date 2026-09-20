@@ -91,6 +91,13 @@ export interface SummaryPoint {
  * in the page, for the same reason a mouse's memories are.
  */
 export interface LogEntry {
+  /**
+   * The sequence number of the event this line came from, which is monotonic
+   * across the run. The viewer keys its rows by it. Keying by array index
+   * meant that trimming the oldest line shifted every index, so every key
+   * changed and the whole list remounted on each batch.
+   */
+  seq: number
   tick: number
   kind: 'starved' | 'eaten' | 'trapped' | 'born' | 'mated' | 'cat_starved' | 'birth_lost'
   subject: string
