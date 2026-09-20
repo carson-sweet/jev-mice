@@ -7,13 +7,13 @@ assisted_by: Claude Code + SweetClaude
 date: 2026-09-20
 audience: hybrid
 nda: false
-changes: initial
+changes: minor. Unwrapped: one paragraph is one line. No content changed.
 previous_file: none
 ---
 
 # jev-mice User Guide
 
-**Version:** 1.0
+**Version:** 1.1
 
 **Date:** 2026-09-20
 
