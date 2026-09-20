@@ -1,0 +1,119 @@
+format: gherkin
+scope: all
+slc_promise: null
+story_count: 44
+scenario_count: 176
+stories:
+- id: US-E01-01
+  epic: EP-1
+- id: US-E01-02
+  epic: EP-1
+- id: US-E01-03
+  epic: EP-1
+- id: US-E01-04
+  epic: EP-1
+- id: US-E01-05
+  epic: EP-1
+- id: US-E01-06
+  epic: EP-1
+- id: US-E01-07
+  epic: EP-1
+- id: US-E01-08
+  epic: EP-1
+- id: US-E02-01
+  epic: EP-2
+- id: US-E02-02
+  epic: EP-2
+- id: US-E02-03
+  epic: EP-2
+- id: US-E02-04
+  epic: EP-2
+- id: US-E02-05
+  epic: EP-2
+- id: US-E02-06
+  epic: EP-2
+- id: US-E03-01
+  epic: EP-3
+- id: US-E03-02
+  epic: EP-3
+- id: US-E03-03
+  epic: EP-3
+- id: US-E03-04
+  epic: EP-3
+- id: US-E04-01
+  epic: EP-4
+- id: US-E04-02
+  epic: EP-4
+- id: US-E04-03
+  epic: EP-4
+- id: US-E04-04
+  epic: EP-4
+- id: US-E05-01
+  epic: EP-5
+- id: US-E05-02
+  epic: EP-5
+- id: US-E05-03
+  epic: EP-5
+- id: US-E06-01
+  epic: EP-6
+- id: US-E06-02
+  epic: EP-6
+- id: US-E06-03
+  epic: EP-6
+- id: US-E07-01
+  epic: EP-7
+- id: US-E07-02
+  epic: EP-7
+- id: US-E07-03
+  epic: EP-7
+- id: US-E07-04
+  epic: EP-7
+- id: US-E08-01
+  epic: EP-8
+- id: US-E08-02
+  epic: EP-8
+- id: US-E08-03
+  epic: EP-8
+- id: US-E09-01
+  epic: EP-9
+- id: US-E09-02
+  epic: EP-9
+- id: US-E09-03
+  epic: EP-9
+- id: US-E09-04
+  epic: EP-9
+- id: US-E10-01
+  epic: EP-10
+- id: US-E10-02
+  epic: EP-10
+- id: US-E10-03
+  epic: EP-10
+- id: US-E10-04
+  epic: EP-10
+- id: US-E10-05
+  epic: EP-10
+current_file: .sweetclaude/product/stories/jev-mice-user-stories-final-v1.0-20260919.md
+status: final
+executable_specs:
+  path: packages/engine/test
+  epics:
+  - EP-1
+  - EP-2
+  - EP-3
+  - EP-4
+  files: 19
+  tests: 78
+  failing: 75
+  passing: 3
+feature_files:
+  path: features
+  epics:
+  - EP-5
+  - EP-6
+  - EP-7
+  - EP-8
+  - EP-9
+  - EP-10
+  files: 6
+  scenarios: 86
+  steps_pending: 201

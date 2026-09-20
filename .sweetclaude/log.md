@@ -327,3 +327,17 @@
 **Improvement check-in:** nothing to change (lr-010, confirmation)
 
 **Scope chosen:** all ten epics, Gherkin format, TDD Level 3
+
+## 2026-09-20T03:25:48Z — product-user-stories and executable specifications
+
+**Status:** completed
+
+**Produced:** .sweetclaude/product/stories/jev-mice-user-stories-final-v1.0-20260919.md (44 stories, 176 scenarios); 19 executable spec files in packages/engine/test/ (78 tests, 75 red, 3 guard tests passing); 6 feature files in features/ (86 scenarios, 201 steps pending); workspace skeleton and the engine's declared surface
+
+**Format:** Gherkin
+
+**Scope:** all ten epics
+
+**Red confirmed:** every failure reads "not implemented"; the three passing are the isolation guards that assert the engine cannot reach a clock, a network or storage
+
+**Traceability:** complete, epic to requirements to metrics to stories to tests

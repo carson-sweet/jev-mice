@@ -1,0 +1,17 @@
+{
+  "name": "jev-mice",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:determinism": "vitest run packages/engine/test/ep1/determinism.spec.ts packages/engine/test/ep4/resume.spec.ts",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^5.0.0",
+    "@types/node": "^22.5.0"
+  }
+}
