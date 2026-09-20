@@ -323,7 +323,9 @@ describe('What the host exposes and to whom', () => {
     await post(`/api/runs/${id}/control`, { action: 'stop' })
   }, 20_000)
 
-  it('Refuses to create more runs than it will keep', async () => {
+  it('Refuses only when every run it holds is still going', async () => {
+    // With nothing finished there is nothing to evict, and a busy host says so
+    // rather than losing work.
     const capped = createHost({
       port: 0, root: join(root, 'capped'), webRoot: join(root, 'web'),
       maxConcurrent: 1, apiKey: null, maxRuns: 3,
@@ -339,9 +341,40 @@ describe('What the host exposes and to whom', () => {
     })).status
     const codes = [await make(1), await make(2), await make(3), await make(4)]
     expect(codes.slice(0, 3)).toEqual([201, 201, 201])
-    expect(codes[3], 'a fourth run was accepted past the cap').toBe(429)
+    expect(codes[3], 'a fourth run was accepted with nothing to evict').toBe(429)
     await up.close()
   }, 20_000)
+
+  it('Makes room by dropping the oldest finished run', async () => {
+    const capped = createHost({
+      port: 0, root: join(root, 'rolling'), webRoot: join(root, 'web'),
+      maxConcurrent: 2, apiKey: null, maxRuns: 2,
+    })
+    const up = await capped.listen()
+    const base2 = `http://127.0.0.1:${String(up.port)}`
+    const started: string[] = []
+    for (const seed of [71, 72, 73]) {
+      const r = await fetch(`${base2}/api/runs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          config: { ...defaultConfig('small'), ticks: 260 }, seed, speed: 334,
+        }),
+      })
+      expect(r.status, `run ${String(seed)} was refused`).toBe(201)
+      const id = ((await r.json()) as any).run.id as string
+      started.push(id)
+      for (let i = 0; i < 300; i++) {
+        const s = await (await fetch(`${base2}/api/runs/${id}`)).json() as any
+        if (s.run.status === 'completed') break
+        await new Promise((x) => setTimeout(x, 50))
+      }
+    }
+    const held = ((await (await fetch(`${base2}/api/runs`)).json()) as any).runs
+    expect(held).toHaveLength(2)
+    expect((await fetch(`${base2}/api/runs/${started[0] as string}`)).status).toBe(404)
+    await up.close()
+  }, 60_000)
 })
 
 describe('Taking a run away with you', () => {

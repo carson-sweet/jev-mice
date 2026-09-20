@@ -42,7 +42,6 @@ export interface HostOptions {
 }
 
 export const DEFAULT_HOST = '127.0.0.1'
-export const DEFAULT_MAX_RUNS = 200
 
 const json = (res: ServerResponse, status: number, body: unknown): void => {
   const text = JSON.stringify(body)
@@ -74,6 +73,7 @@ export function createHost(opts: HostOptions): {
 } {
   const manager = createRunManager({
     root: opts.root, maxConcurrent: opts.maxConcurrent, apiKey: opts.apiKey,
+    ...(opts.maxRuns === undefined ? {} : { maxRuns: opts.maxRuns }),
   })
 
   const server = createServer((req, res) => {
@@ -118,12 +118,6 @@ export function createHost(opts: HostOptions): {
       if (body.decider !== undefined && body.decider !== 'jev' && body.decider !== 'rules') {
         return json(res, 400, { error: 'decider must be jev or rules' })
       }
-      if (manager.list().length >= (opts.maxRuns ?? DEFAULT_MAX_RUNS)) {
-        return json(res, 429, {
-          error: `this host keeps at most ${String(opts.maxRuns ?? DEFAULT_MAX_RUNS)} runs; `
-            + 'delete some or restart it',
-        })
-      }
       const seed = Number.isFinite(body.seed) ? Number(body.seed) : Math.floor(Math.random() * 2 ** 31)
       try {
         return json(res, 201, { run: manager.create({
@@ -133,7 +127,10 @@ export function createHost(opts: HostOptions): {
           ...(body.speed === undefined ? {} : { speed: body.speed }),
         }) })
       } catch (err) {
-        return json(res, 400, { error: err instanceof Error ? err.message : 'could not start' })
+        const why = err instanceof Error ? err.message : 'could not start'
+        // A host full of runs that are all still going is a capacity problem,
+        // not a bad request.
+        return json(res, /still going/.test(why) ? 429 : 400, { error: why })
       }
     }
 

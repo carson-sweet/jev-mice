@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, readdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, readdirSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
@@ -400,4 +400,85 @@ describe('What the coordinator tells a run to do', () => {
     m.control(run.id, 'stop')
     await settled(m, run.id)
   }, 30_000)
+})
+
+describe('Making room for a new run', () => {
+  const small20k = () => small({ ticks: 20_000 })
+
+  it('Drops the oldest finished run rather than refusing a new one', async () => {
+    const m = manager({ maxRuns: 3 })
+    const ids: string[] = []
+    for (const seed of [1, 2, 3]) {
+      const run = m.create({ config: small({ ticks: 260 }), seed, speed: SPEED.fastest })
+      ids.push(run.id)
+      await settled(m, run.id)
+    }
+    expect(m.list()).toHaveLength(3)
+
+    const fourth = m.create({ config: small({ ticks: 260 }), seed: 4, speed: SPEED.fastest })
+    await settled(m, fourth.id)
+    expect(m.list()).toHaveLength(3)
+    // The first one made is the one that went.
+    expect(m.get(ids[0] as string)).toBeNull()
+    expect(m.get(ids[1] as string)).not.toBeNull()
+    expect(m.get(fourth.id)).not.toBeNull()
+  }, 60_000)
+
+  it('Deletes what the evicted run left on disk', async () => {
+    const m = manager({ maxRuns: 1 })
+    const first = m.create({ config: small({ ticks: 260 }), seed: 1, speed: SPEED.fastest })
+    await settled(m, first.id)
+    const gone = join(m.root, 'runs', first.id)
+    expect(existsSync(gone)).toBe(true)
+
+    const second = m.create({ config: small({ ticks: 260 }), seed: 2, speed: SPEED.fastest })
+    await settled(m, second.id)
+    expect(existsSync(gone), 'the evicted run left its files behind').toBe(false)
+    expect(existsSync(join(m.root, 'runs', second.id))).toBe(true)
+  }, 60_000)
+
+  it('Never evicts a run that is still going', async () => {
+    const m = manager({ maxRuns: 2, maxConcurrent: 2 })
+    const running = m.create({ config: small20k(), seed: 1, speed: 1 })
+    const finished = m.create({ config: small({ ticks: 260 }), seed: 2, speed: SPEED.fastest })
+    await settled(m, finished.id)
+
+    const third = m.create({ config: small({ ticks: 260 }), seed: 3, speed: SPEED.fastest })
+    await settled(m, third.id)
+    // The finished one went, not the one still advancing.
+    expect(m.get(running.id), 'a running run was evicted').not.toBeNull()
+    expect(m.get(finished.id)).toBeNull()
+    m.control(running.id, 'stop')
+    await settled(m, running.id)
+  }, 60_000)
+
+  it('Never evicts a queued run waiting its turn', () => {
+    // A window full of live runs refuses rather than losing work. Waiting to
+    // start is still work.
+    const m = manager({ maxRuns: 2, maxConcurrent: 1 })
+    const first = m.create({ config: small20k(), seed: 1, speed: 1 })
+    const queued = m.create({ config: small20k(), seed: 2, speed: 1 })
+    expect(m.get(queued.id)?.status).toBe('queued')
+    expect(() => m.create({ config: small20k(), seed: 3, speed: 1 }))
+      .toThrow(/still going/i)
+    expect(m.get(queued.id), 'a queued run was evicted').not.toBeNull()
+    m.control(first.id, 'stop')
+  })
+
+  it('Refuses only when everything held is still going', async () => {
+    const m = manager({ maxRuns: 2, maxConcurrent: 2 })
+    m.create({ config: small20k(), seed: 1, speed: 1 })
+    m.create({ config: small20k(), seed: 2, speed: 1 })
+    expect(() => m.create({ config: small20k(), seed: 3, speed: 1 }))
+      .toThrow(/still going|at once/i)
+  })
+
+  it(`Forgets an evicted run's cached telemetry`, async () => {
+    const m = manager({ maxRuns: 1 })
+    const first = m.create({ config: small({ ticks: 260 }), seed: 1, speed: SPEED.fastest })
+    await settled(m, first.id)
+    const second = m.create({ config: small({ ticks: 260 }), seed: 2, speed: SPEED.fastest })
+    await settled(m, second.id)
+    expect(m.chunkPath(first.id, 0), 'a path was offered for a deleted run').toBeNull()
+  }, 60_000)
 })

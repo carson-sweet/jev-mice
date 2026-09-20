@@ -46,5 +46,12 @@ Four tests. The bind test reads what the port is actually bound to from the
 operating system and fails loudly if it cannot tell, rather than passing
 vacuously; verified it distinguishes 127.0.0.1 from all interfaces.
 
-Not addressed here: no per-socket or per-address limit, and no eviction of
-completed runs. Both are follow-on work rather than part of this fix.
+Eviction added 2026-09-20 on Carson's choice, recorded as decision 103. Starting
+a run past the window of 200 deletes the oldest finished run, its files and its
+cached telemetry, so starting a run always works. A run still going or still
+queued is never deleted; a window full of live runs answers 429 and says so.
+`JEV_MICE_KEEP_RUNS` sets the window. Eleven tests.
+
+Still not addressed: no per-socket or per-address connection limit. That is a
+different threat from unbounded growth and needs local access to matter, since
+the host binds loopback.

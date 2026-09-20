@@ -3,13 +3,14 @@
 // simulation process speaks to a Run object in the deployment, answered here by
 // the local filesystem so the whole application runs on one machine.
 
-import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
   baselineProvider, validateConfig, type DecisionProvider, type RunConfig,
 } from '@jev-mice/engine'
 import { jevProvider, type SystemOneLike } from '@jev-mice/provider-jev'
+import { forget } from './turns.js'
 import {
   createSimulation, SPEED,
   type ChunkAck, type ChunkReport, type Control, type Coordinator, type Decider,
@@ -18,6 +19,9 @@ import {
 } from '@jev-mice/sim'
 
 export type { Decider, RunStatus, RunSummary, ViewerMessage } from '@jev-mice/sim'
+
+/** Runs kept before the oldest finished one is dropped. */
+export const DEFAULT_MAX_RUNS = 200
 
 const clampSpeed = (n: number | undefined): number =>
   n === undefined || !Number.isFinite(n)
@@ -32,11 +36,19 @@ export interface RunManagerOptions {
   client?: SystemOneLike
   /** How many log lines to keep so a viewer joining late sees something at once. */
   logHistory?: number
+  /**
+   * How many runs this host keeps. Starting one past the window deletes the
+   * oldest finished run, so a new run always starts; only runs that are still
+   * going are never touched. Nothing evicts on its own, so a host left alone
+   * holds exactly what it was given.
+   */
+  maxRuns?: number
 }
 
 export interface RunManager {
   root: string
   jevAvailable: boolean
+  /** Runs, newest first. */
   create(o: {
     config: RunConfig; seed: number
     /** Omitted means Jev when a key is configured and the rules otherwise. */
@@ -80,6 +92,36 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
 
   const jevAvailable = opts.apiKey !== null || opts.client !== undefined
   const history = opts.logHistory ?? 500
+  const window = opts.maxRuns ?? DEFAULT_MAX_RUNS
+
+  const isOver = (s: RunStatus): boolean =>
+    s === 'completed' || s === 'failed' || s === 'cancelled'
+
+  /**
+   * Make room for one more. The oldest finished run goes, with its files and
+   * its cached telemetry. A run that is still going or still waiting is never
+   * evicted, so a host busy with long runs refuses rather than losing work.
+   */
+  function makeRoom(): void {
+    while (order.length >= window) {
+      // order is newest first, so the last finished entry is the oldest.
+      const victim = [...order].reverse().find((id) => {
+        const live = runs.get(id)
+        return live !== undefined && isOver(live.summary.status)
+      })
+      if (victim === undefined) {
+        throw new Error(`this host keeps at most ${String(window)} runs and all of `
+          + 'them are still going; stop one or wait for it to finish')
+      }
+      for (const send of runs.get(victim)?.watchers ?? []) {
+        try { send({ t: 'error', message: 'this run was removed to make room' }) } catch { /* gone */ }
+      }
+      runs.delete(victim)
+      order.splice(order.indexOf(victim), 1)
+      forget(victim)
+      rmSync(dir(victim), { recursive: true, force: true })
+    }
+  }
 
   const dir = (id: string, ...rest: string[]): string =>
     join(opts.root, 'runs', id, ...rest)
@@ -230,6 +272,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         throw new Error('no decision key is configured, so Jev cannot be asked; '
           + 'set TYPESAFE_API_KEY or choose the rules')
       }
+      makeRoom()
       const id = randomUUID()
       mkdirSync(dir(id, 'chunks'), { recursive: true })
       mkdirSync(dir(id, 'summary'), { recursive: true })

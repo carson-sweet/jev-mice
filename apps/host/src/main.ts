@@ -32,6 +32,9 @@ const host = createHost({
   root: process.env.JEV_MICE_DATA ?? join(repoRoot, '.data'),
   webRoot: process.env.JEV_MICE_WEB ?? join(repoRoot, 'apps', 'web', 'dist'),
   maxConcurrent: Number(process.env.JEV_MICE_MAX_RUNS ?? 4),
+  ...(process.env.JEV_MICE_KEEP_RUNS === undefined
+    ? {}
+    : { maxRuns: Number(process.env.JEV_MICE_KEEP_RUNS) }),
   apiKey,
 })
 
