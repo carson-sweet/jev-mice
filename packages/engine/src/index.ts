@@ -23,4 +23,7 @@ export {
   DRIVE_CRITERIA, FEAR_RUBRIC, CAT_MODE_CRITERIA, FEAR_FROM_SCORE,
   driveQuestion, fearQuestion, catTargetQuestion, catModeQuestion, catCandidateText,
 } from './questions.js'
+export {
+  narrate, CHANGES_POPULATION, NOT_WORTH_SAYING, type Narration,
+} from './narrate.js'
 export { fleeOrHideRate, personalityMix } from './metrics.js'

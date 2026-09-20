@@ -2,7 +2,7 @@
 id: ISSUE-020
 title: "The viewer restates the host wire types by hand"
 type: chore
-status: todo
+status: done
 priority: P2
 effort: s
 epic: null
@@ -25,3 +25,9 @@ no compile error.
 ## Acceptance
 
 One shared module both import, as `Frame` and `LogEntry` already are.
+
+## Resolution
+
+Fixed 2026-09-20. `apps/sim/src/protocol.ts` holds the wire shapes and the host
+and the viewer both import them. Drift is now impossible by construction rather
+than caught by review.

@@ -2,40 +2,17 @@
 // and never holds a key; it asks for runs and draws what arrives.
 
 import type { RunConfig, Preset } from '@jev-mice/engine'
-import type { Frame, LogEntry } from '@jev-mice/sim'
+import type {
+  Capabilities, Decider, RunSummary, TurnWindow, ViewerMessage,
+} from '@jev-mice/sim'
 
-export interface Extent { peak: number; min: number; current: number }
-
-export interface Capabilities {
-  jevAvailable: boolean
-  speed: { slowest: number; fastest: number }
-}
-
-export type Decider = 'jev' | 'rules'
-
-export interface RunSummary {
-  id: string
-  status: 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
-  createdAt: string
-  seed: number
-  config: RunConfig
-  currentTick: number
-  queuePosition: number | null
-  chunks: { seq: number; firstTick: number; lastTick: number; bytesGzip: number }[]
-  totals: { currentTick: number; requests: number; inputTokens: number; fallbackCount: number }
-  error: string | null
-  decidedBy: Decider
-  speed: number
-  population: { mice: Extent; cats: Extent }
-  endReason: 'completed' | 'extinct' | 'stopped' | null
-}
-
-export type ViewerMessage =
-  | { t: 'hello'; run: RunSummary; frame: Frame | null; log: LogEntry[] }
-  | { t: 'frame'; frame: Frame }
-  | { t: 'log'; entries: LogEntry[] }
-  | { t: 'status'; run: RunSummary }
-  | { t: 'error'; message: string }
+// The wire shapes come from the shared protocol module rather than being
+// restated here. They were hand-declared, so a field renamed on the host simply
+// stopped appearing in the browser with no compile error.
+export type {
+  Capabilities, Decider, Extent, RunStatus, RunSummary, ViewerMessage,
+  Turn, TurnEvent, TurnStats, TurnWindow,
+} from '@jev-mice/sim'
 
 async function body<T>(r: Response): Promise<T> {
   const parsed = await r.json() as T & { error?: string; errors?: { message: string }[] }
@@ -45,12 +22,6 @@ async function body<T>(r: Response): Promise<T> {
   return parsed
 }
 
-export interface TurnStats { mice: number; cats: number; food: number; traps: number }
-export interface TurnEvent { kind: string; text: string; subject?: string }
-export interface Turn { tick: number; stats: TurnStats; delta: TurnStats; events: TurnEvent[] }
-export interface TurnWindow {
-  runId: string; from: number; to: number; totalTurns: number; turns: Turn[]
-}
 
 export const api = {
   defaults: async (preset: Preset): Promise<RunConfig> =>

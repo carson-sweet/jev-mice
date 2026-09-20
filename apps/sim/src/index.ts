@@ -4,7 +4,7 @@
 
 import { gzipSync } from 'node:zlib'
 import {
-  createEngine, restore, ENGINE_VERSION, hungerBand,
+  createEngine, restore, ENGINE_VERSION, hungerBand, narrate, CHANGES_POPULATION,
   type Engine, type SimEvent,
 } from '@jev-mice/engine'
 import type {
@@ -13,6 +13,7 @@ import type {
 } from './types.js'
 
 export * from './types.js'
+export * from './protocol.js'
 
 /** A chunk closes at whichever of these comes first. */
 export const CHUNK_TICKS = 250
@@ -27,6 +28,17 @@ export const FRAMES_PER_SECOND = 20
 export const FRAME_EVERY_TICKS = 5
 export const FRAME_BATCH = 4
 export const FRAME_FLUSH_MS = 100
+/** Which log kind each event becomes, for the mark shown beside the line. */
+const KIND_OF: Partial<Record<SimEvent['kind'], LogEntry['kind']>> = {
+  death: 'starved',
+  capture: 'eaten',
+  mouse_trapped: 'trapped',
+  birth: 'born',
+  mating: 'mated',
+  cat_died: 'cat_starved',
+  cap_limited_birth: 'birth_lost',
+}
+
 /** How often the loop returns to the event queue so a pushed control lands. */
 const YIELD_EVERY_TICKS = 8
 /** How long the loop naps when it is ahead of the pace it was asked for. */
@@ -96,68 +108,25 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       currentProvider().decide(requests),
   }
 
-  /** Reads as a sentence, so the page shows it without rephrasing anything. */
+  /**
+   * Only what changes the population, phrased by the engine's own narrator so
+   * the live log and the turn history cannot say the same event differently.
+   */
   function logFrom(events: readonly SimEvent[], atTick: number): void {
     for (const e of events) {
-      const of = (id: string): Pick<LogEntry, 'decision' | 'decidedBy'> => {
-        const d = lastDecision.get(id)
-        return d === undefined ? {} : { decision: d.intent, decidedBy: d.source }
-      }
-      switch (e.kind) {
-        case 'death': {
-          const kind = e.cause === 'starvation' ? 'starved'
-            : e.cause === 'cat' ? 'eaten' : 'trapped'
-          if (kind === 'starved') {
-            pendingLog.push({
-              tick: atTick, kind, subject: e.id,
-              text: `${e.id} starved.`, ...of(e.id),
-            })
-          }
-          // A cat kill and a trap death are named by the events that caused
-          // them, which carry the cat or the trap. Naming them here too would
-          // log the same loss twice.
-          break
-        }
-        case 'capture':
-          pendingLog.push({
-            tick: atTick, kind: 'eaten', subject: e.mouseId,
-            text: `${e.mouseId} was caught by ${e.catId}.`, ...of(e.mouseId),
-          })
-          break
-        case 'mouse_trapped':
-          pendingLog.push({
-            tick: atTick, kind: 'trapped', subject: e.id,
-            text: `${e.id} died in ${e.trapId}.`, ...of(e.id),
-          })
-          break
-        case 'birth':
-          pendingLog.push({
-            tick: atTick, kind: 'born', subject: e.pupId,
-            text: `${e.pupId} was born to ${e.motherId}, ${e.personality} and ${e.sex}.`,
-          })
-          break
-        case 'mating':
-          pendingLog.push({
-            tick: atTick, kind: 'mated', subject: e.a,
-            text: `${e.a} and ${e.b} mated in ${e.holeId}.`, ...of(e.a),
-          })
-          break
-        case 'cat_died':
-          pendingLog.push({
-            tick: atTick, kind: 'cat_starved', subject: e.id,
-            text: `${e.id} starved, with nothing left to catch.`,
-          })
-          break
-        case 'cap_limited_birth':
-          pendingLog.push({
-            tick: atTick, kind: 'birth_lost', subject: e.motherId,
-            text: `${String(e.lost)} of ${e.motherId}'s litter had nowhere to go; `
-              + 'the world is full.',
-          })
-          break
-        default:
-          break
-      }
+      if (!CHANGES_POPULATION.has(e.kind)) continue
+      // A cat kill and a trap death are named by the events that carry the cat
+      // or the trap, so the bare death event is skipped for those.
+      if (e.kind === 'death' && e.cause !== 'starvation') continue
+      const said = narrate(e)
+      const d = said.subject === undefined ? undefined : lastDecision.get(said.subject)
+      pendingLog.push({
+        tick: atTick,
+        kind: KIND_OF[e.kind] ?? 'starved',
+        subject: said.subject ?? '',
+        text: said.text,
+        ...(d === undefined ? {} : { decision: d.intent, decidedBy: d.source }),
+      })
     }
   }
 

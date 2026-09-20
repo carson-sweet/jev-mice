@@ -12,44 +12,17 @@ import {
 import { jevProvider, type SystemOneLike } from '@jev-mice/provider-jev'
 import {
   createSimulation, SPEED,
-  type ChunkAck, type ChunkReport, type Control, type Coordinator, type EndReason,
-  type Extent, type Frame, type LogEntry, type Simulation,
+  type ChunkAck, type ChunkReport, type Control, type Coordinator, type Decider,
+  type Extent, type Frame, type LogEntry, type RunStatus, type RunSummary,
+  type Simulation, type ViewerMessage,
 } from '@jev-mice/sim'
 
-export type RunStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
-export type Decider = 'jev' | 'rules'
+export type { Decider, RunStatus, RunSummary, ViewerMessage } from '@jev-mice/sim'
 
 const clampSpeed = (n: number | undefined): number =>
   n === undefined || !Number.isFinite(n)
     ? SPEED.fastest
     : Math.round(Math.max(SPEED.slowest, Math.min(SPEED.fastest, n)))
-
-export interface RunSummary {
-  id: string
-  status: RunStatus
-  createdAt: string
-  seed: number
-  config: RunConfig
-  currentTick: number
-  queuePosition: number | null
-  chunks: { seq: number; firstTick: number; lastTick: number; bytesGzip: number }[]
-  totals: ChunkReport['totals']
-  error: string | null
-  decidedBy: Decider
-  /** Ticks a second this run is paced at. */
-  speed: number
-  /** Highest, lowest and latest, over the whole run. */
-  population: { mice: Extent; cats: Extent }
-  /** Why it finished, once it has. Extinction is nothing left alive. */
-  endReason: EndReason | null
-}
-
-export type ViewerMessage =
-  | { t: 'hello'; run: RunSummary; frame: Frame | null; log: LogEntry[] }
-  | { t: 'frame'; frame: Frame }
-  | { t: 'log'; entries: LogEntry[] }
-  | { t: 'status'; run: RunSummary }
-  | { t: 'error'; message: string }
 
 export interface RunManagerOptions {
   root: string
