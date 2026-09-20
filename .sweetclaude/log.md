@@ -273,3 +273,9 @@
 **Style source:** defaults (no visual design specification exists)
 
 **Open questions:** no visual design chosen, so wireframes are neutral; a design pass would change surface but not structure
+
+## 2026-09-20T02:23:27Z — wireframes approved
+
+**Status:** completed
+
+**Approved:** 9 screens, 37 states, all 16 flows covered. No changes requested.
