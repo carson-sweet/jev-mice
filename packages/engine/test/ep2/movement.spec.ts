@@ -24,10 +24,20 @@ describe('US-E02-03 Probabilities become movement', () => {
     }
   })
 
-  it('Danger falls off faster than food', () => {
+  it('Scores every cell a mouse could step to, and only those', () => {
+    // The falloff itself is tested directly in signals.spec.ts. This asserted
+    // only the count while claiming to compare danger against food, so it would
+    // have passed with both fields deleted.
     const e = engine(medium())
     const id = e.world().mice[0]!.id
-    const c = e.candidateScores(id)
-    expect(c.length).toBe(9)
+    const here = e.world().mice[0]!.at
+    const scores = e.candidateScores(id)
+    expect(scores).toHaveLength(9)
+    for (const s of scores) {
+      expect(Math.max(Math.abs(s.cell.x - here.x), Math.abs(s.cell.y - here.y)))
+        .toBeLessThanOrEqual(1)
+      expect(Number.isFinite(s.total), `total was ${String(s.total)}`).toBe(true)
+    }
+    expect(scores.some((s) => s.cell.x === here.x && s.cell.y === here.y)).toBe(true)
   })
 })

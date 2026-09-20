@@ -1,7 +1,7 @@
 // US-E03-02 Personality mix holds across births
 // Satisfies FR-051, FR-052. Verifies SM-06.
 import { describe, it, expect } from 'vitest'
-import { PERSONALITIES } from '../../src/index.js'
+import { PERSONALITIES, PERCEPTION } from '../../src/index.js'
 import { engine, medium, runTicks, of } from '../helpers.js'
 
 describe('US-E03-02 Personality mix holds across births', () => {
@@ -38,9 +38,25 @@ describe('US-E03-02 Personality mix holds across births', () => {
   })
 
   it('Personality changes behaviour, not only the label', async () => {
-    const e = engine(medium())
-    await runTicks(e, 1)
-    const vigilant = e.world().mice.find((m) => m.personality === 'vigilant')
-    expect(vigilant, 'no vigilant mouse was spawned').toBeDefined()
+    // A vigilant mouse perceives further than any other, which is the one
+    // mechanical difference personality makes. The old test asserted only that
+    // a vigilant mouse existed, so it would have passed with the difference
+    // removed entirely.
+    expect(PERCEPTION.vigilantMouse).toBeGreaterThan(PERCEPTION.mouse)
+    const e = engine(medium({ foodPiles: 60, traps: 20, ticks: 400 }))
+    const events = await runTicks(e, 40)
+    // Spawns happen when the world is built, before the slice begins.
+    const vigilant = new Set(of(e.events(), 'mouse_spawned')
+      .filter((s) => s.personality === 'vigilant').map((s) => s.id))
+    expect(vigilant.size, 'no vigilant mouse was spawned').toBeGreaterThan(0)
+
+    const far = of(events, 'spotted')
+      .filter((s) => s.id.startsWith('m') && s.distance > PERCEPTION.mouse)
+    expect(far.length, 'nothing was spotted beyond the ordinary reach')
+      .toBeGreaterThan(0)
+    const byOthers = far.filter((s) => !vigilant.has(s.id))
+    expect(byOthers.map((s) => `${s.id} saw ${s.targetId} at ${String(s.distance)}`),
+      'a mouse that is not vigilant perceived beyond the ordinary reach')
+      .toEqual([])
   })
 })
