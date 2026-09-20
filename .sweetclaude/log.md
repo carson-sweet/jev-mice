@@ -223,3 +223,15 @@
 **Status:** completed
 
 **Produced:** .sweetclaude/work/WI-001/design/jev-mice-user-flows-final-v1.0-20260919.md
+
+## 2026-09-20T01:09:44Z — design-data-model, design-api-design, design-tech-spec
+
+**Status:** completed (three drafts, awaiting review)
+
+**Produced:** .sweetclaude/work/WI-001/design/jev-mice-data-model-draft-v1.0-20260919.md; jev-mice-api-design-draft-v1.0-20260919.md; jev-mice-tech-spec-draft-v1.0-20260919.md; state files data-model implied, tech-spec.yaml
+
+**Key decisions:** decision log 47-51. Share token hashing, database-enforced active-run limit, deletion retry table, GlobalLimits rename, write-only container credentials, chunk acknowledgement carrying control and allowance, GitHub Actions and Sentry, fixed tick order and id-ordered application, Jev wording and bucket boundaries, baseline weight table.
+
+**Compliance requirements applied:** six hard requirements carried from the architecture plus the container callback token and write-only object credentials
+
+**Open questions:** three in the data model, four in the API design, four in the tech spec

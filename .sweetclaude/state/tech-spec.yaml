@@ -1,0 +1,45 @@
+repo_structure: 'monorepo (npm workspaces: packages/engine, apps/sim, apps/worker,
+  apps/web)'
+source_control: github
+repo: carson-sweet/jev-mice (private)
+branching: trunk-based, short-lived branches, squash merge
+environments:
+- local
+- staging
+- production
+cicd_platform: github-actions
+cicd:
+  pr:
+  - lint
+  - typecheck
+  - test
+  - build
+  - determinism suite
+  main:
+  - migrate (expand-only)
+  - wrangler deploy
+  - smoke
+  rollback: wrangler rollback or revert and redeploy
+hosting_provider: cloudflare (workers, static assets, durable objects, containers,
+  kv, r2); neon postgres; sentry
+auth_approach: google oauth via hono middleware, kv sessions, AUTH_REQUIRED flag,
+  signed anonymous cookies
+monitoring_tools:
+- sentry (browser, worker, container)
+- cloudflare workers logs
+- jev_usage table
+- daily cron heartbeat webhook
+alerts:
+- sign-in failure rate > 10% over 15m
+- jev fallback rate > 50% over 15m
+scaling_notes: 20 concurrent containers is the binding ceiling; TypeSafe rate limit
+  binds near 60 concurrent runs; raise the container cap first, the queue already
+  drains
+compliance_requirements:
+- minimal scopes and fields
+- no analytics
+- secrets server-side with build-time bundle scan
+- session and cookie hygiene
+- ownership resolved on every run route and stream
+- container callback token and write-only object credentials
+current_file: .sweetclaude/work/WI-001/design/jev-mice-tech-spec-draft-v1.0-20260919.md
