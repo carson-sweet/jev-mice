@@ -10,11 +10,28 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:determinism": "vitest run packages/engine/test/ep1/determinism.spec.ts packages/engine/test/ep4/resume.spec.ts",
-    "typecheck": "tsc -p packages/engine --noEmit && tsc -p packages/provider-jev --noEmit && tsc -p apps/sim --noEmit"
+    "typecheck": "tsc -p packages/engine --noEmit && tsc -p packages/provider-jev --noEmit && tsc -p apps/sim --noEmit && tsc -p apps/host --noEmit && tsc -p apps/web --noEmit",
+    "build": "npm --workspace @jev-mice/web run build",
+    "start": "tsx apps/host/src/main.ts",
+    "dev": "npm --workspace @jev-mice/web run dev"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "vitest": "^5.0.0",
-    "@types/node": "^22.5.0"
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.5.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
+  },
+  "dependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "uplot": "^1.6.32",
+    "ws": "^8.21.3"
   }
 }

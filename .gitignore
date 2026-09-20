@@ -15,3 +15,8 @@ dist/
 .sweetclaude/state/session-state.yaml
 .sweetclaude/state/session-status.txt
 .claude/settings.local.json
+
+# Local run data and browser artifacts
+.data/
+.playwright-mcp/
+apps/web/dist/

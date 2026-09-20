@@ -1,0 +1,8 @@
+{
+  "name": "@jev-mice/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "vite build", "dev": "vite" },
+  "dependencies": { "@jev-mice/engine": "*", "@jev-mice/sim": "*" }
+}

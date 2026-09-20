@@ -1,0 +1,13 @@
+{
+  "name": "@jev-mice/host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/server.ts",
+  "dependencies": {
+    "@jev-mice/engine": "*",
+    "@jev-mice/provider-jev": "*",
+    "@jev-mice/sim": "*",
+    "ws": "^8.18.0"
+  }
+}

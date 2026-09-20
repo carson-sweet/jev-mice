@@ -27,15 +27,19 @@ export function capsFor(preset: Preset): Caps {
 export const TICK_RANGE = { min: 100, max: 20000 } as const
 
 export function defaultConfig(preset: Preset): RunConfig {
+  // Clamped to the preset's own caps, so a default is always a configuration
+  // that preset accepts. The small map is too small for four cats.
+  const caps = capsFor(preset)
+  const mice = Math.min(60, caps.mice)
   return {
     preset,
     ticks: 2000,
-    maleMice: 30,
-    femaleMice: 30,
-    cats: 4,
-    traps: 8,
-    foodPiles: 20,
-    mouseholes: 12,
+    maleMice: Math.floor(mice / 2),
+    femaleMice: mice - Math.floor(mice / 2),
+    cats: Math.min(4, caps.cats),
+    traps: Math.min(8, caps.traps),
+    foodPiles: Math.min(20, caps.food),
+    mouseholes: Math.min(12, caps.mouseholes),
     foodRespawnTicks: 40,
     nutritionDecayPerTick: 0.5,
     startingNutrition: 100,
