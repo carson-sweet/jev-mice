@@ -407,7 +407,12 @@ function build(
 
     emit({ kind: 'tick_advanced', population: mice.length } as never)
 
-    if (tick >= config.ticks) {
+    // Nothing alive means nothing further can happen, so the run stops here
+    // rather than counting out turns over an empty map.
+    if (mice.length === 0 && cats.length === 0) {
+      ended = true
+      emit({ kind: 'run_ended', reason: 'extinct', finalTick: tick } as never)
+    } else if (tick >= config.ticks) {
       ended = true
       emit({ kind: 'run_ended', reason: 'completed', finalTick: tick } as never)
     }
@@ -548,18 +553,18 @@ function build(
     isHungry(c) ? CAT.pounceCooldownHungry : CAT.pounceCooldown
 
   /**
-   * Hunger, then departure. A cat that is not succeeding here leaves rather
-   * than haunting an empty map forever, which is the only way a predator is
-   * ever removed from a run.
+   * A cat that is not catching anything starves, on the same terms as a mouse:
+   * nutrition runs down and reaching nothing is the end of it. This is the only
+   * way predation pressure is ever removed from a run.
    */
   function resolveCatHunger(): void {
-    const leaving: CatState[] = []
+    const dying: CatState[] = []
     for (const c of [...cats].sort(byId)) {
       c.nutrition = Math.max(0, c.nutrition - CAT.decayPerTick)
-      if (c.nutrition <= CAT.leaveAt) leaving.push(c)
+      if (c.nutrition <= 0) dying.push(c)
     }
-    for (const c of leaving) {
-      emit({ kind: 'cat_left', id: c.id, reason: 'starving',
+    for (const c of dying) {
+      emit({ kind: 'cat_died', id: c.id, cause: 'starvation',
              nutrition: Math.round(c.nutrition * 100) / 100,
              at: { x: c.x, y: c.y } } as never)
       cats = cats.filter((o) => o.id !== c.id)

@@ -12,8 +12,8 @@ import {
 import { jevProvider, type SystemOneLike } from '@jev-mice/provider-jev'
 import {
   createSimulation, SPEED,
-  type ChunkAck, type ChunkReport, type Control, type Coordinator, type Extent,
-  type Frame, type LogEntry, type Simulation,
+  type ChunkAck, type ChunkReport, type Control, type Coordinator, type EndReason,
+  type Extent, type Frame, type LogEntry, type Simulation,
 } from '@jev-mice/sim'
 
 export type RunStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
@@ -40,6 +40,8 @@ export interface RunSummary {
   speed: number
   /** Highest, lowest and latest, over the whole run. */
   population: { mice: Extent; cats: Extent }
+  /** Why it finished, once it has. Extinction is nothing left alive. */
+  endReason: EndReason | null
 }
 
 export type ViewerMessage =
@@ -85,6 +87,12 @@ interface Live {
   /** Bounded: a long run must not grow the process's memory through its log. */
   log: LogEntry[]
   controlSeq: number
+  /**
+   * What this run was last told to do. Held rather than derived from the
+   * status, which knows about paused and not about stopped: deriving it meant a
+   * chunk acknowledgement landing after a stop told the run to carry on.
+   */
+  desired: Control['desired']
   watchers: Set<(m: ViewerMessage) => void>
   decider: Decider
 }
@@ -138,7 +146,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
     const id = live.summary.id
     let nextSeq = 0
     const ackNow = (): ChunkAck => ({
-      control: { desired: desiredFor(live), speed: live.summary.speed, seq: live.controlSeq },
+      control: { desired: live.desired, speed: live.summary.speed, seq: live.controlSeq },
       allowance: live.decider === 'rules' || !jevAvailable
         ? { tokens: 0, degraded: true, reason: 'disabled' }
         : { tokens: 1_000_000, degraded: false },
@@ -179,6 +187,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         live.summary.currentTick = d.finalTick
         live.summary.totals = d.totals
         live.summary.population = d.totals.population
+        live.summary.endReason = d.reason
         setStatus(live, 'completed')
         finish(id)
         return Promise.resolve()
@@ -190,10 +199,6 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         return Promise.resolve()
       },
     }
-  }
-
-  function desiredFor(live: Live): Control['desired'] {
-    return live.summary.status === 'paused' ? 'pause' : 'run'
   }
 
   function upload(path: string, body: Uint8Array): Promise<void> {
@@ -274,10 +279,11 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         // the slider is right there for anyone who wants it faster.
         speed: speed === undefined ? SPEED.slowest : clampSpeed(speed),
         population: { mice: blank(), cats: blank() },
+        endReason: null,
       }
       const live: Live = {
         summary, sim: null, lastFrame: null, log: [], controlSeq: 0,
-        watchers: new Set(), decider: chosen,
+        desired: 'run', watchers: new Set(), decider: chosen,
       }
       runs.set(id, live)
       order.unshift(id)
@@ -302,7 +308,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
       live.summary.speed = clampSpeed(speed)
       live.controlSeq += 1
       live.sim.control({
-        desired: live.summary.status === 'paused' ? 'pause' : 'run',
+        desired: live.desired,
         speed: live.summary.speed,
         seq: live.controlSeq,
       })
@@ -315,6 +321,8 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
       if (!live || !live.sim) return false
       live.controlSeq += 1
       const desired = action === 'resume' ? 'run' : action === 'stop' ? 'stop' : action
+      // A step is one turn and then a hold, so what it leaves behind is a pause.
+      live.desired = action === 'step' ? 'pause' : desired
       // A step is one turn out of a pause and a pause again, so the run is
       // paused afterwards and has to say so. Reporting it as running left the
       // page offering a pause button for something already stopped.

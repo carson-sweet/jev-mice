@@ -91,8 +91,8 @@ export function describe(e: SimEvent): TurnEvent {
       return with_(`${e.id} finished eating.`)
     case 'cat_fed':
       return with_(`${e.id} was fed ${String(e.restored)}, now at ${String(e.nutrition)} percent.`)
-    case 'cat_left':
-      return with_(`${e.id} left the area at ${String(e.nutrition)} percent.`)
+    case 'cat_died':
+      return with_(`${e.id} starved, with nothing left to catch.`)
     case 'cat_targeted':
       return with_(`${e.id} ${e.target === null ? 'gave up its target' : `is after ${e.target}`}, `
         + `now ${e.mode}.`)
@@ -129,7 +129,12 @@ export function describe(e: SimEvent): TurnEvent {
     case 'decision_fallback':
       return { kind: e.kind, text: `A batch fell back to the rules: ${e.reason}.` }
     case 'run_ended':
-      return { kind: e.kind, text: `The run ended, ${e.reason}, at turn ${String(e.finalTick)}.` }
+      return {
+        kind: e.kind,
+        text: e.reason === 'extinct'
+          ? `Total extinction at turn ${String(e.finalTick)}: nothing left alive.`
+          : `The run ended, ${e.reason}, at turn ${String(e.finalTick)}.`,
+      }
     default:
       return { kind: e.kind, text: `${e.kind}${subject === undefined ? '' : ` (${subject})`}`,
                ...(subject === undefined ? {} : { subject }) }

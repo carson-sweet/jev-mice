@@ -122,8 +122,12 @@ uses, so none of the three can drift apart.
 
 A cat has its own hunger. It decays slowly, a mouse restores half of it, and a
 cat below half sees further, springs from further away and stops resting after
-losing a mouse. At a tenth or less it leaves the map to look elsewhere, which is
-the only way predation pressure is ever removed from a run.
+losing a mouse. A cat that catches nothing starves to death, on the same terms
+as a mouse, which is the only way predation pressure is ever removed from a run.
+
+When no mouse and no cat is left alive the run stops there rather than counting
+out its remaining turns over an empty map, and the viewer says so in large type
+over the world it ended in.
 
 ## What the numbers say
 

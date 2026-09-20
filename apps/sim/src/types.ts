@@ -5,6 +5,8 @@
 import type { RunConfig, SimEvent, Snapshot } from '@jev-mice/engine'
 
 export type Desired = 'run' | 'pause' | 'step' | 'stop'
+/** Why a run finished. Extinction is the engine stopping itself. */
+export type EndReason = 'completed' | 'extinct' | 'stopped'
 
 export interface Control {
   desired: Desired
@@ -88,7 +90,7 @@ export interface SummaryPoint {
  */
 export interface LogEntry {
   tick: number
-  kind: 'starved' | 'eaten' | 'trapped' | 'born' | 'mated' | 'cat_left' | 'birth_lost'
+  kind: 'starved' | 'eaten' | 'trapped' | 'born' | 'mated' | 'cat_starved' | 'birth_lost'
   subject: string
   text: string
   /** The intent the subject last held, when one is known. */
@@ -102,7 +104,9 @@ export interface Coordinator {
   chunk(report: ChunkReport): Promise<ChunkAck>
   /** Frames and log lines travel together, on the same flush. */
   frames(frames: Frame[], log: LogEntry[]): Promise<void>
-  done(d: { finalTick: number; totals: ChunkReport['totals'] }): Promise<void>
+  done(d: {
+    finalTick: number; totals: ChunkReport['totals']; reason: EndReason
+  }): Promise<void>
   failed(f: { atTick: number; reason: string; detail?: string }): Promise<void>
 }
 

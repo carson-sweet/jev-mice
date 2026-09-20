@@ -5,6 +5,9 @@ import { describe, it, expect } from 'vitest'
 import { CAT } from '../../src/index.js'
 import { engine, medium, runTicks, of } from '../helpers.js'
 
+/** How long a cat lasts on a full stomach with nothing to catch. */
+const TO_STARVE = Math.ceil(CAT.startingNutrition / CAT.decayPerTick) + 2
+
 /** A world with no mice to catch, so a cat can only get hungrier. */
 const barren = (over = {}) => medium({
   maleMice: 0, femaleMice: 0, cats: 2, traps: 0, foodPiles: 0, mouseholes: 4,
@@ -25,25 +28,23 @@ describe('A cat that is not eating', () => {
     expect(after).toBeCloseTo(CAT.startingNutrition - 100 * CAT.decayPerTick, 5)
   })
 
-  it('Leaves once it is down to a tenth, and the record says why', async () => {
+  it('Starves to death once it runs out, and the record says so', async () => {
     const e = engine(barren())
-    const ticksToLeave = Math.ceil((CAT.startingNutrition - CAT.leaveAt) / CAT.decayPerTick) + 2
-    const events = await runTicks(e, ticksToLeave)
-    const left = of(events, 'cat_left')
-    expect(left.length).toBe(2)
-    expect(left[0]?.reason).toBe('starving')
-    expect(left[0]?.nutrition).toBeLessThanOrEqual(CAT.leaveAt)
+    const events = await runTicks(e, TO_STARVE)
+    const died = of(events, 'cat_died')
+    expect(died.length).toBe(2)
+    expect(died[0]?.cause).toBe('starvation')
+    expect(died[0]?.nutrition).toBeLessThanOrEqual(0)
   })
 
-  it('Is gone from the world once it has left, and stops hunting', async () => {
+  it('Is gone from the world once it is dead, and stops hunting', async () => {
     const e = engine(barren())
-    const ticksToLeave = Math.ceil((CAT.startingNutrition - CAT.leaveAt) / CAT.decayPerTick) + 2
-    await runTicks(e, ticksToLeave)
+    await runTicks(e, TO_STARVE)
     expect(e.world().cats).toHaveLength(0)
     const after = await runTicks(e, 50)
     expect(of(after, 'cat_pounced')).toHaveLength(0)
     expect(of(after, 'capture')).toHaveLength(0)
-    expect(of(after, 'cat_left')).toHaveLength(0)
+    expect(of(after, 'cat_died')).toHaveLength(0)
   })
 })
 
@@ -72,14 +73,14 @@ describe('A cat that catches a mouse', () => {
     }
   })
 
-  it('Stays in a place where it is succeeding', async () => {
+  it('Does not starve where it is succeeding', async () => {
     const e = engine(medium({
       maleMice: 60, femaleMice: 60, cats: 2, traps: 0, mouseholes: 0,
       foodPiles: 60, foodRespawnTicks: 10, ticks: 20_000,
     }))
     const events = await runTicks(e, 1500)
     expect(of(events, 'capture').length).toBeGreaterThan(0)
-    expect(of(events, 'cat_left')).toHaveLength(0)
+    expect(of(events, 'cat_died')).toHaveLength(0)
   })
 })
 
@@ -119,12 +120,14 @@ describe('A hungry cat hunts harder', () => {
   })
 })
 
-describe('A cat leaving', () => {
-  it('Does not take the run down with it', async () => {
+describe('A cat starving', () => {
+  it('Ends the run, because nothing is left alive', async () => {
     const e = engine(barren({ ticks: 2000 }))
     await runTicks(e, 2000)
     expect(e.world().cats).toHaveLength(0)
-    expect(of(e.events(), 'run_ended')).toHaveLength(1)
+    const ended = of(e.events(), 'run_ended')
+    expect(ended).toHaveLength(1)
+    expect(ended[0]?.reason).toBe('extinct')
   })
 
   it('Survives a snapshot taken before it goes', async () => {
@@ -135,5 +138,65 @@ describe('A cat leaving', () => {
     const before = e.world().cats.map((c) => c.nutrition)
     const resumed = restore(e.serialize(), { provider: baselineProvider() })
     expect(resumed.world().cats.map((c) => c.nutrition)).toEqual(before)
+  })
+})
+
+describe('Total extinction', () => {
+  it('Ends the run the moment the last living thing is gone', async () => {
+    const e = engine(medium({
+      maleMice: 4, femaleMice: 0, cats: 0, traps: 0, foodPiles: 0, mouseholes: 0,
+      nutritionDecayPerTick: 2, ticks: 5000,
+    }))
+    const events = await runTicks(e, 200)
+    const ended = of(events, 'run_ended')
+    expect(ended).toHaveLength(1)
+    expect(ended[0]?.reason).toBe('extinct')
+    // It stopped early rather than running out its configured turns.
+    expect(ended[0]?.finalTick).toBeLessThan(200)
+    expect(e.world().mice).toHaveLength(0)
+    expect(e.world().cats).toHaveLength(0)
+  })
+
+  it('Does not end while a cat is still alive with no mice left', async () => {
+    const e = engine(medium({
+      maleMice: 2, femaleMice: 0, cats: 2, traps: 0, foodPiles: 0, mouseholes: 0,
+      nutritionDecayPerTick: 2, ticks: 5000,
+    }))
+    const events = await runTicks(e, 120)
+    expect(e.world().mice).toHaveLength(0)
+    expect(e.world().cats.length).toBeGreaterThan(0)
+    expect(of(events, 'run_ended')).toHaveLength(0)
+  })
+
+  it('Does not end while a mouse is still alive with no cats left', async () => {
+    const e = engine(medium({
+      maleMice: 6, femaleMice: 0, cats: 0, traps: 0, foodPiles: 40,
+      foodRespawnTicks: 5, mouseholes: 0, nutritionDecayPerTick: 0.2, ticks: 400,
+    }))
+    const events = await runTicks(e, 200)
+    expect(e.world().mice.length).toBeGreaterThan(0)
+    expect(of(events, 'run_ended')).toHaveLength(0)
+  })
+
+  it('Stops advancing once everything is dead', async () => {
+    const e = engine(medium({
+      maleMice: 2, femaleMice: 0, cats: 0, traps: 0, foodPiles: 0, mouseholes: 0,
+      nutritionDecayPerTick: 4, ticks: 5000,
+    }))
+    await runTicks(e, 100)
+    const settled = e.world().tick
+    await runTicks(e, 50)
+    expect(e.world().tick).toBe(settled)
+  })
+
+  it('Ends as completed, not extinct, when the turns simply run out', async () => {
+    const e = engine(medium({
+      foodPiles: 50, foodRespawnTicks: 15, nutritionDecayPerTick: 0.3,
+      mouseholes: 24, cats: 3, ticks: 150,
+    }))
+    const events = await runTicks(e, 150)
+    const ended = of(events, 'run_ended')
+    expect(ended).toHaveLength(1)
+    expect(ended[0]?.reason).toBe('completed')
   })
 })

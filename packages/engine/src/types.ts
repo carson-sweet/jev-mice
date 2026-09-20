@@ -130,7 +130,7 @@ export type SimEvent =
   /** Emitted on entering perception, never for a thing already in view. */
   | (EventBase & { kind: 'spotted'; id: AgentId; what: Spottable
                    targetId: string; distance: number })
-  | (EventBase & { kind: 'cat_left'; id: AgentId; reason: 'starving'; nutrition: number
+  | (EventBase & { kind: 'cat_died'; id: AgentId; cause: 'starvation'; nutrition: number
                    at: Cell })
   | (EventBase & { kind: 'mating'; a: AgentId; b: AgentId; holeId: string })
   | (EventBase & { kind: 'gestation_started'; id: AgentId })
@@ -143,7 +143,10 @@ export type SimEvent =
   | (EventBase & { kind: 'alarm_exchanged'; from: AgentId; to: AgentId; sentence: string
                    /** How the sender held it. Only 'seen' may be shared; this makes that checkable. */
                    senderProvenance: Provenance })
-  | (EventBase & { kind: 'run_ended'; reason: 'completed' | 'cancelled' | 'failed'; finalTick: Tick })
+  | (EventBase & { kind: 'run_ended'
+                   /** 'extinct' is nothing left alive, which stops a run early. */
+                   reason: 'completed' | 'extinct' | 'cancelled' | 'failed'
+                   finalTick: Tick })
 
 /** Excluded from stream comparison: these record duration, not outcome. */
 export const WALL_CLOCK_FIELDS: readonly string[] = ['latencyMs'] as const
@@ -236,8 +239,6 @@ export const CAT = {
   /** What one mouse is worth. Less than full, so a cat must keep hunting. */
   mealRestores: 50,
   hungryBelow: 50,
-  /** At or below this it leaves to look elsewhere. */
-  leaveAt: 10,
   perception: 8,
   perceptionHungry: 11,
   pounceRange: 3,

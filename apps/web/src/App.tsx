@@ -15,6 +15,7 @@ import { Speed } from './Speed'
 import { Runs } from './Runs'
 import { RunDetail } from './RunDetail'
 import { Transport } from './Transport'
+import { Extinction } from './Extinction'
 import { resolve, type Playhead } from './playhead'
 
 const MAX_POINTS = 600
@@ -243,10 +244,14 @@ export function App(): React.ReactElement {
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4">
           {run
             ? <>
-                <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+                <div className="relative flex min-h-0 w-full flex-1 items-center
+                                justify-center">
                   <Grid frame={frame} width={world.width} height={world.height}
                         selected={selected} highlighted={highlighted}
                         onSelect={setSelected} />
+                  {run.endReason === 'extinct' && (
+                    <Extinction tick={run.currentTick} />
+                  )}
                 </div>
                 <Legend />
               </>

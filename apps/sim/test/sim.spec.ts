@@ -6,7 +6,7 @@ import {
 import {
   createSimulation, CHUNK_TICKS,
   type ChunkAck, type ChunkBody, type ChunkReport, type Coordinator, type Frame,
-  type LogEntry, type SummaryBody,
+  type EndReason, type LogEntry, type SummaryBody,
 } from '../src/index.js'
 
 const ack = (over: Partial<ChunkAck> = {}): ChunkAck => ({
@@ -23,7 +23,7 @@ interface Recorded {
   puts: { url: string; body: Uint8Array }[]
   reports: ChunkReport[]
   frames: Frame[][]
-  done: { finalTick: number; totals: ChunkReport['totals'] }[]
+  done: { finalTick: number; totals: ChunkReport['totals']; reason: EndReason }[]
   failed: { atTick: number; reason: string }[]
 }
 
@@ -508,13 +508,13 @@ describe('The running log', () => {
     expect(born[0]?.text).toMatch(/born/i)
   }, 40_000)
 
-  it('Records a cat that gives up on the area', async () => {
+  it('Records a cat that starves with nothing to catch', async () => {
     const entries = await logFrom({
-      config: { maleMice: 0, femaleMice: 0, cats: 2, traps: 0, foodPiles: 0, ticks: 1_000 },
+      config: { maleMice: 0, femaleMice: 0, cats: 2, traps: 0, foodPiles: 0, ticks: 2_000 },
     })
-    const left = entries.filter((e) => e.kind === 'cat_left')
-    expect(left.length).toBe(2)
-    expect(left[0]?.text).toMatch(/left the area/i)
+    const starved = entries.filter((e) => e.kind === 'cat_starved')
+    expect(starved.length).toBe(2)
+    expect(starved[0]?.text).toMatch(/starved/i)
   }, 30_000)
 
   it('Loses nothing that happened between two frames', async () => {
@@ -530,7 +530,7 @@ describe('The running log', () => {
     const entries = await logFrom()
     const kinds = new Set(entries.map((e) => e.kind))
     for (const k of kinds) {
-      expect(['starved', 'eaten', 'trapped', 'born', 'mated', 'cat_left', 'birth_lost'])
+      expect(['starved', 'eaten', 'trapped', 'born', 'mated', 'cat_starved', 'birth_lost'])
         .toContain(k)
     }
   }, 30_000)
@@ -580,6 +580,67 @@ describe('What a run reports about its population', () => {
     expect(done!.totals.population.mice.current).toBeGreaterThanOrEqual(0)
     expect(done!.totals.population.cats.current).toBeGreaterThanOrEqual(0)
   }, 20_000)
+})
+
+describe('A run that ends before its turns run out', () => {
+  const barren = { maleMice: 2, femaleMice: 0, cats: 0, traps: 0, foodPiles: 0,
+                   mouseholes: 0, nutritionDecayPerTick: 4 }
+
+  it('Stops when nothing is left alive, rather than spinning to the limit', async () => {
+    const { sim, rec } = harness({ config: { ...barren, ticks: 20_000 } })
+    await sim.start()
+    expect(rec.done).toHaveLength(1)
+    expect(rec.done[0]?.finalTick).toBeLessThan(200)
+    expect(sim.currentTick()).toBe(rec.done[0]?.finalTick)
+  }, 30_000)
+
+  it('Says it was extinction, not that the turns ran out', async () => {
+    const { sim, rec } = harness({ config: { ...barren, ticks: 20_000 } })
+    await sim.start()
+    expect(rec.done[0]?.reason).toBe('extinct')
+  }, 30_000)
+
+  it('Says it completed when the turns really did run out', async () => {
+    const { sim, rec } = harness({
+      config: { ticks: 300, foodPiles: 20, foodRespawnTicks: 10,
+                nutritionDecayPerTick: 0.2 },
+    })
+    await sim.start()
+    expect(rec.done[0]?.reason).toBe('completed')
+  }, 30_000)
+
+  it('Sends a frame for the final turn, so the page ends where the run did', async () => {
+    const seen: Frame[] = []
+    const rec: { reason: string | null } = { reason: null }
+    const coordinator: Coordinator = {
+      ready: () => Promise.resolve(ack({ control: { desired: 'run', speed: 334, seq: 0 } })),
+      chunk: () => Promise.resolve(ack({ control: { desired: 'run', speed: 334, seq: 0 } })),
+      frames: (f) => { seen.push(...f); return Promise.resolve() },
+      done: (d) => { rec.reason = d.reason; return Promise.resolve() },
+      failed: () => Promise.resolve(),
+    }
+    const sim = createSimulation({
+      runId: 'end',
+      config: { ...defaultConfig('small'), ...barren, ticks: 20_000 },
+      seed: 5,
+      coordinator,
+      upload: () => Promise.resolve(),
+      provider: () => baselineProvider(),
+    })
+    await sim.start()
+    // The frame interval would otherwise leave the last frame short of the end,
+    // so a finished run showed one turn and reported another.
+    expect(rec.reason).toBe('extinct')
+    expect(seen.at(-1)?.tick).toBe(sim.currentTick())
+  }, 30_000)
+
+  it('Stores the last turn rather than losing it', async () => {
+    const { sim, rec } = harness({ config: { ...barren, ticks: 20_000 } })
+    await sim.start()
+    const final = rec.done[0]?.finalTick ?? 0
+    const lastChunk = rec.reports.at(-1)
+    expect(lastChunk?.lastTick).toBe(final)
+  }, 30_000)
 })
 
 describe('Per-turn telemetry', () => {

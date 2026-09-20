@@ -5,8 +5,8 @@
 import { gzipSync } from 'node:zlib'
 import { createEngine, restore, ENGINE_VERSION, type Engine, type SimEvent } from '@jev-mice/engine'
 import type {
-  Allowance, ChunkAck, ChunkBody, ChunkReport, Control, Extent, Frame, LogEntry,
-  Simulation, SimulationOptions, SummaryBody, SummaryPoint,
+  Allowance, ChunkAck, ChunkBody, ChunkReport, Control, EndReason, Extent, Frame,
+  LogEntry, Simulation, SimulationOptions, SummaryBody, SummaryPoint,
 } from './types.js'
 
 export * from './types.js'
@@ -52,6 +52,8 @@ export function createSimulation(opts: SimulationOptions): Simulation {
   /** The last decision each agent was given, so a death can name its cause. */
   const lastDecision = new Map<string, { intent: string; source: 'jev' | 'baseline' }>()
   let control: Control = { desired: 'run', speed: 0, seq: -1 }
+  /** Set when the engine stops itself, which it does on extinction. */
+  let engineEnded: EndReason | null = null
   let stepsOwed = 0
   let allowance: Allowance = { tokens: 0, degraded: true, reason: 'disabled' }
   let presigned: ChunkAck['presigned'] | null = null
@@ -137,11 +139,10 @@ export function createSimulation(opts: SimulationOptions): Simulation {
             text: `${e.a} and ${e.b} mated in ${e.holeId}.`, ...of(e.a),
           })
           break
-        case 'cat_left':
+        case 'cat_died':
           pendingLog.push({
-            tick: atTick, kind: 'cat_left', subject: e.id,
-            text: `${e.id} left the area, down to ${String(e.nutrition)} percent `
-              + 'with nothing to catch.',
+            tick: atTick, kind: 'cat_starved', subject: e.id,
+            text: `${e.id} starved, with nothing left to catch.`,
           })
           break
         case 'cap_limited_birth':
@@ -350,6 +351,10 @@ export function createSimulation(opts: SimulationOptions): Simulation {
 
       accumulate(fresh)
       logFrom(fresh, tick)
+      for (const e of fresh) {
+        if (e.kind === 'run_ended' && e.reason === 'extinct') engineEnded = 'extinct'
+        else if (e.kind === 'run_ended') engineEnded = 'completed'
+      }
       summarize(fresh, tick)
       buffered.push(...fresh)
       bufferedBytes += fresh.length * 200
@@ -375,6 +380,9 @@ export function createSimulation(opts: SimulationOptions): Simulation {
         sinceYield = 0
         await sleep(0)
       }
+      // The engine stops itself when nothing is left alive. Without this the
+      // loop would step an empty world until the configured turn count.
+      if (engineEnded !== null) break
     }
   }
 
@@ -418,9 +426,17 @@ export function createSimulation(opts: SimulationOptions): Simulation {
         }))
 
         await loop()
+        // The run's last state is its last frame, whatever the interval was
+        // due to send. Without this a finished run showed one turn and
+        // reported another.
+        pendingFrames.push(frameNow())
         await flushFrames()
         if (buffered.length > 0 || points.length > 0) await closeChunk()
-        await opts.coordinator.done({ finalTick: tick, totals: snapshotTotals() })
+        await opts.coordinator.done({
+          finalTick: tick,
+          totals: snapshotTotals(),
+          reason: engineEnded ?? (control.desired === 'stop' ? 'stopped' : 'completed'),
+        })
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
         await opts.coordinator.failed({ atTick: tick, reason })

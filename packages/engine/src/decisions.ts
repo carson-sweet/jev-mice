@@ -184,7 +184,7 @@ export function composeRequests(
         cat: {
           doing: c.mode === 'rest' ? 'resting' : `${c.mode}ing`,
           hunger: c.nutrition >= CAT.hungryBelow ? 'well fed'
-            : c.nutrition > CAT.leaveAt * 2 ? 'hungry' : 'starving, ready to move on',
+            : c.nutrition > CAT.hungryBelow / 2 ? 'hungry' : 'starving',
         },
         mice: candidates.map((x) => x.description),
       }

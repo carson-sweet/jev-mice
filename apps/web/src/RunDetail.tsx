@@ -36,9 +36,10 @@ function Count({ which, value, delta }: {
 /** Reads as what happened, so a quiet turn is obvious without opening it. */
 const NOTABLE: Record<string, string> = {
   death: 'died', birth: 'born', mating: 'mated', capture: 'caught',
-  mouse_trapped: 'trapped', food_eaten: 'ate', cat_left: 'cat left',
+  mouse_trapped: 'trapped', food_eaten: 'ate', cat_died: 'cat starved',
   hunger_changed: 'hunger', cap_limited_birth: 'litter lost',
   food_respawned: 'food back', trap_respawned: 'trap reset',
+  run_ended: 'run ended',
 }
 
 function summarize(turn: Turn): string {

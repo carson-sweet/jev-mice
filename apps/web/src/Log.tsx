@@ -14,7 +14,7 @@ const GLYPH: Record<LogEntry['kind'], GlyphKind> = {
   trapped: 'trap',
   born: 'mouse',
   mated: 'mouse',
-  cat_left: 'catHungry',
+  cat_starved: 'catHungry',
   birth_lost: 'mouseFaint',
 }
 
@@ -24,7 +24,7 @@ const TINT: Record<LogEntry['kind'], string> = {
   trapped: COLOURS.trap,
   born: COLOURS.food,
   mated: COLOURS.mouse,
-  cat_left: COLOURS.catHungry,
+  cat_starved: COLOURS.catHungry,
   birth_lost: COLOURS.hole,
 }
 

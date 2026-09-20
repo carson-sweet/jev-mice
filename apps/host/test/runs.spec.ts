@@ -313,3 +313,91 @@ describe('Stepping a run', () => {
     await settled(m, run.id)
   }, 30_000)
 })
+
+describe('A run that ends in extinction', () => {
+  const barren = () => small({
+    maleMice: 2, femaleMice: 0, cats: 0, traps: 0, foodPiles: 0, mouseholes: 0,
+    nutritionDecayPerTick: 4, ticks: 20_000,
+  })
+
+  it('Says extinction, so the page can say so too', async () => {
+    const m = manager()
+    const run = m.create({ config: barren(), seed: 1, speed: SPEED.fastest })
+    await settled(m, run.id)
+    expect(m.get(run.id)?.status).toBe('completed')
+    expect(m.get(run.id)?.endReason).toBe('extinct')
+  }, 30_000)
+
+  it('Ends with nothing alive on either side', async () => {
+    const m = manager()
+    const run = m.create({ config: barren(), seed: 1, speed: SPEED.fastest })
+    await settled(m, run.id)
+    const p = m.get(run.id)?.population
+    expect(p?.mice.current).toBe(0)
+    expect(p?.cats.current).toBe(0)
+  }, 30_000)
+
+  it('Says completed when the turns ran out with something still alive', async () => {
+    const m = manager()
+    const run = m.create({
+      config: small({ ticks: 300, foodPiles: 20, foodRespawnTicks: 10,
+                      nutritionDecayPerTick: 0.2 }),
+      seed: 1,
+      speed: SPEED.fastest,
+    })
+    await settled(m, run.id)
+    expect(m.get(run.id)?.endReason).toBe('completed')
+    expect(m.get(run.id)?.population.mice.current).toBeGreaterThan(0)
+  }, 30_000)
+
+  it('Says stopped when someone ended it', async () => {
+    const m = manager()
+    const run = m.create({ config: small({ ticks: 20_000 }), seed: 1, speed: SPEED.fastest })
+    await new Promise((r) => setTimeout(r, 250))
+    m.control(run.id, 'stop')
+    await settled(m, run.id)
+    expect(m.get(run.id)?.endReason).toBe('stopped')
+  }, 30_000)
+
+  it('Has no end reason while it is still going', () => {
+    const m = manager()
+    const run = m.create({ config: small({ ticks: 20_000 }), seed: 1, speed: 1 })
+    expect(run.endReason).toBeNull()
+    m.control(run.id, 'stop')
+  })
+})
+
+describe('What the coordinator tells a run to do', () => {
+  it('Does not undo a stop at the next chunk boundary', async () => {
+    // The acknowledgement used to re-derive the desired state from the run's
+    // status, which knows about paused and not about stopped, so a chunk
+    // landing just after a stop told the run to carry on.
+    const m = manager()
+    const run = m.create({
+      config: small({ ticks: 20_000 }), seed: 1, speed: SPEED.fastest,
+    })
+    await new Promise((r) => setTimeout(r, 400))
+    m.control(run.id, 'stop')
+    await settled(m, run.id)
+    const at = m.get(run.id)?.currentTick ?? 0
+    expect(m.get(run.id)?.endReason).toBe('stopped')
+    await new Promise((r) => setTimeout(r, 300))
+    expect(m.get(run.id)?.currentTick).toBe(at)
+  }, 30_000)
+
+  it('Does not undo a step at the next chunk boundary', async () => {
+    const m = manager()
+    const run = m.create({
+      config: small({ ticks: 20_000 }), seed: 1, speed: SPEED.fastest,
+    })
+    await new Promise((r) => setTimeout(r, 400))
+    m.control(run.id, 'step')
+    await new Promise((r) => setTimeout(r, 500))
+    const held = m.get(run.id)?.currentTick ?? 0
+    await new Promise((r) => setTimeout(r, 400))
+    expect(m.get(run.id)?.currentTick).toBe(held)
+    expect(m.get(run.id)?.status).toBe('paused')
+    m.control(run.id, 'stop')
+    await settled(m, run.id)
+  }, 30_000)
+})

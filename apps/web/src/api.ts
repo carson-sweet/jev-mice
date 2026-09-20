@@ -27,6 +27,7 @@ export interface RunSummary {
   decidedBy: Decider
   speed: number
   population: { mice: Extent; cats: Extent }
+  endReason: 'completed' | 'extinct' | 'stopped' | null
 }
 
 export type ViewerMessage =
