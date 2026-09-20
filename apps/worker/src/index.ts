@@ -11,6 +11,7 @@
 import { Hono } from 'hono'
 import { defaultConfig, validateConfig, type Preset, type RunConfig } from '@jev-mice/engine'
 import { SPEED, type Decider } from '@jev-mice/sim'
+import { httpsRedirect } from './https.js'
 import type { Env } from './env.js'
 
 export { RunDO } from './run-do.js'
@@ -20,6 +21,15 @@ export { RegistryDO } from './registry-do.js'
 const PRESETS: Preset[] = ['small', 'medium', 'large']
 
 const app = new Hono<{ Bindings: Env }>()
+
+// Before anything else, including the assets. Plain HTTP used to answer with
+// the application, which teaches people the insecure URL works and it is the
+// one they paste to someone else.
+app.use('*', async (c, next) => {
+  const redirect = httpsRedirect(c.req.raw)
+  if (redirect) return redirect
+  await next()
+})
 
 const runStub = (env: Env, id: string): DurableObjectStub =>
   env.RUN.get(env.RUN.idFromName(id))
