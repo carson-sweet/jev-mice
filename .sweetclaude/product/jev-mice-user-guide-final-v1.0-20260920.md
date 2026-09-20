@@ -1,6 +1,6 @@
 ---
 title: jev-mice User Guide
-version: 1.0
+version: 1.1
 status: final
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude

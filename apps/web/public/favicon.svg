@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="A mouse">
+  <!--
+    Drawn for 16 pixels, which is the only size that really matters. Everything
+    here survived that test and the whiskers did not: at 16 they turned the face
+    into a smudge. Big round ears well clear of the head, two eyes far enough
+    apart not to merge, a nose large enough to stay pink, and a tail thick
+    enough to read as a tail. The blue is the mouse's own colour on the map.
+  -->
+  <g fill="#3b82f6">
+    <circle cx="8.5" cy="9.5" r="5.8"/>
+    <circle cx="23.5" cy="9.5" r="5.8"/>
+    <ellipse cx="16" cy="19.5" rx="11" ry="9.5"/>
+  </g>
+  <circle cx="8.5" cy="9.5" r="2.9" fill="#1e3a8a"/>
+  <circle cx="23.5" cy="9.5" r="2.9" fill="#1e3a8a"/>
+  <circle cx="11.6" cy="17.6" r="2.2" fill="#0b0d10"/>
+  <circle cx="20.4" cy="17.6" r="2.2" fill="#0b0d10"/>
+  <circle cx="16" cy="23" r="2.6" fill="#f9a8d4"/>
+  <path d="M26.5 24 q5.5 2.5 3.5 7" fill="none" stroke="#3b82f6"
+        stroke-width="3" stroke-linecap="round"/>
+</svg>
