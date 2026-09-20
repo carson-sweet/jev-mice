@@ -104,8 +104,11 @@ what this page has seen, not the whole run; for the whole run, open it from the
 library.
 
 `/#/runs` lists every run so far, newest first, with its seed, its settings, and
-the highest, lowest and final count of mice and cats. Opening a run reads it
-turn by turn: what was standing at the end of each turn, how that changed, and
+the highest, lowest and final count of mice and cats. Each row offers a written
+report and the whole record: the report answers the two behavioural measures the
+requirements set, and the record downloads as gzipped JSON lines, one object of
+metadata then one line per event, streamed so a long run need not fit in memory.
+Opening a run reads it turn by turn: what was standing at the end of each turn, how that changed, and
 under each turn every event of it except plain movement. That is assembled on
 request from what the run already stored, so nothing extra is written while a
 run is going.

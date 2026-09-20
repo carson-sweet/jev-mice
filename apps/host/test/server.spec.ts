@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { gunzipSync } from 'node:zlib'
 import { WebSocket } from 'ws'
 import { defaultConfig } from '@jev-mice/engine'
 import { createHost } from '../src/server.js'
@@ -341,4 +342,82 @@ describe('What the host exposes and to whom', () => {
     expect(codes[3], 'a fourth run was accepted past the cap').toBe(429)
     await up.close()
   }, 20_000)
+})
+
+describe('Taking a run away with you', () => {
+  const finishedRun = async (seed: number): Promise<string> => {
+    const created = await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 300 }, seed, speed: 334,
+    })
+    const id = created.body.run.id as string
+    for (let i = 0; i < 400; i++) {
+      const s = await (await fetch(`${base}/api/runs/${id}`)).json() as any
+      if (s.run.status === 'completed') return id
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    throw new Error('run never finished')
+  }
+
+  it('Gives the report as numbers a page can show', async () => {
+    const id = await finishedRun(61)
+    const r = await fetch(`${base}/api/runs/${id}/report`)
+    expect(r.status).toBe(200)
+    const body = await r.json() as any
+    expect(body.seed).toBe(61)
+    expect(body.measures.fleeOrHide.id).toBe('SM-07')
+    expect(body.measures.personalityMix.id).toBe('SM-06')
+    expect(['met', 'not met', 'not enough evidence'])
+      .toContain(body.measures.fleeOrHide.verdict)
+    expect(body.population.mice.peak).toBeGreaterThan(0)
+  }, 60_000)
+
+  it('Gives the report as a document that downloads', async () => {
+    const id = await finishedRun(62)
+    const r = await fetch(`${base}/api/runs/${id}/report.md`)
+    expect(r.status).toBe(200)
+    expect(r.headers.get('content-type')).toContain('text/markdown')
+    expect(r.headers.get('content-disposition')).toContain('attachment')
+    expect(r.headers.get('content-disposition')).toContain('62')
+    const text = await r.text()
+    expect(text).toContain('# jev-mice run')
+    expect(text).toContain('SM-07')
+  }, 60_000)
+
+  it('Gives the whole record as gzipped lines that download', async () => {
+    const id = await finishedRun(63)
+    const r = await fetch(`${base}/api/runs/${id}/export`)
+    expect(r.status).toBe(200)
+    expect(r.headers.get('content-type')).toBe('application/gzip')
+    expect(r.headers.get('content-disposition')).toContain('.jsonl.gz')
+    const body = Buffer.from(await r.arrayBuffer())
+    expect(body[0]).toBe(0x1f)
+    expect(body[1]).toBe(0x8b)
+    const lines = gunzipSync(body).toString('utf8').trimEnd().split('\n')
+    expect(lines.length).toBeGreaterThan(100)
+    const head = JSON.parse(lines[0] as string) as { kind: string; seed: number }
+    expect(head.kind).toBe('run')
+    expect(head.seed).toBe(63)
+    // Every line parses, which is the point of the format.
+    for (const line of lines.slice(1, 200)) {
+      expect(() => JSON.parse(line) as unknown).not.toThrow()
+    }
+  }, 60_000)
+
+  it('Never puts the decision key in a report or a dump', async () => {
+    const id = await finishedRun(64)
+    const report = await (await fetch(`${base}/api/runs/${id}/report.md`)).text()
+    const dump = gunzipSync(Buffer.from(
+      await (await fetch(`${base}/api/runs/${id}/export`)).arrayBuffer())).toString('utf8')
+    for (const text of [report, dump]) {
+      expect(text.toLowerCase()).not.toContain('apikey')
+      expect(text.toLowerCase()).not.toContain('typesafe_api_key')
+      expect(text.toLowerCase()).not.toContain('authorization')
+    }
+  }, 60_000)
+
+  it('Answers for a run that does not exist', async () => {
+    for (const path of ['report', 'report.md', 'export']) {
+      expect((await fetch(`${base}/api/runs/nope/${path}`)).status).toBe(404)
+    }
+  })
 })

@@ -3,13 +3,16 @@
 // browser: everything the page receives has already been decided.
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { createGzip } from 'node:zlib'
+import { once } from 'node:events'
 import { readFileSync, existsSync, statSync } from 'node:fs'
 import { join, extname, normalize } from 'node:path'
 import { WebSocketServer } from 'ws'
 import { defaultConfig, validateConfig, type RunConfig } from '@jev-mice/engine'
 import { SPEED } from '@jev-mice/sim'
 import { createRunManager, type Decider, type RunManager, type ViewerMessage } from './runs.js'
-import { turnWindow, MAX_WINDOW } from './turns.js'
+import { turnWindow, MAX_WINDOW, type StoredRun } from './turns.js'
+import { buildReport, renderReport, exportLines } from './report.js'
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -160,6 +163,50 @@ export function createHost(opts: HostOptions): {
         return json(res, ok ? 200 : 409, { run: manager.get(id) })
       }
 
+      const storedRun = (): StoredRun => ({
+        id,
+        chunks: state.chunks,
+        chunkPath: (seq) => manager.chunkPath(id, seq) ?? '',
+        summaryPath: (seq) => manager.summaryPath(id, seq) ?? '',
+        totalTurns: state.currentTick,
+      })
+
+      if ((rest === '/report' || rest === '/report.md') && method === 'GET') {
+        const report = await buildReport({ run: state, stored: storedRun() })
+        if (rest === '/report') return json(res, 200, report)
+        const text = renderReport(report)
+        res.writeHead(200, {
+          'content-type': 'text/markdown; charset=utf-8',
+          'content-length': Buffer.byteLength(text),
+          'content-disposition':
+            `attachment; filename="jev-mice-${String(state.seed)}-report.md"`,
+          'cache-control': 'no-store',
+        })
+        res.end(text)
+        return
+      }
+
+      if (rest === '/export' && method === 'GET') {
+        // Streamed and gzipped a line at a time, so a long run does not have to
+        // fit in memory to be downloaded.
+        res.writeHead(200, {
+          'content-type': 'application/gzip',
+          'content-disposition':
+            `attachment; filename="jev-mice-${String(state.seed)}.jsonl.gz"`,
+          'cache-control': 'no-store',
+        })
+        const gzip = createGzip()
+        gzip.pipe(res)
+        try {
+          for await (const line of exportLines({ run: state, stored: storedRun() })) {
+            if (!gzip.write(line)) await once(gzip, 'drain')
+          }
+        } finally {
+          gzip.end()
+        }
+        return
+      }
+
       if (rest === '/turns' && method === 'GET') {
         const from = Number(url.searchParams.get('from') ?? 1)
         const to = Number(url.searchParams.get('to') ?? from + 49)
@@ -171,13 +218,7 @@ export function createHost(opts: HostOptions): {
             error: `at most ${String(MAX_WINDOW)} turns at a time; ask for a smaller window`,
           })
         }
-        const window = await turnWindow({
-          id,
-          chunks: state.chunks,
-          chunkPath: (seq) => manager.chunkPath(id, seq) ?? '',
-          summaryPath: (seq) => manager.summaryPath(id, seq) ?? '',
-          totalTurns: state.currentTick,
-        }, from, to)
+        const window = await turnWindow(storedRun(), from, to)
         return json(res, 200, { ...window, runId: id })
       }
 

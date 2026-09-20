@@ -62,7 +62,7 @@ function Row({ run }: { run: RunSummary }): React.ReactElement {
         <td className="px-3 py-2"><Range e={run.population.cats} /></td>
         <td className="px-3 py-2 tabular-nums text-zinc-200">{run.population.cats.current}</td>
         <td className="px-3 py-2 text-zinc-400">{run.status}</td>
-        <td className="px-3 py-2">
+        <td className="whitespace-nowrap px-3 py-2">
           <button
             type="button"
             onClick={() => { setOpen((o) => !o) }}
@@ -72,6 +72,24 @@ function Row({ run }: { run: RunSummary }): React.ReactElement {
           >
             {open ? 'Hide' : 'Settings'}
           </button>
+          {/* Both are plain downloads, so the browser saves them without the
+              page having to hold a whole run in memory. */}
+          <a
+            href={`/api/runs/${run.id}/report.md`}
+            download
+            title="A written report of this run"
+            className="ml-1 rounded px-2 py-0.5 text-xs text-sky-400 hover:bg-zinc-800"
+          >
+            Report
+          </a>
+          <a
+            href={`/api/runs/${run.id}/export`}
+            download
+            title="Every event of this run, as gzipped JSON lines"
+            className="ml-1 rounded px-2 py-0.5 text-xs text-sky-400 hover:bg-zinc-800"
+          >
+            Data
+          </a>
         </td>
       </tr>
       {open && (
@@ -96,7 +114,8 @@ function Row({ run }: { run: RunSummary }): React.ReactElement {
 
 const HEADS = [
   'When', 'Seed', 'World', 'Decided by', 'Ticks',
-  'Mice peak / min', 'Mice at end', 'Cats peak / min', 'Cats at end', 'Status', '',
+  'Mice peak / min', 'Mice at end', 'Cats peak / min', 'Cats at end', 'Status',
+  'Take it away',
 ] as const
 
 export function Runs({ onBack }: { onBack: () => void }): React.ReactElement {
@@ -156,9 +175,8 @@ export function Runs({ onBack }: { onBack: () => void }): React.ReactElement {
             </caption>
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-zinc-500">
-                {HEADS.map((h, i) => (
-                  <th key={h === '' ? `actions-${String(i)}` : h}
-                      scope="col" className="px-3 pb-2 font-medium">{h}</th>
+                {HEADS.map((h) => (
+                  <th key={h} scope="col" className="px-3 pb-2 font-medium">{h}</th>
                 ))}
               </tr>
             </thead>

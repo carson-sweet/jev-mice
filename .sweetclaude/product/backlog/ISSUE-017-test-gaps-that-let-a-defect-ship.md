@@ -62,7 +62,9 @@ Largely fixed 2026-09-20. Tests went from 269 to 322.
 
 ## Still open
 
-`metrics.ts` remains untested and unused by any app. `validateConfig` still has
+`metrics.ts` is now wired up and covered: both measures are computed for every
+finished run, sixteen tests cover the report and the dump, and decision 101
+records what the numbers say about the fixed rules. `validateConfig` still has
 untested branches: a single personality percentage out of range while the sum is
 100, a negative or fractional count, and decay or starting nutrition out of
 bounds. Both are small and worth doing; neither is load-bearing today.
