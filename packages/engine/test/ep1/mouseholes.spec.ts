@@ -1,6 +1,9 @@
 // US-E01-06 Mouseholes shelter, breed and raise pups
 // Satisfies FR-009 to FR-011, FR-020, FR-044 to FR-050.
 import { describe, it, expect } from 'vitest'
+import {
+  availableDrives, NUTRITION_BANDS, type Drive,
+} from '../../src/index.js'
 import { engine, medium, runTicks, of, mouse } from '../helpers.js'
 
 describe('US-E01-06 Mouseholes shelter, breed and raise pups', () => {
@@ -62,4 +65,38 @@ describe('US-E01-06 Mouseholes shelter, breed and raise pups', () => {
       engine(medium({ maleMice: 78, femaleMice: 78, cats: 0, mouseholes: 60, foodPiles: 80 })), 2000)
     expect(of(evs, 'cap_limited_birth').length).toBeGreaterThan(0)
   })
+})
+
+describe('A mouse too hungry to wait', () => {
+  it('Is not offered shelter it would be ejected from next tick', () => {
+    // ISSUE-022. Hunger forces an adult out of a hole below the fed band, and
+    // nothing stopped it re-entering on the same tick because it still wanted
+    // to hide. It oscillated in and out, burned every turn on the doorstep, and
+    // was eventually caught standing in the open. The design already says hide
+    // is "not for a starving mouse, which would die waiting"; the two rules
+    // simply disagreed.
+    const offered = (nutrition: number): Drive[] => availableDrives({
+      food: true, danger: true, shelter: true, mate: false, nesting: false, nutrition,
+    })
+    expect(offered(NUTRITION_BANDS.fed)).toContain('hide')
+    expect(offered(NUTRITION_BANDS.fed - 1)).not.toContain('hide')
+    expect(offered(10)).not.toContain('hide')
+  })
+
+  it('Still gets shelter offered for a litter, which is not waiting out danger', () => {
+    const nesting = availableDrives({
+      food: true, danger: true, shelter: true, mate: false, nesting: true, nutrition: 20,
+    })
+    expect(nesting).toContain('nest')
+  })
+
+  it('Does not oscillate in and out of a hole', async () => {
+    const e = engine(medium({ cats: 8, mouseholes: 20 }))
+    const evs = await runTicks(e, 800)
+    const leaves = of(evs, 'hole_left')
+    const enters = of(evs, 'hole_entered')
+    const straightBackIn = leaves.filter((l) =>
+      enters.some((x) => x.id === l.id && x.tick >= l.tick && x.tick <= l.tick + 1))
+    expect(straightBackIn.map((l) => `${l.id}@${String(l.tick)}`)).toEqual([])
+  }, 30_000)
 })

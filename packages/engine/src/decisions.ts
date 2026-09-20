@@ -241,18 +241,26 @@ export function contextFor(world: WorldView, id: AgentId): MouseContext {
       food: food !== null, danger: cat !== null,
       shelter: hole !== null, mate: mate !== null,
       nesting: m.pregnantSince !== null && world.tick - m.pregnantSince >= TIMING.gestation,
+      nutrition: m.nutrition,
     }),
   }
 }
 
 export function availableDrives(p: {
   food: boolean; danger: boolean; shelter: boolean; mate: boolean; nesting: boolean
+  nutrition: number
 }): Drive[] {
   const out: Drive[] = ['explore']
   if (p.food) out.unshift('eat')
   if (p.danger) out.unshift('flee')
-  if (p.shelter) out.push('hide')
+  // Hunger below the fed band ejects an adult from a hole, so offering hide to
+  // a mouse under it produced a mouse that entered and was thrown out every
+  // tick, burning every turn on the doorstep until something caught it. The
+  // question's own wording already says hide is not for a mouse that would die
+  // waiting; this is the two rules agreeing.
+  if (p.shelter && p.nutrition >= NUTRITION_BANDS.fed) out.push('hide')
   if (p.mate) out.push('seek_mate')
+  // Delivering a litter is not waiting out danger, so hunger does not bar it.
   if (p.nesting && p.shelter) out.push('nest')
   return DRIVES.filter((d) => out.includes(d))
 }
@@ -265,6 +273,9 @@ const choice = (probs: Record<string, number>): AnswerPayload => {
   const spread = entries.reduce((t, [, v]) => t + v * v, 0)
   return { type: 'choice', choice: top[0], probabilities: probs, confidence: spread }
 }
+
+/** The least weight a visible cat gets, whatever else a mouse is doing. */
+export const DANGER_FLOOR = 0.2
 
 /** The ordered rule ladder; the first matching row supplies the weights. */
 export function baselineDrive(c: MouseContext): Record<string, number> {
@@ -279,13 +290,36 @@ export function baselineDrive(c: MouseContext): Record<string, number> {
     for (const d of c.options) out[d] = (out[d] ?? 0) / total
     return out
   }
+  /**
+   * A cat this mouse can see always keeps some weight on running from it, even
+   * when another row wins.
+   *
+   * The weights are the movement field's multipliers, so a flee weight of zero
+   * zeroes the danger term and the mouse chooses where to step without seeing
+   * the cat at all. Between the flee row (a cat within 2 and no shelter) and
+   * the hide row (shelter within 4) there was a gap: a cat at 3 to 6 cells with
+   * no shelter reachable fell through to eating, mating or exploring, all of
+   * which left flee at nothing. A floor rather than another row, because the
+   * ladder's priorities are right; it is only the blindness that is wrong. The
+   * floor never outweighs the winning row, so no row changes what it chooses.
+   */
+  const seen = (w: Record<string, number>): Record<string, number> => {
+    if (!has('flee') || !Number.isFinite(dCat) || (w.flee ?? 0) > 0) return w
+    const out: Record<string, number> = { ...w, flee: DANGER_FLOOR }
+    const total = Object.values(out).reduce((a, b) => a + b, 0)
+    for (const k of Object.keys(out)) out[k] = (out[k] ?? 0) / total
+    return out
+  }
+
   if (dCat <= 2 && dHole > 4 && has('flee')) return pick({ flee: 0.85, explore: 0.15 })
   if (dCat <= 4 && dHole <= 4 && has('hide')) return pick({ hide: 0.70, flee: 0.30 })
-  if (c.nutrition < 30 && has('eat')) return pick({ eat: 0.90, explore: 0.10 })
-  if (c.pregnantPastTerm && has('nest')) return pick({ nest: 0.80, explore: 0.20 })
-  if (c.nutrition < 60 && has('eat')) return pick({ eat: 0.65, explore: 0.35 })
-  if (has('seek_mate') && c.nutrition >= 60 && dCat > 6) return pick({ seek_mate: 0.60, explore: 0.40 })
-  return pick({ explore: 1 })
+  if (c.nutrition < 30 && has('eat')) return seen(pick({ eat: 0.90, explore: 0.10 }))
+  if (c.pregnantPastTerm && has('nest')) return seen(pick({ nest: 0.80, explore: 0.20 }))
+  if (c.nutrition < 60 && has('eat')) return seen(pick({ eat: 0.65, explore: 0.35 }))
+  if (has('seek_mate') && c.nutrition >= 60 && dCat > 6) {
+    return seen(pick({ seek_mate: 0.60, explore: 0.40 }))
+  }
+  return seen(pick({ explore: 1 }))
 }
 
 export function baselineFear(c: MouseContext, tick: Tick): FearLevel {
