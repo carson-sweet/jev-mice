@@ -161,7 +161,16 @@ export interface Simulation {
    * one invocation open for all of it: each call stops on a chunk boundary
    * having written a snapshot, and the next resumes from it.
    */
-  start(o?: { snapshot?: Snapshot; until?: number }): Promise<Advanced>
+  start(o?: {
+    snapshot?: Snapshot
+    until?: number
+    /**
+     * The run's totals so far, when resuming. A fresh simulation counts from
+     * zero, so without these a run advanced in batches reports the population
+     * extremes and the Jev usage of its last batch only.
+     */
+    totals?: ChunkReport['totals']
+  }): Promise<Advanced>
   control(c: Control): void
   currentTick(): number
 }

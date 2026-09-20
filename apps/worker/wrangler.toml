@@ -1,0 +1,40 @@
+name = "jev-mice"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "e76a58689ad41afa7ba385f9a1245b63"
+
+# The built viewer. Everything that is not an API route is served from here.
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "RUN"
+class_name = "RunDO"
+
+[[durable_objects.bindings]]
+name = "BUDGET"
+class_name = "BudgetDO"
+
+[[durable_objects.bindings]]
+name = "REGISTRY"
+class_name = "RegistryDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RunDO", "BudgetDO", "RegistryDO"]
+
+[[r2_buckets]]
+binding = "RECORDS"
+bucket_name = "jev-mice-records"
+
+[vars]
+# Dollars a day across every visitor, and the price the ceiling is derived from.
+# The price is an assumption until the real TypeSafe figure is confirmed: the
+# requirements put a run at about $0.20 per thousand ticks, and a tick measured
+# 700 to 1,900 input tokens. Change these and redeploy; no code knows the number.
+JEV_DAILY_BUDGET_USD = "20"
+JEV_PRICE_PER_MTOK = "0.28"
+
+# TYPESAFE_API_KEY is a secret, set with: wrangler secret put TYPESAFE_API_KEY

@@ -760,6 +760,35 @@ describe('Advancing a run in batches, as the Run Durable Object does', () => {
     expect(rec.done).toHaveLength(1)
   })
 
+  it('Carries the run\u2019s totals across a batch boundary', async () => {
+    // A resumed simulation starts its own counters from zero. Without handing
+    // them back, a run advanced in batches reports the population extremes and
+    // the Jev usage of its last batch only: the deployment showed a lowest
+    // population of 62 where the same seed run in one pass had dipped to 45,
+    // and every request before the final batch went uncounted.
+    const whole = harness({ config: { ticks: 600 } })
+    await whole.sim.start()
+
+    const parts = harness({ config: { ticks: 600 } })
+    let snapshot: Snapshot | undefined
+    let totals: ChunkReport['totals'] | undefined
+    for (let ceiling = CHUNK_TICKS; ; ceiling += CHUNK_TICKS) {
+      const out = await parts.sim.start({
+        ...(snapshot ? { snapshot } : {}),
+        ...(totals ? { totals } : {}),
+        until: ceiling,
+      })
+      totals = parts.rec.reports.at(-1)?.totals
+      if (out.finished) break
+      snapshot = snapshotsOf(parts.rec).at(-1)!
+    }
+
+    const last = (r: Recorded): ChunkReport['totals'] | undefined => r.reports.at(-1)?.totals
+    expect(last(parts.rec)?.population).toEqual(last(whole.rec)?.population)
+    expect(last(parts.rec)?.requests).toBe(last(whole.rec)?.requests)
+    expect(last(parts.rec)?.fallbackCount).toBe(last(whole.rec)?.fallbackCount)
+  })
+
   it('Produces the same run in batches as in one pass', async () => {
     // This is what makes the Durable Object design safe at all. If a run
     // advanced in batches were not the same run, every survival figure and

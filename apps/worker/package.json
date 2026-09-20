@@ -1,0 +1,21 @@
+{
+  "name": "@jev-mice/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@jev-mice/engine": "*",
+    "@jev-mice/provider-jev": "*",
+    "@jev-mice/sim": "*",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "wrangler": "^4.54.0"
+  }
+}

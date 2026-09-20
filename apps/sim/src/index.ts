@@ -92,6 +92,14 @@ const encode = async (v: unknown): Promise<{ raw: number; gzip: Uint8Array }> =>
   return { raw: bytes.byteLength, gzip: await gzip(bytes) }
 }
 
+/**
+ * The process this run is in, where there is one. Reached through globalThis
+ * rather than the bare name so the module type-checks against the Workers
+ * runtime, which has no node types and, inside a Durable Object, no process.
+ */
+const processId = (): number =>
+  (globalThis as { process?: { pid?: number } }).process?.pid ?? 0
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 const wallClock = (): number => Date.now()
 
@@ -441,16 +449,36 @@ export function createSimulation(opts: SimulationOptions): Simulation {
           chunkFirstTick = 1
         }
         opts.onEngine?.(engine)
+        // Carried over when resuming. A fresh simulation counts from zero, and
+        // a run advanced in batches would then report only its last batch: the
+        // deployment showed a lowest population of 62 where the same seed in
+        // one pass had dipped to 45, and every Jev request before the final
+        // batch went uncounted.
+        if (o.totals) {
+          totals.requests = o.totals.requests
+          totals.inputTokens = o.totals.inputTokens
+          totals.fallbackCount = o.totals.fallbackCount
+          totals.population = {
+            mice: { ...o.totals.population.mice },
+            cats: { ...o.totals.population.cats },
+          }
+        }
         totals.currentTick = tick
         // Sampled before the first tick, or the population a run started with
-        // would never appear in its own extremes.
+        // would never appear in its own extremes. Widened rather than replaced
+        // when resuming, so the earlier batches' extremes survive.
         const opening = engine.world()
-        totals.population.mice = extent(opening.mice.length)
-        totals.population.cats = extent(opening.cats.length)
+        if (o.totals) {
+          widen(totals.population.mice, opening.mice.length)
+          widen(totals.population.cats, opening.cats.length)
+        } else {
+          totals.population.mice = extent(opening.mice.length)
+          totals.population.cats = extent(opening.cats.length)
+        }
 
         applyAck(await opts.coordinator.ready({
           engineVersion: ENGINE_VERSION,
-          pid: typeof process === 'undefined' ? 0 : process.pid,
+          pid: processId(),
           ...(o.snapshot ? { resumedFromTick: tick } : {}),
         }))
 
