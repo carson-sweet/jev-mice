@@ -311,3 +311,9 @@
 **Produced:** requirements v3.1 (146 FRs), architecture v2.2, data model v1.1, interface design v1.1, technical specification v1.1, user flows v1.1, ADR-021 to ADR-024, six amended records, wireframe corrections, solution validation report v1.1
 
 **Backlog:** ISSUE-001 to ISSUE-011 closed
+
+## 2026-09-20T03:11:07Z — experience review skipped
+
+**Status:** skipped
+
+**Reason:** requires personas, which were declined; real reactions to the running product are preferred. Recorded as decision 58 and lr-009 so it resurfaces when the product is watchable.
