@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { api, type RunSummary, type Turn, type TurnStats } from './api'
 import { COLOURS } from './glyphs'
+import { TURN_COLUMNS, EXPANSION_INDENT } from './turnColumns'
 import {
   PAGE_SIZES, DEFAULT_PAGE_SIZE, pageCount, rangeFor, pageContaining, clampPage,
 } from './paging'
@@ -81,17 +82,25 @@ function TurnRow({ turn }: { turn: Turn }): React.ReactElement {
             {' '}{turn.tick}
           </button>
         </td>
-        <td className="px-3 py-1.5"><Count which="mice" value={turn.stats.mice} delta={turn.delta.mice} /></td>
-        <td className="px-3 py-1.5"><Count which="cats" value={turn.stats.cats} delta={turn.delta.cats} /></td>
-        <td className="px-3 py-1.5"><Count which="food" value={turn.stats.food} delta={turn.delta.food} /></td>
-        <td className="px-3 py-1.5"><Count which="traps" value={turn.stats.traps} delta={turn.delta.traps} /></td>
-        <td className="px-3 py-1.5 text-xs text-zinc-500">
-          {count === 0 ? 'nothing but movement' : summarize(turn)}
-        </td>
+        {TURN_COLUMNS.slice(1).map((column) => (
+          <td key={column.key} className="px-3 py-1.5">
+            {'stat' in column
+              ? <Count which={column.stat} value={turn.stats[column.stat]}
+                       delta={turn.delta[column.stat]} />
+              : <span className="text-xs text-zinc-500">
+                  {count === 0 ? 'nothing but movement' : summarize(turn)}
+                </span>}
+          </td>
+        ))}
       </tr>
       {open && (
         <tr className="bg-zinc-950/60">
-          <td colSpan={6} className="px-3 py-2">
+          {/* Empty cells for the columns before "What happened", so the events
+              line up with the column heading them. */}
+          {TURN_COLUMNS.slice(0, EXPANSION_INDENT).map((column) => (
+            <td key={column.key} />
+          ))}
+          <td colSpan={TURN_COLUMNS.length - EXPANSION_INDENT} className="px-3 py-2">
             <ul className="space-y-0.5">
               {turn.events.map((e, i) => (
                 <li key={`${e.kind}-${String(i)}`} className="flex gap-2 text-xs">
@@ -266,13 +275,15 @@ export function RunDetail({ id }: { id: string }): React.ReactElement {
         {window_ !== null && (
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">
-              Every turn of this run with its counts, the change from the turn
-              before, and the events of that turn
+              Every turn of this run: what happened in it, the counts at the end
+              of it, and the change from the turn before
             </caption>
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-zinc-500">
-                {['Turn', 'Mice', 'Cats', 'Food', 'Traps', 'What happened'].map((h) => (
-                  <th key={h} scope="col" className="px-3 pb-2 font-medium">{h}</th>
+                {TURN_COLUMNS.map((column) => (
+                  <th key={column.key} scope="col" className="px-3 pb-2 font-medium">
+                    {column.head}
+                  </th>
                 ))}
               </tr>
             </thead>
