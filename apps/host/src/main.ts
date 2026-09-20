@@ -24,8 +24,11 @@ if (existsSync(envFile)) {
 const apiKey = process.env.TYPESAFE_API_KEY?.trim() || null
 const port = Number(process.env.PORT ?? 8787)
 
+const bind = process.env.JEV_MICE_HOST ?? undefined
+
 const host = createHost({
   port,
+  ...(bind === undefined ? {} : { host: bind }),
   root: process.env.JEV_MICE_DATA ?? join(repoRoot, '.data'),
   webRoot: process.env.JEV_MICE_WEB ?? join(repoRoot, 'apps', 'web', 'dist'),
   maxConcurrent: Number(process.env.JEV_MICE_MAX_RUNS ?? 4),
@@ -34,7 +37,10 @@ const host = createHost({
 
 const { port: bound } = await host.listen()
 process.stdout.write(
-  `jev-mice listening on http://localhost:${String(bound)}\n` +
+  `jev-mice listening on http://${bind ?? 'localhost'}:${String(bound)}\n` +
+  (bind === undefined
+    ? ''
+    : 'reachable beyond this machine, and nothing here asks for a password\n') +
   `decisions: ${apiKey === null
     ? 'fixed rules only (set TYPESAFE_API_KEY in .env to offer Jev)'
     : 'Jev or the fixed rules, chosen per run'}\n`)

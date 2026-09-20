@@ -26,7 +26,20 @@ export interface HostOptions {
   webRoot: string
   maxConcurrent: number
   apiKey: string | null
+  /**
+   * Loopback by default. No route here checks a credential, so binding any
+   * other interface hands every run on this machine to anyone who can reach
+   * the port. Widening it has to be deliberate.
+   */
+  host?: string
+  /** Runs are never evicted, so accepting them without limit grows forever. */
+  maxRuns?: number
+  /** Origins allowed to open a socket. Same-origin is always allowed. */
+  allowedOrigins?: readonly string[]
 }
+
+export const DEFAULT_HOST = '127.0.0.1'
+export const DEFAULT_MAX_RUNS = 200
 
 const json = (res: ServerResponse, status: number, body: unknown): void => {
   const text = JSON.stringify(body)
@@ -101,6 +114,12 @@ export function createHost(opts: HostOptions): {
       if (errors.length > 0) return json(res, 400, { errors })
       if (body.decider !== undefined && body.decider !== 'jev' && body.decider !== 'rules') {
         return json(res, 400, { error: 'decider must be jev or rules' })
+      }
+      if (manager.list().length >= (opts.maxRuns ?? DEFAULT_MAX_RUNS)) {
+        return json(res, 429, {
+          error: `this host keeps at most ${String(opts.maxRuns ?? DEFAULT_MAX_RUNS)} runs; `
+            + 'delete some or restart it',
+        })
       }
       const seed = Number.isFinite(body.seed) ? Number(body.seed) : Math.floor(Math.random() * 2 ** 31)
       try {
@@ -208,8 +227,24 @@ export function createHost(opts: HostOptions): {
     res.end(body)
   }
 
+  /**
+   * A socket is not subject to the same-origin policy the way a fetch is, so
+   * without this any page a person visits could drive the runs on their machine.
+   */
+  function originAllowed(origin: string | undefined, host: string | undefined): boolean {
+    if (origin === undefined || origin === '') return true
+    if (host !== undefined && origin === `http://${host}`) return true
+    if (host !== undefined && origin === `https://${host}`) return true
+    return (opts.allowedOrigins ?? []).includes(origin)
+  }
+
   const sockets = new WebSocketServer({ noServer: true })
   server.on('upgrade', (req, socket, head) => {
+    if (!originAllowed(req.headers.origin, req.headers.host)) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n')
+      socket.destroy()
+      return
+    }
     const url = new URL(req.url ?? '/', 'http://localhost')
     const match = /^\/api\/runs\/([^/]+)\/stream$/.exec(url.pathname)
     if (!match) { socket.destroy(); return }
@@ -240,7 +275,7 @@ export function createHost(opts: HostOptions): {
   return {
     manager,
     listen: () => new Promise((resolve) => {
-      server.listen(opts.port, () => {
+      server.listen(opts.port, opts.host ?? DEFAULT_HOST, () => {
         const addr = server.address()
         const port = typeof addr === 'object' && addr !== null ? addr.port : opts.port
         resolve({

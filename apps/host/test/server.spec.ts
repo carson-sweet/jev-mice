@@ -6,6 +6,18 @@ import { WebSocket } from 'ws'
 import { defaultConfig } from '@jev-mice/engine'
 import { createHost } from '../src/server.js'
 
+/** Every address this port is listening on, read from the operating system. */
+async function boundAddresses(port: number): Promise<string[]> {
+  const { execFile } = await import('node:child_process')
+  return await new Promise((resolve) => {
+    execFile('lsof', ['-nP', `-iTCP:${String(port)}`, '-sTCP:LISTEN'], (err, out) => {
+      if (err) { resolve([]); return }
+      const hosts = [...out.matchAll(/(\S+):(\d+) \(LISTEN\)/g)].map((m) => m[1] ?? '')
+      resolve([...new Set(hosts)])
+    })
+  })
+}
+
 const root = mkdtempSync(join(tmpdir(), 'jev-mice-host-'))
 const host = createHost({
   port: 0, root, webRoot: join(root, 'web'), maxConcurrent: 2, apiKey: null,
@@ -260,4 +272,73 @@ describe('Per-turn telemetry for a finished run', () => {
     const r = await fetch(`${base}/api/runs/nope/turns?from=1&to=5`)
     expect(r.status).toBe(404)
   })
+})
+
+describe('What the host exposes and to whom', () => {
+  it('Binds loopback only, so nothing on the network can reach it', async () => {
+    // ISSUE-015. listen(port) with no hostname binds every interface, while
+    // the startup line claims localhost and no route checks a credential.
+    const addresses = await boundAddresses(started.port)
+    expect(addresses.length, 'could not read what the port is bound to, so this '
+      + 'test proves nothing').toBeGreaterThan(0)
+    expect(addresses, `bound to ${addresses.join(', ')}`).not.toContain('0.0.0.0')
+    expect(addresses).not.toContain('*')
+    expect(addresses).not.toContain('::')
+  })
+
+  it('Refuses a websocket from another origin', async () => {
+    const id = (await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 41, speed: 334,
+    })).body.run.id as string
+    const closed = await new Promise<number>((resolve) => {
+      const ws = new WebSocket(
+        `ws://127.0.0.1:${String(started.port)}/api/runs/${id}/stream`,
+        { origin: 'http://evil.example' } as never)
+      // A refused upgrade raises an error before it closes; unhandled, that
+      // surfaces as an uncaught exception for the whole run.
+      ws.on('error', () => { resolve(403) })
+      ws.on('close', (code) => { resolve(code) })
+      ws.on('open', () => { resolve(0) })
+      setTimeout(() => { resolve(-1) }, 3000)
+    })
+    expect(closed, 'a socket from another origin was accepted').not.toBe(0)
+    await post(`/api/runs/${id}/control`, { action: 'stop' })
+  }, 20_000)
+
+  it('Accepts a websocket from its own origin', async () => {
+    const id = (await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 42, speed: 334,
+    })).body.run.id as string
+    const opened = await new Promise<boolean>((resolve) => {
+      const ws = new WebSocket(
+        `ws://127.0.0.1:${String(started.port)}/api/runs/${id}/stream`,
+        { origin: `http://127.0.0.1:${String(started.port)}` } as never)
+      ws.on('open', () => { ws.close(); resolve(true) })
+      ws.on('error', () => { resolve(false) })
+      ws.on('close', () => { resolve(false) })
+      setTimeout(() => { resolve(false) }, 3000)
+    })
+    expect(opened, 'a socket from the page itself was refused').toBe(true)
+    await post(`/api/runs/${id}/control`, { action: 'stop' })
+  }, 20_000)
+
+  it('Refuses to create more runs than it will keep', async () => {
+    const capped = createHost({
+      port: 0, root: join(root, 'capped'), webRoot: join(root, 'web'),
+      maxConcurrent: 1, apiKey: null, maxRuns: 3,
+    })
+    const up = await capped.listen()
+    const base2 = `http://127.0.0.1:${String(up.port)}`
+    const make = async (seed: number): Promise<number> => (await fetch(`${base2}/api/runs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        config: { ...defaultConfig('small'), ticks: 20_000 }, seed, speed: 1,
+      }),
+    })).status
+    const codes = [await make(1), await make(2), await make(3), await make(4)]
+    expect(codes.slice(0, 3)).toEqual([201, 201, 201])
+    expect(codes[3], 'a fourth run was accepted past the cap').toBe(429)
+    await up.close()
+  }, 20_000)
 })
