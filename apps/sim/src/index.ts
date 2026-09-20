@@ -62,6 +62,31 @@ async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(source.pipeThrough(gz)).arrayBuffer())
 }
 
+/**
+ * Whether this turn should be drawn for whoever is watching.
+ *
+ * The tick interval on its own is not enough, and that was the bug. It is
+ * derived from the speed the run was asked for, and a run does not always
+ * achieve it: with Jev deciding, a run manages a few ticks a second, so an
+ * interval of seventeen ticks meant five to eight seconds of a frozen picture.
+ * Turning the speed up made the viewer slower while the run went no faster.
+ *
+ * Elapsed time is the backstop, so the cadence follows the speed the run is
+ * really going rather than the speed it was asked to go.
+ */
+export function dueForFrame(o: {
+  tick: number
+  /** Ticks between frames, from the requested speed. */
+  every: number
+  /** A step always draws: it exists so someone can look at the result. */
+  stepped: boolean
+  msSinceLastFrame: number
+}): boolean {
+  if (o.stepped) return true
+  if (o.every > 0 && o.tick % o.every === 0) return true
+  return o.msSinceLastFrame >= 1000 / FRAMES_PER_SECOND
+}
+
 const encode = async (v: unknown): Promise<{ raw: number; gzip: Uint8Array }> => {
   const bytes = utf8.encode(JSON.stringify(v))
   return { raw: bytes.byteLength, gzip: await gzip(bytes) }
@@ -221,6 +246,8 @@ export function createSimulation(opts: SimulationOptions): Simulation {
   }
 
   let lastFrameFlush = 0
+  /** When a frame was last taken, as distinct from when one was last sent. */
+  let lastFrameAt = 0
 
   async function flushFrames(): Promise<void> {
     lastFrameFlush = now()
@@ -361,9 +388,10 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       const every = control.speed > 0
         ? Math.max(1, Math.round(control.speed / FRAMES_PER_SECOND))
         : FRAME_EVERY_TICKS
-      // A stepped turn always sends its frame: a step exists so that someone
-      // can look at the result, and the interval would usually swallow it.
-      if (stepped || tick % every === 0) pendingFrames.push(frameNow())
+      if (dueForFrame({ tick, every, stepped, msSinceLastFrame: now() - lastFrameAt })) {
+        pendingFrames.push(frameNow())
+        lastFrameAt = now()
+      }
       const waiting = pendingFrames.length + pendingLog.length
       if (stepped || pendingFrames.length >= FRAME_BATCH
           || (waiting > 0 && now() - lastFrameFlush >= FRAME_FLUSH_MS)) {

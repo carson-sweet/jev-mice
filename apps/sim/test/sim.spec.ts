@@ -4,7 +4,7 @@ import {
   defaultConfig, baselineProvider, type Engine, type RunConfig, type Snapshot,
 } from '@jev-mice/engine'
 import {
-  createSimulation, CHUNK_TICKS,
+  createSimulation, CHUNK_TICKS, FRAMES_PER_SECOND, dueForFrame,
   type ChunkAck, type ChunkBody, type ChunkReport, type Coordinator, type Frame,
   type EndReason, type LogEntry, type SummaryBody,
 } from '../src/index.js'
@@ -779,5 +779,53 @@ describe('Advancing a run in batches, as the Run Durable Object does', () => {
     const events = (rec: Recorded): unknown[] =>
       (chunkBodies(rec) as { events: unknown[] }[]).flatMap((b) => b.events)
     expect(events(parts.rec)).toEqual(events(whole.rec))
+  })
+})
+
+describe('How often a viewer hears from a run that is slower than it asked for', () => {
+  // The interval between frames was derived from the speed the run was asked
+  // for, not the speed it achieved. Asking for 334 ticks a second set it to one
+  // frame every seventeen ticks: fine at 334 ticks a second, but with Jev
+  // deciding a run manages a few ticks a second, and seventeen ticks is five to
+  // eight seconds of a frozen picture. Turning the speed up made the viewer
+  // slower while the run went no faster.
+  const SEVENTEEN = Math.round(334 / FRAMES_PER_SECOND)
+
+  it('Draws on the tick interval when the run is keeping up', () => {
+    expect(dueForFrame({ tick: SEVENTEEN, every: SEVENTEEN, stepped: false, msSinceLastFrame: 0 }))
+      .toBe(true)
+    expect(dueForFrame({ tick: SEVENTEEN + 1, every: SEVENTEEN, stepped: false, msSinceLastFrame: 0 }))
+      .toBe(false)
+  })
+
+  it('Draws anyway once enough time has passed, however far off the interval is', () => {
+    // This is the regression. One tick after a frame, nowhere near the
+    // seventeen-tick interval, but a fifth of a second has gone by because the
+    // decisions are slow. The old rule said no and the picture sat still.
+    expect(dueForFrame({ tick: 1, every: SEVENTEEN, stepped: false, msSinceLastFrame: 200 }))
+      .toBe(true)
+  })
+
+  it('Holds off when neither the interval nor the clock is due', () => {
+    expect(dueForFrame({ tick: 3, every: SEVENTEEN, stepped: false, msSinceLastFrame: 5 }))
+      .toBe(false)
+  })
+
+  it('Always draws a stepped turn', () => {
+    expect(dueForFrame({ tick: 3, every: SEVENTEEN, stepped: true, msSinceLastFrame: 0 }))
+      .toBe(true)
+  })
+
+  it('Cannot be starved by asking for a speed the run cannot reach', () => {
+    // A run achieving three ticks a second, asked for 334. Every turn takes a
+    // third of a second, so every turn is drawn, and the worst wait a watcher
+    // sees is one turn rather than seventeen.
+    const drawn = []
+    for (let tick = 1; tick <= 20; tick++) {
+      if (dueForFrame({ tick, every: SEVENTEEN, stepped: false, msSinceLastFrame: 333 })) {
+        drawn.push(tick)
+      }
+    }
+    expect(drawn).toHaveLength(20)
   })
 })
