@@ -52,9 +52,6 @@ export interface TurnWindow {
   runId: string; from: number; to: number; totalTurns: number; turns: Turn[]
 }
 
-/** The largest window the server will assemble in one request. */
-export const TURN_PAGE = 100
-
 export const api = {
   defaults: async (preset: Preset): Promise<RunConfig> =>
     (await body<{ config: RunConfig }>(await fetch(`/api/config/defaults?preset=${preset}`))).config,

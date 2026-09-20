@@ -2,9 +2,12 @@
 // what was standing at the end of it and how that changed; opening a row shows
 // every life-changing event of that turn.
 
-import { useCallback, useEffect, useState } from 'react'
-import { api, TURN_PAGE, type RunSummary, type Turn, type TurnStats } from './api'
+import { useEffect, useState } from 'react'
+import { api, type RunSummary, type Turn, type TurnStats } from './api'
 import { COLOURS } from './glyphs'
+import {
+  PAGE_SIZES, DEFAULT_PAGE_SIZE, pageCount, rangeFor, pageContaining, clampPage,
+} from './paging'
 
 const COUNT_COLOUR: Record<keyof TurnStats, string> = {
   mice: COLOURS.mouse,
@@ -104,9 +107,14 @@ function TurnRow({ turn }: { turn: Turn }): React.ReactElement {
   )
 }
 
+const NAV = 'rounded border border-zinc-700 px-2 py-1 text-zinc-200 '
+  + 'hover:border-zinc-500 disabled:cursor-not-allowed disabled:border-zinc-800 '
+  + 'disabled:text-zinc-600'
+
 export function RunDetail({ id }: { id: string }): React.ReactElement {
   const [run, setRun] = useState<RunSummary | null>(null)
-  const [from, setFrom] = useState(1)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(DEFAULT_PAGE_SIZE)
   const [window_, setWindow] = useState<{ turns: Turn[]; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -115,23 +123,37 @@ export function RunDetail({ id }: { id: string }): React.ReactElement {
     void api.get(id).then(setRun).catch(() => undefined)
   }, [id])
 
-  const load = useCallback((start: number) => {
+  // The run's own turn count is the best guess until the server answers, which
+  // keeps the page numbers steady instead of jumping once the first page lands.
+  const total = window_?.total ?? run?.currentTick ?? 0
+  const pages = pageCount(total, perPage)
+  const current = clampPage(page, total, perPage)
+  const { from, to } = rangeFor(current, perPage, total)
+
+  useEffect(() => {
     setBusy(true)
-    api.turns(id, start, start + TURN_PAGE - 1)
+    let stale = false
+    api.turns(id, from, to)
       .then((w) => {
+        if (stale) return
         setWindow({ turns: w.turns, total: w.totalTurns })
         setError(null)
       })
       .catch((e: unknown) => {
+        if (stale) return
         setError(e instanceof Error ? e.message : 'could not read the telemetry')
       })
-      .finally(() => { setBusy(false) })
-  }, [id])
+      .finally(() => { if (!stale) setBusy(false) })
+    return () => { stale = true }
+  }, [id, from, to])
 
-  useEffect(() => { load(from) }, [load, from])
+  const resize = (next: number): void => {
+    // Hold the reader's place: whatever turn was at the top of the page stays
+    // on screen, rather than being thrown back to page one.
+    setPerPage(next)
+    setPage(pageContaining(from, next))
+  }
 
-  const total = window_?.total ?? 0
-  const last = Math.min(from + TURN_PAGE - 1, total)
   const withEvents = window_?.turns.filter((t) => t.events.length > 0).length ?? 0
 
   return (
@@ -157,44 +179,82 @@ export function RunDetail({ id }: { id: string }): React.ReactElement {
         </a>
       </header>
 
-      <div className="flex items-center gap-3 border-b border-zinc-900 px-4 py-2 text-xs">
-        <button
-          type="button"
-          disabled={from <= 1 || busy}
-          onClick={() => { setFrom(Math.max(1, from - TURN_PAGE)) }}
-          className="rounded border border-zinc-700 px-2 py-1 text-zinc-200
-                     hover:border-zinc-500 disabled:text-zinc-600"
-        >
-          Earlier
-        </button>
-        <span className="tabular-nums text-zinc-400">
-          turns {from} to {last} of {total}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-900
+                      px-4 py-2 text-xs">
+        <div className="flex items-center gap-1" role="group" aria-label="Pages">
+          <button type="button" className={NAV} disabled={current <= 1 || busy}
+                  aria-label="First page" title="First page"
+                  onClick={() => { setPage(1) }}>
+            First
+          </button>
+          <button type="button" className={NAV} disabled={current <= 1 || busy}
+                  aria-label="Previous page" title="Previous page"
+                  onClick={() => { setPage(current - 1) }}>
+            Previous
+          </button>
+          <span className="flex items-center gap-1 px-1 text-zinc-400">
+            Page
+            <input
+              type="number"
+              min={1}
+              max={pages}
+              value={current}
+              aria-label="Page number"
+              onChange={(e) => { setPage(clampPage(Number(e.target.value), total, perPage)) }}
+              className="w-16 rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5
+                         text-center tabular-nums text-zinc-100 focus:border-sky-500
+                         focus:outline-none"
+            />
+            <span className="tabular-nums">of {pages}</span>
+          </span>
+          <button type="button" className={NAV} disabled={current >= pages || busy}
+                  aria-label="Next page" title="Next page"
+                  onClick={() => { setPage(current + 1) }}>
+            Next
+          </button>
+          <button type="button" className={NAV} disabled={current >= pages || busy}
+                  aria-label="Last page" title="Last page"
+                  onClick={() => { setPage(pages) }}>
+            Last
+          </button>
+        </div>
+
+        <label className="flex items-center gap-1 text-zinc-400">
+          Per page
+          <select
+            value={perPage}
+            aria-label="Turns per page"
+            onChange={(e) => { resize(Number(e.target.value)) }}
+            className="rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5
+                       text-zinc-100 focus:border-sky-500 focus:outline-none"
+          >
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </label>
+
+        <span className="tabular-nums text-zinc-500">
+          turns {from} to {to} of {total}
         </span>
-        <button
-          type="button"
-          disabled={last >= total || busy}
-          onClick={() => { setFrom(from + TURN_PAGE) }}
-          className="rounded border border-zinc-700 px-2 py-1 text-zinc-200
-                     hover:border-zinc-500 disabled:text-zinc-600"
-        >
-          Later
-        </button>
-        <label className="ml-2 flex items-center gap-1 text-zinc-500">
-          Jump to
+
+        <label className="flex items-center gap-1 text-zinc-500">
+          Go to turn
           <input
             type="number"
             min={1}
             max={Math.max(1, total)}
-            defaultValue={from}
+            aria-label="Go to a turn number"
             onKeyDown={(e) => {
               if (e.key !== 'Enter') return
               const n = Number((e.target as HTMLInputElement).value)
-              if (Number.isFinite(n)) setFrom(Math.max(1, Math.min(total, Math.floor(n))))
+              if (Number.isFinite(n)) setPage(pageContaining(n, perPage))
             }}
             className="w-20 rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5
-                       text-zinc-100 focus:border-sky-500 focus:outline-none"
+                       tabular-nums text-zinc-100 focus:border-sky-500 focus:outline-none"
           />
         </label>
+
         <span className="text-zinc-600">
           {withEvents} of these turns had something happen
         </span>
