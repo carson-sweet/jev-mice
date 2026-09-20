@@ -2,7 +2,17 @@ name = "jev-mice"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
+# Kept on alongside the custom domain. Declaring a route turns this off by
+# default, which took the site down while the new name was still propagating.
+workers_dev = true
 account_id = "e76a58689ad41afa7ba385f9a1245b63"
+
+# A custom domain rather than a route: Cloudflare creates the DNS record and
+# provisions the certificate for it. Note this is a third-level name, which
+# universal SSL does not cover -- the Workers custom domain issues its own.
+[[routes]]
+pattern = "mice.jev.carsonsweet.com"
+custom_domain = true
 
 # The built viewer. Everything that is not an API route is served from here.
 [assets]
