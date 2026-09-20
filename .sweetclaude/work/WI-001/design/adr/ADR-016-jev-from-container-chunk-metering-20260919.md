@@ -1,7 +1,7 @@
 ---
 title: ADR-016: Jev is called from the container with the key in its environment; the Run Durable Object meters per chunk
 version: 1.0
-status: accepted
+status: superseded
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19
@@ -15,7 +15,7 @@ previous_file: none
 
 **Date:** 2026-09-19
 
-**Status:** Accepted
+**Status:** Accepted Superseded by ADR-025 on 2026-09-20: there is no container, so Jev is called from the Run Durable Object. Chunk metering is unchanged in substance -- what changed is where the calls originate.
 
 ## Context
 

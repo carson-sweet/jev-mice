@@ -1,7 +1,7 @@
 ---
 title: ADR-013: Engine executes server-side in a Cloudflare Container per run, orchestrated by a Run Durable Object
 version: 1.0
-status: accepted
+status: superseded
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19
@@ -15,7 +15,7 @@ previous_file: none
 
 **Date:** 2026-09-19
 
-**Status:** Accepted. Storage path partially superseded by ADR-022 on 2026-09-19: the container no longer writes objects with its own credentials and no longer chooses keys.
+**Status:** Accepted. Storage path partially superseded by ADR-022 on 2026-09-19: the container no longer writes objects with its own credentials and no longer chooses keys. Superseded by ADR-025 on 2026-09-20: the engine runs inside the Run Durable Object, advancing a batch of ticks per alarm, and no container is built. The memory objection recorded here was answered by draining events into chunks; the engine has no dependencies and runs on the Workers runtime unchanged.
 
 ## Context
 
