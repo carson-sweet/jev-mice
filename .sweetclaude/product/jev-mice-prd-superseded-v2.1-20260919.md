@@ -1,7 +1,7 @@
 ---
 title: jev-mice Product Requirements Document
 version: 2.1
-status: final
+status: superseded
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19

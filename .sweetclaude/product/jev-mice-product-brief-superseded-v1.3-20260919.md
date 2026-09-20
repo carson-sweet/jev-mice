@@ -1,7 +1,7 @@
 ---
 title: jev-mice Product Brief
 version: 1.3
-status: final
+status: superseded
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19

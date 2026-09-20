@@ -255,3 +255,9 @@
 **Root cause recorded:** lr-007. The deployment answer during architecture invalidated the approved baseline and I logged it as a note instead of stopping for a decision, so five documents were produced with no current definition of done.
 
 **Open questions:** three in the requirements; Carson's review of both drafts
+
+## 2026-09-20T02:05:06Z — requirements v3.0 and brief v2.0 approved as final
+
+**Status:** completed
+
+**Produced:** jev-mice-prd-final-v3.0-20260919.md; jev-mice-product-brief-final-v2.0-20260919.md. Prior finals (PRD v2.1, brief v1.3) marked superseded so exactly one current version of each exists.

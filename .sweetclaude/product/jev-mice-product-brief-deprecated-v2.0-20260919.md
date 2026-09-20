@@ -1,7 +1,7 @@
 ---
 title: jev-mice Product Brief
 version: 2.0
-status: draft
+status: deprecated
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19

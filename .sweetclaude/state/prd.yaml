@@ -36,12 +36,12 @@ success_metrics_count: 18
 compliance_frameworks_applied:
 - gdpr_floor
 current_version: '3.0'
-current_file: .sweetclaude/product/jev-mice-prd-draft-v3.0-20260919.md
+current_file: .sweetclaude/product/jev-mice-prd-final-v3.0-20260919.md
 open_questions:
 - share link starting tick
 - keeping runs past 30 days without export
 - queue fairness
-status: draft
+status: final
 withdrawn:
 - FR-061
 nfr_count: 16
