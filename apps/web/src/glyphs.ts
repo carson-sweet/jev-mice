@@ -13,20 +13,24 @@
 export type GlyphKind =
   | 'mouse' | 'mouseHungry' | 'food'
   | 'cat' | 'catHungry' | 'trap'
-  | 'trapOccupied' | 'hole' | 'holeOccupied'
+  | 'trapOccupied' | 'hole' | 'holeAdult' | 'holeBrood'
 
 /** Every glyph the map can draw. The legend is tested against this. */
 export const GLYPH_KINDS: readonly GlyphKind[] = [
   'mouse', 'mouseHungry', 'food',
   'cat', 'catHungry', 'trap',
-  'trapOccupied', 'hole', 'holeOccupied',
+  'trapOccupied', 'hole', 'holeAdult', 'holeBrood',
 ] as const
 
-/** Read down each column, not across. */
+/**
+ * Read down each column, not across. Columns are their own length so that a
+ * family stays together: the three mousehole states belong beside each other
+ * rather than one of them being pushed in among the cats.
+ */
 export const LEGEND_COLUMNS: readonly (readonly GlyphKind[])[] = [
   ['mouse', 'mouseHungry', 'food'],
   ['cat', 'catHungry', 'trap'],
-  ['trapOccupied', 'hole', 'holeOccupied'],
+  ['trapOccupied', 'hole', 'holeAdult', 'holeBrood'],
 ] as const
 
 export const COLOURS = {
@@ -38,7 +42,8 @@ export const COLOURS = {
   trap: '#f97316',
   trapOccupied: '#9a3412',
   hole: '#64748b',
-  holeOccupied: '#cbd5e1',
+  holeAdult: '#94a3b8',
+  holeBrood: '#94a3b8',
   /** Hunger, on either animal. Used for nothing else. */
   hungry: '#fde047',
   background: '#0b0d10',
@@ -55,7 +60,8 @@ const LABELS: Record<GlyphKind, string> = {
   trap: 'Trap',
   trapOccupied: 'Trap with a dead mouse',
   hole: 'Mousehole, available',
-  holeOccupied: 'Mousehole, occupied',
+  holeAdult: 'Mousehole, adult sheltering',
+  holeBrood: 'Mousehole, litter inside',
 }
 
 export const glyphLabel = (kind: GlyphKind): string => LABELS[kind]
@@ -140,17 +146,25 @@ export function drawGlyph(
       return
     }
     case 'hole':
-    case 'holeOccupied': {
+    case 'holeAdult':
+    case 'holeBrood': {
       const w = Math.max(1, size * 0.16)
       ctx.lineWidth = w
       ctx.beginPath()
       ctx.arc(cx, cy, Math.max(1, r - w / 2), 0, Math.PI * 2)
       ctx.stroke()
-      if (kind === 'holeOccupied') {
-        ctx.beginPath()
-        ctx.arc(cx, cy, Math.max(0.75, r * 0.34), 0, Math.PI * 2)
-        ctx.fill()
-      }
+      if (kind === 'hole') return
+      // What is inside is drawn in the mouse's own blue, as the dead mouse in a
+      // trap is. One small dot is one adult; a disc filling the hole is a
+      // litter. Density rather than a second shape, because a ring's interior
+      // is a few pixels across on the large preset and two shapes in there
+      // would be indistinguishable.
+      ctx.fillStyle = COLOURS.mouse
+      ctx.beginPath()
+      ctx.arc(cx, cy, kind === 'holeBrood'
+        ? Math.max(1.25, r * 0.62)
+        : Math.max(0.75, r * 0.3), 0, Math.PI * 2)
+      ctx.fill()
       return
     }
   }

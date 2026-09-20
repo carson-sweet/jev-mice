@@ -123,9 +123,13 @@ the chart's own legend both draw their swatches with the same function the map
 uses, and a test asserts the key names every glyph exactly once, so none of the
 three can drift apart.
 
+A mousehole shows what is in it: hollow when free, a small blue dot for an
+adult sheltering, filled blue for a litter.
+
 Two marks are not in the key because they are not things in the world: a yellow
 ring around the mouse you have selected, and the same ring around whatever a
-hovered log line is about.
+hovered log line is about. A mouse inside a mousehole is not drawn; the hole
+shows it instead.
 
 A cat has its own hunger. It decays slowly, a mouse restores half of it, and a
 cat below half sees further, springs from further away and stops resting after

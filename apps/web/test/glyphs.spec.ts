@@ -14,8 +14,25 @@ describe('The glyph set', () => {
     expect(LEGEND_COLUMNS).toEqual([
       ['mouse', 'mouseHungry', 'food'],
       ['cat', 'catHungry', 'trap'],
-      ['trapOccupied', 'hole', 'holeOccupied'],
+      ['trapOccupied', 'hole', 'holeAdult', 'holeBrood'],
     ])
+  })
+
+  it('Keeps a family together in its own column, whatever length that is', () => {
+    // The three mousehole states belong beside each other, so the third column
+    // is longer rather than a state being pushed into a column of cats.
+    const holes = GLYPH_KINDS.filter((k) => k.startsWith('hole'))
+    const third = LEGEND_COLUMNS[2] ?? []
+    for (const h of holes) expect(third).toContain(h)
+  })
+
+  it('Tells a sheltering adult from a litter', () => {
+    expect(GLYPH_KINDS).toContain('holeAdult')
+    expect(GLYPH_KINDS).toContain('holeBrood')
+    expect(glyphLabel('holeAdult')).not.toBe(glyphLabel('holeBrood'))
+    // Both say what is in the hole, not merely that something is.
+    expect(glyphLabel('holeAdult').toLowerCase()).toContain('adult')
+    expect(glyphLabel('holeBrood').toLowerCase()).toContain('litter')
   })
 
   it('Gives every glyph a label', () => {

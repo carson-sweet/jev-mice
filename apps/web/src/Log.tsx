@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { LogEntry } from '@jev-mice/sim'
 import { COLOURS, drawGlyph, type GlyphKind } from './glyphs'
+import { useDevicePixelRatio } from './dpr'
 
 /** Each kind reads as what it happened to, so the column scans by shape. */
 const GLYPH: Record<LogEntry['kind'], GlyphKind> = {
@@ -32,17 +33,17 @@ const MARK = 12
 
 function Mark({ kind }: { kind: LogEntry['kind'] }): React.ReactElement {
   const ref = useRef<HTMLCanvasElement>(null)
+  const dpr = useDevicePixelRatio()
   useEffect(() => {
     const canvas = ref.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
-    const dpr = window.devicePixelRatio || 1
     canvas.width = MARK * dpr
     canvas.height = MARK * dpr
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, MARK, MARK)
     drawGlyph(ctx, GLYPH[kind], 0, 0, MARK, TINT[kind])
-  }, [kind])
+  }, [kind, dpr])
   return (
     <canvas
       ref={ref}

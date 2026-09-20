@@ -5,6 +5,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import type { Frame } from '@jev-mice/sim'
 import { COLOURS, drawGlyph, glyphLabel, type GlyphKind } from './glyphs'
+import { useDevicePixelRatio } from './dpr'
 
 /** What sits on one cell, named by the key rather than by a second wording. */
 export interface Identified { id: string; kind: GlyphKind; detail: string }
@@ -25,6 +26,7 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
   const cell = useRef(8)
   const [, bump] = useReducer((n: number) => n + 1, 0)
   const [hover, setHover] = useState<{ x: number; y: number; what: Identified } | null>(null)
+  const dpr = useDevicePixelRatio()
 
   /** Animals first: a cell with a mouse on a hole is about the mouse. */
   const identify = (fx: number, fy: number): Identified | null => {
@@ -50,10 +52,9 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
     if (hole) {
       return {
         id: hole.id,
-        kind: hole.occupancy === 'empty' ? 'hole' : 'holeOccupied',
-        // The map shows a hole as taken; only here is it said what is in it.
-        detail: hole.occupancy === 'empty' ? hole.id
-          : `${hole.id}, ${hole.occupancy === 'brood' ? 'a litter' : 'an adult sheltering'}`,
+        kind: hole.occupancy === 'empty' ? 'hole'
+          : hole.occupancy === 'brood' ? 'holeBrood' : 'holeAdult',
+        detail: hole.id,
       }
     }
     return null
@@ -81,7 +82,6 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
       : available
     const size = Math.max(3, Math.floor(Math.min(avail.width / width, avail.height / height)))
     cell.current = size
-    const dpr = window.devicePixelRatio || 1
     canvas.width = width * size * dpr
     canvas.height = height * size * dpr
     canvas.style.width = `${String(width * size)}px`
@@ -103,7 +103,8 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
 
     // Terrain first, animals last, so nothing standing on a hole is hidden.
     for (const h of frame.holes) {
-      drawGlyph(ctx, h.occupancy === 'empty' ? 'hole' : 'holeOccupied',
+      drawGlyph(ctx, h.occupancy === 'empty' ? 'hole'
+        : h.occupancy === 'brood' ? 'holeBrood' : 'holeAdult',
                 h.x * size, h.y * size, size)
     }
     for (const f of frame.food) drawGlyph(ctx, 'food', f.x * size, f.y * size, size)
@@ -144,7 +145,7 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
         ctx.stroke()
       }
     }
-  }, [frame, width, height, selected, highlighted])
+  }, [frame, width, height, selected, highlighted, dpr])
 
   const cellAt = (e: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } => {
     const rect = e.currentTarget.getBoundingClientRect()
