@@ -37,11 +37,12 @@ describe('US-E01-07 Perception, memory and one-hop alarm', () => {
 
   it('A heard memory is never passed on', async () => {
     const evs = await runTicks(engine(medium({ traps: 30, cats: 6 })), 1200)
-    const heard = of(evs, 'memory_added').filter((m) => m.provenance === 'heard')
-    for (const h of heard) {
-      const relayed = of(evs, 'alarm_exchanged').filter(
-        (x) => x.from === h.id && x.sentence === h.sentence && x.tick > h.tick)
-      expect(relayed, 'a heard memory was relayed').toHaveLength(0)
+    // Matching on sentence text alone was ambiguous, because a mouse that saw an
+    // event and a mouse that was told about it produce the same wording. The
+    // event now carries how the sender held it, which is the rule itself.
+    for (const x of of(evs, 'alarm_exchanged')) {
+      expect(x.senderProvenance, 'a heard memory was relayed').toBe('seen')
     }
+    expect(of(evs, 'alarm_exchanged').length).toBeGreaterThan(0)
   })
 })

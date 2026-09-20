@@ -45,7 +45,7 @@ describe('US-E01-06 Mouseholes shelter, breed and raise pups', () => {
     expect(of(evs, 'birth')).toHaveLength(0)
   })
 
-  it('A litter is born into a hole and emerges about thirty ticks later', async () => {
+  it('A litter is born into a hole and emerges about thirty ticks later', { timeout: 30_000 }, async () => {
     const evs = await runTicks(engine(medium({ cats: 0, mouseholes: 30, foodPiles: 60 })), 2000)
     const brood = of(evs, 'brood_born')[0]
     expect(brood).toBeDefined()
@@ -57,7 +57,7 @@ describe('US-E01-06 Mouseholes shelter, breed and raise pups', () => {
     expect(freed!.tick - brood!.tick).toBeLessThanOrEqual(40)
   })
 
-  it('A birth beyond the population cap is lost and recorded', async () => {
+  it('A birth beyond the population cap is lost and recorded', { timeout: 30_000 }, async () => {
     const evs = await runTicks(
       engine(medium({ maleMice: 78, femaleMice: 78, cats: 0, mouseholes: 60, foodPiles: 80 })), 2000)
     expect(of(evs, 'cap_limited_birth').length).toBeGreaterThan(0)

@@ -15,15 +15,18 @@ describe('US-E01-02 Tick clock and activity costs', () => {
   })
 
   it('A hungry mouse moves at half speed', async () => {
-    const e = engine(medium({ cats: 0, traps: 0, foodPiles: 0, nutritionDecayPerTick: 0 }))
+    // The scenario is about a mouse in the 30-59 band. The first version of this
+    // spec never put one there, so it asserted half speed of a full mouse.
+    const e = engine(medium({ cats: 0, traps: 0, foodPiles: 0, nutritionDecayPerTick: 0.001,
+                              startingNutrition: 45 }))
     const id = e.world().mice[0]!.id
-    // place the mouse in the 30-59 band before counting
     const evs = await runTicks(e, 10)
     expect(cellsMoved(of(evs, 'moved'), id)).toBeLessThanOrEqual(5)
   })
 
   it('A starving mouse moves at a third speed', async () => {
-    const e = engine(medium({ cats: 0, traps: 0, foodPiles: 0, nutritionDecayPerTick: 0 }))
+    const e = engine(medium({ cats: 0, traps: 0, foodPiles: 0, nutritionDecayPerTick: 0.001,
+                              startingNutrition: 20 }))
     const id = e.world().mice[0]!.id
     const evs = await runTicks(e, 12)
     expect(cellsMoved(of(evs, 'moved'), id)).toBeLessThanOrEqual(4)

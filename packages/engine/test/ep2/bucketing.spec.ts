@@ -31,9 +31,12 @@ describe('US-E02-01 Numbers become words', () => {
   it('No number reaches the model', () => {
     const e = engine(medium())
     const ready = e.world().mice.slice(0, 4).map((m) => m.id)
-    for (const req of composeRequests(e.world(), ready)) {
-      const json = JSON.stringify(req.state)
-      expect(json, 'a numeral reached the state sent to the model').not.toMatch(/\d/)
+    let n = 0
+    for (const req of composeRequests(e.world(), ready, () => `b${++n}`)) {
+      // Agent identifiers are the keys, because every question names the key it
+      // refers to. The rule is about the values: no number reaches the model.
+      const values = JSON.stringify(Object.values(req.state))
+      expect(values, 'a numeral reached the state sent to the model').not.toMatch(/\d/)
     }
   })
 })

@@ -10,10 +10,23 @@ import { medium, SEED } from '../helpers.js'
 
 const LEVELS: FearLevel[] = ['unconcerned', 'wary', 'alarmed', 'panicked']
 
+/**
+ * The danger field is flat where no cat is in range, and a flat field normalizes
+ * to zeros at every fear level. The first version of this spec took the first
+ * mouse in the world and usually got exactly that, so it compared zeros.
+ */
+function threatenedMouse(e: ReturnType<typeof createEngine>): string {
+  const w = e.world()
+  const near = w.mice.find((m) => w.cats.some((c) =>
+    Math.max(Math.abs(c.at.x - m.at.x), Math.abs(c.at.y - m.at.y)) <= 6))
+  if (!near) throw new Error('no mouse has a cat within perception')
+  return near.id
+}
+
 function dangerGradientAt(level: FearLevel): number[] {
-  const e = createEngine({ config: medium({ cats: 4 }), seed: SEED, provider: baselineProvider() })
-  const id = e.world().mice[0]!.id
-  ;(e as unknown as { setFear(id: string, f: FearLevel): void }).setFear(id, level)
+  const e = createEngine({ config: medium({ cats: 10 }), seed: SEED, provider: baselineProvider() })
+  const id = threatenedMouse(e)
+  e.setFear(id, level)
   return e.candidateScores(id).map((c) => c.danger)
 }
 
@@ -27,16 +40,17 @@ describe('US-E02-04 Fear widens the berth', () => {
   })
 
   it('A more frightened mouse gives danger a wider berth', () => {
-    const calm = dangerGradientAt('unconcerned')
-    const scared = dangerGradientAt('panicked')
-    const spread = (v: number[]) => Math.max(...v) - Math.min(...v)
-    expect(spread(scared)).toBeGreaterThan(spread(calm))
+    // Every normalized gradient runs from 0 to 1, so its range is always 1 and
+    // says nothing. What widens is how much of the neighbourhood reads as
+    // dangerous, which is the mean across the candidates.
+    const mean = (v: number[]) => v.reduce((a, b) => a + b, 0) / v.length
+    expect(mean(dangerGradientAt('panicked')))
+      .toBeGreaterThan(mean(dangerGradientAt('unconcerned')))
   })
 
   it('A panicked mouse re-decides after six ticks rather than twelve', () => {
     const e = createEngine({ config: medium(), seed: SEED, provider: baselineProvider() })
-    const hold = (e as unknown as { intentHoldFor(level: FearLevel): number }).intentHoldFor
-    expect(hold('panicked')).toBe(6)
-    expect(hold('alarmed')).toBe(12)
+    expect(e.intentHoldFor('panicked')).toBe(6)
+    expect(e.intentHoldFor('alarmed')).toBe(12)
   })
 })

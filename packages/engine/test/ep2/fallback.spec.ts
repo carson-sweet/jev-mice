@@ -8,9 +8,11 @@ const never: DecisionProvider = { decide: () => new Promise(() => {}) }
 const broken: DecisionProvider = { decide: () => Promise.reject(new Error('upstream')) }
 
 describe('US-E02-05 Falling back to code-only rules', () => {
-  it('A slow answer falls back and names the reason', async () => {
+  it('A slow answer falls back and names the reason', { timeout: 15_000 }, async () => {
+    // One tick is the whole scenario: a provider that never answers costs the
+    // full timeout per tick, so running forty of them proved nothing extra.
     const e = createEngine({ config: medium(), seed: SEED, provider: never })
-    const evs = await runTicks(e, 40)
+    const evs = await runTicks(e, 1)
     const fb = of(evs, 'decision_fallback')
     expect(fb.length).toBeGreaterThan(0)
     expect(fb[0]!.reason).toBe('timeout')
@@ -34,8 +36,11 @@ describe('US-E02-05 Falling back to code-only rules', () => {
       createEngine({ config: medium(), seed: SEED, provider: baselineProvider() }), 60)
     const b = await runTicks(
       createEngine({ config: medium(), seed: SEED, provider: broken }), 60)
-    const firstDecision = a.findIndex((e) => e.kind === 'decision_returned')
-    expect(firstDecision).toBeGreaterThan(0)
-    expect(comparable(b.slice(0, firstDecision))).toEqual(comparable(a.slice(0, firstDecision)))
+    // Compare up to the first request, not the first answer: the failing run
+    // legitimately emits a fallback event in between, which is a difference in
+    // how the decision was reached rather than in the world before it.
+    const firstRequest = a.findIndex((e) => e.kind === 'decision_requested')
+    expect(firstRequest, 'no decision was requested at all').toBeGreaterThanOrEqual(0)
+    expect(comparable(b.slice(0, firstRequest))).toEqual(comparable(a.slice(0, firstRequest)))
   })
 })

@@ -30,7 +30,7 @@ export function of<K extends SimEvent['kind']>(
 /** Compare two streams ignoring fields that record duration rather than outcome. */
 export function comparable(events: readonly SimEvent[]): unknown[] {
   return events.map((e) => {
-    const { ...rest } = e as Record<string, unknown>
+    const { ...rest } = e as unknown as Record<string, unknown>
     delete rest['latencyMs']
     return rest
   })
