@@ -1,14 +1,14 @@
 ---
 title: jev-mice Product Requirements Document
-version: 3.1
+version: 3.2
 status: final
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-19
 audience: hybrid
 nda: false
-changes: minor. Applies the solution validation remediation across all eleven work packages. FR-142 to FR-146 added; no requirement withdrawn. Approved as final by Carson Sweet on 2026-09-19.
-previous_file: jev-mice-prd-superseded-v3.0-20260919.md
+changes: minor. Cat mortality removed from Out of Scope, since cats now starve by decision 85 and a dead world ends a run by decision 86; leaving the exclusion in place contradicted the build. SM-07 scoped to runs decided by Jev, with the fixed rules reporting their rate as the comparison rather than being held to the threshold. Carson decided this on 2026-09-20 after the measure was wired up and showed the rules at about 36 percent against a threshold of 80; the cause is structural rather than a defect. Recorded as decision 101. Nothing else changed.
+previous_file: jev-mice-prd-deprecated-v3.1-20260919.md
 ---
 
 # jev-mice Product Requirements Document
@@ -53,7 +53,7 @@ Each check is pass or fail on a Medium-preset run with default settings unless s
 | SM-04 | Two runs sharing a seed and differing in one setting load side by side with that setting highlighted and charts overlaid | Manual check in the comparison view |
 | SM-05 | A code-only run and a decision-model run on the same seed compare with the decision source as the only highlighted difference | Manual check in the comparison view; the decision source is part of what the view diffs |
 | SM-06 | Over a run reaching 1,000 or more mice ever alive, each personality's share is within 5 points of its configured percentage | Automated from spawn and birth events, both recorded. Below 1,000 the observed deviation is reported without a verdict, because a 5-point band at smaller samples is inside the noise |
-| SM-07 | For mice outside a hole with a cat very close and nutrition at or above 60 percent, at least 80 percent of drive decisions put a combined 0.5 or more on flee plus hide | Automated from decision events, streamed chunk by chunk, with a minimum of 100 qualifying decisions before a verdict. Mice with a cat adjacent are excluded because a reflex preempts their decision and they produce no decision event |
+| SM-07 | For a run decided by Jev: of mice outside a hole with a cat very close and nutrition at or above 60 percent, at least 80 percent of drive decisions put a combined 0.5 or more on flee plus hide | Automated from decision events, streamed chunk by chunk, with a minimum of 100 qualifying decisions before a verdict. Mice with a cat adjacent are excluded because a reflex preempts their decision and they produce no decision event. Scoped to Jev by decision 101: the measure exists to say whether judgment looks intelligent, so the fixed rules are the comparison and are not held to the threshold. A run on the rules reports its rate without a verdict, which is the comparison the Jev figure is read against |
 | SM-08 | Jev cost for the run is under $0.50 at the configured price and is shown live | Run totals and the live meter |
 | SM-09 | Every death event carries exactly one cause: starvation, trap, or cat | Automated schema check on the record |
 | SM-10 | No secret appears in any browser-delivered asset or any API response | Automated: the build scans the bundle for key patterns and fails on a hit; a test asserts no response body or header on any route matches those patterns |
@@ -519,7 +519,7 @@ Ten epics, ordered so each can be built and tested on what precedes it. Story su
 
 A game you play: no player-controlled animal. A validated ecology model: no claim of biological realism. An open ecosystem editor: fixed cast, no user-defined species or rules. Cross-run parameter learning: no optimizer tuning the rules between runs. Generated text or narration: the model never writes prose.
 
-Also excluded from this version: personality inheritance and the lineage view it would enable; terrain and obstacles beyond mouseholes; cat mortality; mice leaving a hole for any reason but hunger; alarm chains beyond one hop; teams, organizations, or any shared ownership of a run; collaborative or simultaneous viewing controls, so a share viewer watches but never drives; identity providers other than Google; a mobile layout; payment, billing, or per-person paid quotas; and any public listing or discovery of other people's runs.
+Also excluded from this version: personality inheritance and the lineage view it would enable; terrain and obstacles beyond mouseholes; mice leaving a hole for any reason but hunger; alarm chains beyond one hop; teams, organizations, or any shared ownership of a run; collaborative or simultaneous viewing controls, so a share viewer watches but never drives; identity providers other than Google; a mobile layout; payment, billing, or per-person paid quotas; and any public listing or discovery of other people's runs.
 
 ## 9. Assumptions and Constraints
 

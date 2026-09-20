@@ -78,6 +78,10 @@ const threatened = (tick: number, flee: number, hide: number): SimEvent => ev(
     }],
   })
 
+/** The same run, recorded as decided by Jev. */
+const asJev = (s: ReportSource): ReportSource =>
+  ({ ...s, run: { ...s.run, decidedBy: 'jev' } as never })
+
 describe('The report for a run', () => {
   it('Answers both behavioural measures', async () => {
     const source = stored({ events: [threatened(1, 0.6, 0.1), threatened(2, 0.1, 0.1)] })
@@ -89,7 +93,7 @@ describe('The report for a run', () => {
   })
 
   it('Says a measure has no verdict when the sample is too small', async () => {
-    const source = stored({ events: [threatened(1, 0.9, 0)] })
+    const source = asJev(stored({ events: [threatened(1, 0.9, 0)] }))
     const report = await buildReport(source)
     expect(report.measures.fleeOrHide.applies).toBe(false)
     expect(report.measures.fleeOrHide.verdict).toBe('not enough evidence')
@@ -97,14 +101,14 @@ describe('The report for a run', () => {
 
   it('Gives a verdict once there is enough evidence', async () => {
     const events = Array.from({ length: 120 }, (_, i) => threatened(i + 1, 0.9, 0))
-    const report = await buildReport(stored({ events, turns: 120 }))
+    const report = await buildReport(asJev(stored({ events, turns: 120 })))
     expect(report.measures.fleeOrHide.applies).toBe(true)
     expect(report.measures.fleeOrHide.verdict).toBe('met')
   })
 
   it('Says plainly when a measure is not met', async () => {
     const events = Array.from({ length: 120 }, (_, i) => threatened(i + 1, 0.1, 0.1))
-    const report = await buildReport(stored({ events, turns: 120 }))
+    const report = await buildReport(asJev(stored({ events, turns: 120 })))
     expect(report.measures.fleeOrHide.verdict).toBe('not met')
   })
 
@@ -140,6 +144,56 @@ describe('The report for a run', () => {
     // No framework vocabulary, and no emoji.
     expect(text).not.toMatch(/phase gate|exit criteria|deference/i)
     expect(text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2700}-\u{27BF}]/u)
+  })
+})
+
+describe('Who a measure is meant to judge', () => {
+  const jevRun = (events: SimEvent[], turns: number): ReportSource =>
+    asJev(stored({ events, turns }))
+
+  it('Does not hold the fixed rules to the flee-or-hide threshold', async () => {
+    // Decision 101. The measure exists to judge whether Jev's decisions look
+    // intelligent; the rules are the deliberately dumb comparison, and holding
+    // them to it reported a failure that was never the intent.
+    const events = Array.from({ length: 120 }, (_, i) => threatened(i + 1, 0.1, 0.1))
+    const report = await buildReport(stored({ events, turns: 120 }))
+    expect(report.decidedBy).toBe('rules')
+    expect(report.measures.fleeOrHide.verdict).toBe('not expected')
+  })
+
+  it('Still reports the rate for a rules run, as the comparison', async () => {
+    const events = Array.from({ length: 120 }, (_, i) => threatened(i + 1, 0.9, 0))
+    const report = await buildReport(stored({ events, turns: 120 }))
+    expect(report.measures.fleeOrHide.qualifying).toBe(120)
+    expect(report.measures.fleeOrHide.rate).toBeCloseTo(1, 6)
+  })
+
+  it('Holds a Jev run to it', async () => {
+    const met = Array.from({ length: 120 }, (_, i) => threatened(i + 1, 0.9, 0))
+    expect((await buildReport(jevRun(met, 120))).measures.fleeOrHide.verdict).toBe('met')
+    const missed = Array.from({ length: 120 }, (_, i) => threatened(i + 1, 0.1, 0.1))
+    expect((await buildReport(jevRun(missed, 120))).measures.fleeOrHide.verdict)
+      .toBe('not met')
+  })
+
+  it('Says a Jev run had too small a sample, which is not the same as not expected', async () => {
+    const report = await buildReport(jevRun([threatened(1, 0.9, 0)], 10))
+    expect(report.measures.fleeOrHide.verdict).toBe('not enough evidence')
+  })
+
+  it('Judges the personality mix whoever decided, since nobody decides it', async () => {
+    // drawPersonality is mechanical: it runs the same whether Jev is asked or not.
+    const rules = await buildReport(stored({ events: [] }))
+    const jev = await buildReport(jevRun([], 10))
+    expect(rules.measures.personalityMix.verdict)
+      .toBe(jev.measures.personalityMix.verdict)
+  })
+
+  it('Says in the document that the rules are not held to it', async () => {
+    const events = Array.from({ length: 120 }, (_, i) => threatened(i + 1, 0.1, 0.1))
+    const text = renderReport(await buildReport(stored({ events, turns: 120 })))
+    expect(text).toMatch(/not expected/i)
+    expect(text).toMatch(/judge|comparison/i)
   })
 })
 

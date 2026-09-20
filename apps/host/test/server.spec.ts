@@ -366,8 +366,12 @@ describe('Taking a run away with you', () => {
     expect(body.seed).toBe(61)
     expect(body.measures.fleeOrHide.id).toBe('SM-07')
     expect(body.measures.personalityMix.id).toBe('SM-06')
-    expect(['met', 'not met', 'not enough evidence'])
-      .toContain(body.measures.fleeOrHide.verdict)
+    // This host has no key, so the run is on the rules and the measure does
+    // not judge it. Decision 101.
+    expect(body.decidedBy).toBe('rules')
+    expect(body.measures.fleeOrHide.verdict).toBe('not expected')
+    expect(['met', 'not met', 'not enough evidence', 'not expected'])
+      .toContain(body.measures.personalityMix.verdict)
     expect(body.population.mice.peak).toBeGreaterThan(0)
   }, 60_000)
 

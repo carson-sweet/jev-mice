@@ -19,12 +19,19 @@ export interface ReportSource {
   stored: StoredRun
 }
 
-/** A measure with its numbers and, where there is enough evidence, a verdict. */
+/**
+ * A measure with its numbers and, where it applies, a verdict.
+ *
+ * 'not expected' is not a failure and not a missing sample: it is a measure
+ * that was never meant to judge this run. The flee-or-hide threshold exists to
+ * say whether Jev's decisions look intelligent, so the fixed rules, which are
+ * the deliberately dumb comparison, are held to the rate and not to the bar.
+ */
 export interface Measured {
   id: string
   asks: string
   applies: boolean
-  verdict: 'met' | 'not met' | 'not enough evidence'
+  verdict: 'met' | 'not met' | 'not enough evidence' | 'not expected'
   threshold: number
   [k: string]: unknown
 }
@@ -62,8 +69,10 @@ async function* events(source: ReportSource): AsyncGenerator<SimEvent[]> {
   }
 }
 
-const verdictFor = (applies: boolean, met: boolean): Measured['verdict'] =>
-  !applies ? 'not enough evidence' : met ? 'met' : 'not met'
+const verdictFor = (
+  applies: boolean, met: boolean, judges = true,
+): Measured['verdict'] =>
+  !judges ? 'not expected' : !applies ? 'not enough evidence' : met ? 'met' : 'not met'
 
 export async function buildReport(source: ReportSource): Promise<Report> {
   const deaths = { starvation: 0, cat: 0, trap: 0 }
@@ -109,8 +118,12 @@ export async function buildReport(source: ReportSource): Promise<Report> {
         id: 'SM-07',
         asks: 'Of mice outside a hole with a cat very close and nutrition at or '
           + 'above 60 percent, at least 80 percent of drive decisions put a '
-          + 'combined 0.5 or more on flee plus hide.',
-        verdict: verdictFor(flee.applies, fleeRate !== null && fleeRate >= flee.threshold),
+          + 'combined 0.5 or more on flee plus hide. Asked of a run decided by '
+          + 'Jev; the fixed rules are the comparison and are not held to it.',
+        // Scoped to Jev by decision 101.
+        judges: source.run.decidedBy === 'jev',
+        verdict: verdictFor(flee.applies, fleeRate !== null && fleeRate >= flee.threshold,
+                            source.run.decidedBy === 'jev'),
       },
       personalityMix: {
         ...mix,
@@ -186,10 +199,14 @@ ${flee.asks}
 
 Qualifying decisions ${String(flee.qualifying)}, of which ${String(flee.passing)} passed, a rate of ${
     pct(typeof flee.rate === 'number' ? flee.rate : null)} against a threshold of ${
-    pct(flee.threshold)}.${flee.applies
-      ? ''
-      : ` A verdict needs 100 qualifying decisions and this run produced ${
-        String(flee.qualifying)}, so the rate is reported without one.`}
+    pct(flee.threshold)}.${flee.verdict === 'not expected'
+      ? ' This run was decided by the fixed rules, which the measure does not '
+        + 'judge: it exists to say whether Jev\'s decisions look intelligent, and '
+        + 'the rules are the comparison. The rate above is that comparison.'
+      : flee.applies
+        ? ''
+        : ` A verdict needs 100 qualifying decisions and this run produced ${
+          String(flee.qualifying)}, so the rate is reported without one.`}
 
 ### ${mix.id}: ${mix.verdict}
 
