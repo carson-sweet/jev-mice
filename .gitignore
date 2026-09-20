@@ -20,3 +20,6 @@ dist/
 .data/
 .playwright-mcp/
 apps/web/dist/
+
+# Wrangler build and local state
+apps/worker/.wrangler/
