@@ -6,7 +6,9 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
-import { turnWindow, describe as describeEvent, MAX_WINDOW, type StoredRun } from '../src/turns.js'
+import {
+  turnWindow, describe as describeEvent, forget, MAX_WINDOW, type StoredRun,
+} from '../src/turns.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -56,6 +58,7 @@ function stored(o: {
   }
 
   return {
+    id: root,
     chunks: o.chunks,
     chunkPath: (seq) => join(root, 'chunks', `${String(seq)}.json.gz`),
     summaryPath: (seq) => join(root, 'summary', `${String(seq)}.json.gz`),
@@ -70,39 +73,39 @@ const twoChunks: Chunk[] = [
 ]
 
 describe('A window of turns', () => {
-  it('Returns one row per turn asked for', () => {
-    const w = turnWindow(stored({ chunks: oneChunk }), 10, 19)
+  it('Returns one row per turn asked for', async () => {
+    const w = await turnWindow(stored({ chunks: oneChunk }), 10, 19)
     expect(w.turns.map((t) => t.tick)).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
   })
 
-  it('Spans two chunks without a gap at the seam', () => {
-    const w = turnWindow(stored({ chunks: twoChunks }), 248, 253)
+  it('Spans two chunks without a gap at the seam', async () => {
+    const w = await turnWindow(stored({ chunks: twoChunks }), 248, 253)
     expect(w.turns.map((t) => t.tick)).toEqual([248, 249, 250, 251, 252, 253])
     for (const t of w.turns) expect(t.stats.mice).toBe(10)
   })
 
-  it('Takes the change from the turn before the window, not from nothing', () => {
+  it('Takes the change from the turn before the window, not from nothing', async () => {
     const run = stored({
       chunks: oneChunk,
       points: { 9: { mice: 10, cats: 2, food: 5, traps: 3 },
                 10: { mice: 8, cats: 1, food: 7, traps: 3 } },
     })
-    const w = turnWindow(run, 10, 10)
+    const w = await turnWindow(run, 10, 10)
     expect(w.turns[0]?.delta).toEqual({ mice: -2, cats: -1, food: 2, traps: 0 })
   })
 
-  it('Shows no change on the very first turn, having nothing to compare', () => {
-    const w = turnWindow(stored({ chunks: oneChunk }), 1, 1)
+  it('Shows no change on the very first turn, having nothing to compare', async () => {
+    const w = await turnWindow(stored({ chunks: oneChunk }), 1, 1)
     expect(w.turns[0]?.delta).toEqual({ mice: 0, cats: 0, food: 0, traps: 0 })
   })
 
-  it('Stops at the last turn the run reached', () => {
-    const w = turnWindow(stored({ chunks: oneChunk, totalTurns: 120 }), 115, 130)
+  it('Stops at the last turn the run reached', async () => {
+    const w = await turnWindow(stored({ chunks: oneChunk, totalTurns: 120 }), 115, 130)
     expect(w.turns.map((t) => t.tick)).toEqual([115, 116, 117, 118, 119, 120])
     expect(w.totalTurns).toBe(120)
   })
 
-  it('Leaves out plain movement and the turn marker', () => {
+  it('Leaves out plain movement and the turn marker', async () => {
     const run = stored({
       chunks: oneChunk,
       events: { 5: [
@@ -111,43 +114,43 @@ describe('A window of turns', () => {
         { kind: 'food_eaten', tick: 5, id: 'm0001', foodId: 'f0001' },
       ] },
     })
-    const turn = turnWindow(run, 5, 5).turns[0]
+    const turn = (await turnWindow(run, 5, 5)).turns[0]
     expect(turn?.events.map((e) => e.kind)).toEqual(['food_eaten'])
   })
 })
 
 describe('When the storage is not what it should be', () => {
-  it('Gives a turn with no counts rather than failing, when a summary is missing', () => {
+  it('Gives a turn with no counts rather than failing, when a summary is missing', async () => {
     const run = stored({ chunks: oneChunk, omitSummary: 0 })
-    const w = turnWindow(run, 5, 6)
+    const w = await turnWindow(run, 5, 6)
     expect(w.turns).toHaveLength(2)
     expect(w.turns[0]?.stats).toEqual({ mice: 0, cats: 0, food: 0, traps: 0 })
   })
 
-  it('Gives turns with no events rather than failing, when a chunk is missing', () => {
+  it('Gives turns with no events rather than failing, when a chunk is missing', async () => {
     const run = stored({ chunks: oneChunk, omitChunk: 0 })
-    const w = turnWindow(run, 5, 6)
+    const w = await turnWindow(run, 5, 6)
     expect(w.turns).toHaveLength(2)
     expect(w.turns[0]?.events).toEqual([])
     // The counts still come through, because the summary is a separate file.
     expect(w.turns[0]?.stats.mice).toBe(10)
   })
 
-  it('Says what went wrong when a chunk is corrupt, rather than answering wrongly', () => {
+  it('Says what went wrong when a chunk is corrupt, rather than answering wrongly', async () => {
     const run = stored({ chunks: oneChunk, corrupt: 0 })
-    expect(() => turnWindow(run, 5, 6)).toThrow()
+    await expect(turnWindow(run, 5, 6)).rejects.toThrow()
   })
 
-  it('Answers with no turns for a run that has produced none, rather than failing', () => {
-    const w = turnWindow({ chunks: [], chunkPath: () => '', summaryPath: () => '',
-                           totalTurns: 0 }, 1, 10)
+  it('Answers with no turns for a run that has produced none, rather than failing', async () => {
+    const w = await turnWindow({ id: 'empty', chunks: [], chunkPath: () => '',
+                                 summaryPath: () => '', totalTurns: 0 }, 1, 10)
     expect(w.turns).toEqual([])
     expect(w.totalTurns).toBe(0)
     expect(w.from).toBe(1)
   })
 
-  it('Holds a window that starts before the first turn', () => {
-    const w = turnWindow(stored({ chunks: oneChunk }), -5, 3)
+  it('Holds a window that starts before the first turn', async () => {
+    const w = await turnWindow(stored({ chunks: oneChunk }), -5, 3)
     expect(w.from).toBe(1)
     expect(w.turns.map((t) => t.tick)).toEqual([1, 2, 3])
   })
@@ -175,5 +178,44 @@ describe('Putting an event into words', () => {
     const said = describeEvent({ kind: 'something_new', tick: 1, seq: 1, id: 'm0001' } as never)
     expect(said.kind).toBe('something_new')
     expect(said.text.length).toBeGreaterThan(0)
+  })
+})
+
+describe('Reading the same chunk repeatedly', () => {
+  it('Decodes it once, however many pages are asked for', async () => {
+    // ISSUE-021. Paging a 250-turn chunk ten turns at a time decompressed the
+    // same 2.2MB twenty-five times, synchronously, on the one thread.
+    let reads = 0
+    const run = stored({ chunks: oneChunk })
+    const counted: StoredRun = {
+      ...run,
+      chunkPath: (seq) => { reads++; return run.chunkPath(seq) },
+      summaryPath: (seq) => run.summaryPath(seq),
+    }
+    forget(counted.id)
+    for (let page = 0; page < 10; page++) {
+      const from = page * 10 + 1
+      const w = await turnWindow(counted, from, from + 9)
+      expect(w.turns).toHaveLength(10)
+    }
+    // The path is still asked for each time; the bytes are decoded once.
+    expect(reads).toBe(10)
+    const again = await turnWindow(counted, 1, 10)
+    expect(again.turns[0]?.stats.mice).toBe(10)
+  })
+
+  it('Forgets a run when told to', async () => {
+    const run = stored({ chunks: oneChunk })
+    await turnWindow(run, 1, 5)
+    forget(run.id)
+    // Still answers correctly from disk after the cache is dropped.
+    const w = await turnWindow(run, 1, 5)
+    expect(w.turns).toHaveLength(5)
+  })
+
+  it('Names the run it answered for', async () => {
+    const run = stored({ chunks: oneChunk })
+    const w = await turnWindow(run, 1, 3)
+    expect(w.runId).toBe(run.id)
   })
 })

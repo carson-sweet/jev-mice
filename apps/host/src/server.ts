@@ -171,7 +171,8 @@ export function createHost(opts: HostOptions): {
             error: `at most ${String(MAX_WINDOW)} turns at a time; ask for a smaller window`,
           })
         }
-        const window = turnWindow({
+        const window = await turnWindow({
+          id,
           chunks: state.chunks,
           chunkPath: (seq) => manager.chunkPath(id, seq) ?? '',
           summaryPath: (seq) => manager.summaryPath(id, seq) ?? '',
