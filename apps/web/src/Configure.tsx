@@ -1,11 +1,60 @@
 // The starting conditions. Every knob is bounded by the preset it belongs to,
 // so the form cannot ask for a world the engine will refuse.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { capsFor, defaultConfig, validateConfig, PRESETS,
          type Personality, type Preset, type RunConfig } from '@jev-mice/engine'
 
 const PERSONALITIES: Personality[] = ['bold', 'cautious', 'vigilant', 'social']
+
+/**
+ * A hint that opens on hover and on keyboard focus, and closes on Escape.
+ * Hover alone would put the explanation out of reach of anyone not using a
+ * mouse, so the icon is a real button rather than a decorated span.
+ */
+function InfoTip({ label, children }: {
+  label: string
+  children: React.ReactNode
+}): React.ReactElement {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  return (
+    <span className="inline-flex items-center align-middle">
+      <button
+        type="button"
+        aria-label={label}
+        aria-expanded={open}
+        {...(open ? { 'aria-describedby': id } : {})}
+        onMouseEnter={() => { setOpen(true) }}
+        onMouseLeave={() => { setOpen(false) }}
+        onFocus={() => { setOpen(true) }}
+        onBlur={() => { setOpen(false) }}
+        onClick={() => { setOpen((o) => !o) }}
+        onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
+        className="flex h-4 w-4 items-center justify-center rounded-full text-zinc-500
+                   hover:text-zinc-200 focus:text-zinc-200 focus:outline-none
+                   focus-visible:ring-1 focus-visible:ring-sky-500"
+      >
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+          <circle cx="8" cy="8" r="6.75" fill="none" stroke="currentColor" strokeWidth="1.4" />
+          <circle cx="8" cy="4.6" r="0.95" fill="currentColor" />
+          <path d="M8 7.1v4.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        </svg>
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          id={id}
+          className="absolute bottom-full left-0 z-20 mb-1 w-full rounded border
+                     border-zinc-700 bg-zinc-900 p-2 text-[11px] leading-snug
+                     text-zinc-300 shadow-lg"
+        >
+          {children}
+        </span>
+      )}
+    </span>
+  )
+}
 
 function Number_({ label, value, min, max, onChange, hint }: {
   label: string; value: number; min: number; max: number
@@ -125,19 +174,26 @@ export function Configure({ onStart, busy }: {
         </div>
       </div>
 
-      <label className="block">
-        <span className="text-xs text-zinc-400">Seed</span>
+      <div className="block">
+        <span className="relative flex items-center gap-1.5">
+          <label htmlFor="seed" className="text-xs text-zinc-400">Use Existing Seed</label>
+          <InfoTip label="About using an existing seed">
+            Enter the seed from a run you have already done to repeat that run. The same
+            seed with the same settings replays the same world, mouse for mouse.
+          </InfoTip>
+        </span>
         <input
+          id="seed"
           value={seed}
           onChange={(e) => { setSeed(e.target.value) }}
           placeholder="leave blank for a new one"
           className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1
                      text-zinc-100 focus:border-sky-500 focus:outline-none"
         />
-        <span className="text-[11px] text-zinc-600">
-          The same seed and the same settings replay the same world.
+        <span className="block text-[11px] text-zinc-600">
+          Leave it blank and a new seed is chosen for you.
         </span>
-      </label>
+      </div>
 
       {errors.length > 0 && (
         <ul className="rounded border border-amber-700/50 bg-amber-950/30 p-2 text-xs text-amber-200">
