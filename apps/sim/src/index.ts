@@ -5,7 +5,7 @@
 import { gzipSync } from 'node:zlib'
 import { createEngine, restore, ENGINE_VERSION, type Engine, type SimEvent } from '@jev-mice/engine'
 import type {
-  Allowance, ChunkAck, ChunkBody, ChunkReport, Control, Frame, Simulation,
+  Allowance, ChunkAck, ChunkBody, ChunkReport, Control, Extent, Frame, Simulation,
   SimulationOptions, SummaryBody, SummaryPoint,
 } from './types.js'
 
@@ -14,12 +14,20 @@ export * from './types.js'
 /** A chunk closes at whichever of these comes first. */
 export const CHUNK_TICKS = 250
 export const CHUNK_BYTES = 8 * 1024 * 1024
-/** How often a viewer hears from a running simulation. */
+/**
+ * How often a viewer hears from a running simulation. The tick interval follows
+ * the pace, so a run at one tick a second is watchable and a run at full speed
+ * does not flood the socket. Either way a pending frame goes out within
+ * FRAME_FLUSH_MS, which is what stops a slow run looking frozen.
+ */
+export const FRAMES_PER_SECOND = 20
 export const FRAME_EVERY_TICKS = 5
 export const FRAME_BATCH = 4
+export const FRAME_FLUSH_MS = 100
 /** How often the loop returns to the event queue so a pushed control lands. */
 const YIELD_EVERY_TICKS = 8
-const REFERENCE_TICKS_PER_SECOND = 30
+/** How long the loop naps when it is ahead of the pace it was asked for. */
+const PACE_NAP_MS = 4
 
 const encode = (v: unknown): { raw: number; gzip: Uint8Array } => {
   const text = JSON.stringify(v)
@@ -27,8 +35,11 @@ const encode = (v: unknown): { raw: number; gzip: Uint8Array } => {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+const wallClock = (): number => Date.now()
 
 export function createSimulation(opts: SimulationOptions): Simulation {
+  // The only wall clock the process reads. The engine never sees it.
+  const now = opts.now ?? wallClock
   let engine: Engine | null = null
   let tick = 0
   let chunkSeq = 0
@@ -42,7 +53,17 @@ export function createSimulation(opts: SimulationOptions): Simulation {
   let allowance: Allowance = { tokens: 0, degraded: true, reason: 'disabled' }
   let presigned: ChunkAck['presigned'] | null = null
 
-  const totals = { currentTick: 0, requests: 0, inputTokens: 0, fallbackCount: 0 }
+  const extent = (n: number): Extent => ({ peak: n, min: n, current: n })
+  const widen = (e: Extent, n: number): void => {
+    e.current = n
+    if (n > e.peak) e.peak = n
+    if (n < e.min) e.min = n
+  }
+
+  const totals = {
+    currentTick: 0, requests: 0, inputTokens: 0, fallbackCount: 0,
+    population: { mice: extent(0), cats: extent(0) },
+  }
   let sinceChunk = { requests: 0, inputTokens: 0, fallbacks: 0, model: null as string | null }
 
   function applyAck(ack: ChunkAck): void {
@@ -95,9 +116,12 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       if (e.kind === 'birth') births += 1
       if (e.kind === 'decision_returned') (e.source === 'jev' ? judged++ : fallbacks++)
     }
+    widen(totals.population.mice, view?.mice.length ?? 0)
+    widen(totals.population.cats, view?.cats.length ?? 0)
     points.push({
       tick: atTick,
       population: view?.mice.length ?? 0,
+      cats: view?.cats.length ?? 0,
       births,
       deathsByStarvation: deaths.starvation,
       deathsByTrap: deaths.trap,
@@ -129,7 +153,10 @@ export function createSimulation(opts: SimulationOptions): Simulation {
     }
   }
 
+  let lastFrameFlush = 0
+
   async function flushFrames(): Promise<void> {
+    lastFrameFlush = now()
     if (pendingFrames.length === 0) return
     const batch = pendingFrames
     pendingFrames = []
@@ -171,7 +198,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       bytesRaw: chunk.raw,
       bytesGzip: chunk.gzip.byteLength,
       usage: { ...sinceChunk },
-      totals: { ...totals },
+      totals: snapshotTotals(),
     }
     const ack = await opts.coordinator.chunk(report)
 
@@ -184,17 +211,51 @@ export function createSimulation(opts: SimulationOptions): Simulation {
     applyAck(ack)
   }
 
+  function snapshotTotals(): ChunkReport['totals'] {
+    return {
+      ...totals,
+      population: {
+        mice: { ...totals.population.mice },
+        cats: { ...totals.population.cats },
+      },
+    }
+  }
+
   async function loop(): Promise<void> {
     const limit = opts.config.ticks
     let sinceYield = 0
+    // Ticks earned but not yet spent. Elapsed wall time buys ticks at the
+    // requested rate, which paces accurately without sleeping once per tick.
+    let credit = 0
+    let lastPaced = now()
 
     while (tick < limit && control.desired !== 'stop') {
       if (control.desired === 'pause' && stepsOwed === 0) {
         await flushFrames()
+        // The clock is reset on the way out of a pause, so a long pause does
+        // not bank ticks and spend them in a burst when the run resumes.
+        credit = 0
+        lastPaced = now()
         await sleep(5)
         continue
       }
-      if (stepsOwed > 0) stepsOwed -= 1
+      if (stepsOwed > 0) {
+        stepsOwed -= 1
+        credit = 0
+        lastPaced = now()
+      } else if (control.speed > 0) {
+        const at = now()
+        credit += ((at - lastPaced) * control.speed) / 1000
+        lastPaced = at
+        if (credit < 1) {
+          await sleep(PACE_NAP_MS)
+          continue
+        }
+        credit -= 1
+        // One second's worth is the most that may be owed, so a stall does not
+        // turn into a sprint once the loop gets going again.
+        credit = Math.min(credit, control.speed)
+      }
 
       const before = engine?.events().length ?? 0
       await engine?.step()
@@ -206,9 +267,13 @@ export function createSimulation(opts: SimulationOptions): Simulation {
       buffered.push(...fresh)
       bufferedBytes += fresh.length * 200
 
-      if (tick % FRAME_EVERY_TICKS === 0) {
-        pendingFrames.push(frameNow())
-        if (pendingFrames.length >= FRAME_BATCH) await flushFrames()
+      const every = control.speed > 0
+        ? Math.max(1, Math.round(control.speed / FRAMES_PER_SECOND))
+        : FRAME_EVERY_TICKS
+      if (tick % every === 0) pendingFrames.push(frameNow())
+      if (pendingFrames.length >= FRAME_BATCH
+          || (pendingFrames.length > 0 && now() - lastFrameFlush >= FRAME_FLUSH_MS)) {
+        await flushFrames()
       }
 
       if (tick - chunkFirstTick + 1 >= CHUNK_TICKS || bufferedBytes >= CHUNK_BYTES) {
@@ -216,9 +281,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
         await closeChunk()
       }
 
-      if (control.speed > 0) {
-        await sleep(1000 / (control.speed * REFERENCE_TICKS_PER_SECOND))
-      } else if (++sinceYield >= YIELD_EVERY_TICKS) {
+      if (++sinceYield >= YIELD_EVERY_TICKS) {
         sinceYield = 0
         await sleep(0)
       }
@@ -252,6 +315,11 @@ export function createSimulation(opts: SimulationOptions): Simulation {
           chunkFirstTick = 1
         }
         totals.currentTick = tick
+        // Sampled before the first tick, or the population a run started with
+        // would never appear in its own extremes.
+        const opening = engine.world()
+        totals.population.mice = extent(opening.mice.length)
+        totals.population.cats = extent(opening.cats.length)
 
         applyAck(await opts.coordinator.ready({
           engineVersion: ENGINE_VERSION,
@@ -262,7 +330,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
         await loop()
         await flushFrames()
         if (buffered.length > 0 || points.length > 0) await closeChunk()
-        await opts.coordinator.done({ finalTick: tick, totals: { ...totals } })
+        await opts.coordinator.done({ finalTick: tick, totals: snapshotTotals() })
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
         await opts.coordinator.failed({ atTick: tick, reason })

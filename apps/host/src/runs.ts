@@ -11,12 +11,18 @@ import {
 } from '@jev-mice/engine'
 import { jevProvider, type SystemOneLike } from '@jev-mice/provider-jev'
 import {
-  createSimulation,
-  type ChunkAck, type ChunkReport, type Control, type Coordinator, type Frame,
-  type Simulation,
+  createSimulation, SPEED,
+  type ChunkAck, type ChunkReport, type Control, type Coordinator, type Extent,
+  type Frame, type Simulation,
 } from '@jev-mice/sim'
 
 export type RunStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
+export type Decider = 'jev' | 'rules'
+
+const clampSpeed = (n: number | undefined): number =>
+  n === undefined || !Number.isFinite(n)
+    ? SPEED.fastest
+    : Math.round(Math.max(SPEED.slowest, Math.min(SPEED.fastest, n)))
 
 export interface RunSummary {
   id: string
@@ -29,7 +35,11 @@ export interface RunSummary {
   chunks: { seq: number; firstTick: number; lastTick: number; bytesGzip: number }[]
   totals: ChunkReport['totals']
   error: string | null
-  decidedBy: 'jev' | 'rules'
+  decidedBy: Decider
+  /** Ticks a second this run is paced at. */
+  speed: number
+  /** Highest, lowest and latest, over the whole run. */
+  population: { mice: Extent; cats: Extent }
 }
 
 export type ViewerMessage =
@@ -50,7 +60,14 @@ export interface RunManagerOptions {
 
 export interface RunManager {
   root: string
-  create(o: { config: RunConfig; seed: number }): RunSummary
+  jevAvailable: boolean
+  create(o: {
+    config: RunConfig; seed: number
+    /** Omitted means Jev when a key is configured and the rules otherwise. */
+    decider?: Decider
+    speed?: number
+  }): RunSummary
+  setSpeed(id: string, speed: number): boolean
   get(id: string): RunSummary | null
   list(): RunSummary[]
   control(id: string, action: 'pause' | 'resume' | 'step' | 'stop'): boolean
@@ -66,6 +83,7 @@ interface Live {
   lastFrame: Frame | null
   controlSeq: number
   watchers: Set<(m: ViewerMessage) => void>
+  decider: Decider
 }
 
 export function createRunManager(opts: RunManagerOptions): RunManager {
@@ -75,6 +93,8 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
   let active = 0
 
   mkdirSync(opts.root, { recursive: true })
+
+  const jevAvailable = opts.apiKey !== null || opts.client !== undefined
 
   const dir = (id: string, ...rest: string[]): string =>
     join(opts.root, 'runs', id, ...rest)
@@ -102,11 +122,9 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
     publish(live, { t: 'status', run: { ...live.summary } })
   }
 
-  function providerFor(): (a: { degraded: boolean }) => DecisionProvider {
+  function providerFor(decider: Decider): (a: { degraded: boolean }) => DecisionProvider {
     return (allowance) => {
-      if (allowance.degraded || (opts.apiKey === null && opts.client === undefined)) {
-        return baselineProvider()
-      }
+      if (decider === 'rules' || allowance.degraded || !jevAvailable) return baselineProvider()
       const client = opts.client ?? httpClient(opts.apiKey as string)
       return jevProvider(client)
     }
@@ -116,8 +134,8 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
     const id = live.summary.id
     let nextSeq = 0
     const ackNow = (): ChunkAck => ({
-      control: { desired: desiredFor(live), speed: 0, seq: live.controlSeq },
-      allowance: opts.apiKey === null && opts.client === undefined
+      control: { desired: desiredFor(live), speed: live.summary.speed, seq: live.controlSeq },
+      allowance: live.decider === 'rules' || !jevAvailable
         ? { tokens: 0, degraded: true, reason: 'disabled' }
         : { tokens: 1_000_000, degraded: false },
       rate: { requestsPerMinute: 600 },
@@ -135,7 +153,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         })
         live.summary.totals = report.totals
         live.summary.currentTick = report.totals.currentTick
-        live.summary.decidedBy = report.totals.requests > 0 ? 'jev' : 'rules'
+        live.summary.population = report.totals.population
         nextSeq = report.seq + 1
         publish(live, { t: 'status', run: { ...live.summary } })
         return Promise.resolve(ackNow())
@@ -151,6 +169,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
       done: (d) => {
         live.summary.currentTick = d.finalTick
         live.summary.totals = d.totals
+        live.summary.population = d.totals.population
         setStatus(live, 'completed')
         finish(id)
         return Promise.resolve()
@@ -185,7 +204,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
       seed: live.summary.seed,
       coordinator: coordinatorFor(live),
       upload,
-      provider: providerFor(),
+      provider: providerFor(live.decider),
     })
     live.sim = sim
     void sim.start()
@@ -212,10 +231,17 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
   return {
     root: opts.root,
 
-    create({ config, seed }) {
+    jevAvailable,
+
+    create({ config, seed, decider, speed }) {
       const errors = validateConfig(config)
       if (errors.length > 0) {
         throw new Error(errors.map((e) => `${e.field}: ${e.message}`).join('; '))
+      }
+      const chosen: Decider = decider ?? (jevAvailable ? 'jev' : 'rules')
+      if (chosen === 'jev' && !jevAvailable) {
+        throw new Error('no decision key is configured, so Jev cannot be asked; '
+          + 'set TYPESAFE_API_KEY or choose the rules')
       }
       const id = randomUUID()
       mkdirSync(dir(id, 'chunks'), { recursive: true })
@@ -229,11 +255,19 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         currentTick: 0,
         queuePosition: null,
         chunks: [],
-        totals: { currentTick: 0, requests: 0, inputTokens: 0, fallbackCount: 0 },
+        totals: {
+          currentTick: 0, requests: 0, inputTokens: 0, fallbackCount: 0,
+          population: { mice: blank(), cats: blank() },
+        },
         error: null,
-        decidedBy: opts.apiKey === null && opts.client === undefined ? 'rules' : 'jev',
+        decidedBy: chosen,
+        speed: clampSpeed(speed),
+        population: { mice: blank(), cats: blank() },
       }
-      const live: Live = { summary, sim: null, lastFrame: null, controlSeq: 0, watchers: new Set() }
+      const live: Live = {
+        summary, sim: null, lastFrame: null, controlSeq: 0, watchers: new Set(),
+        decider: chosen,
+      }
       runs.set(id, live)
       order.unshift(id)
       writeFileSync(dir(id, 'run.json'), JSON.stringify({ id, seed, config }, null, 2))
@@ -251,6 +285,20 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
     list: () => order.map((id) => runs.get(id)).filter((l): l is Live => l !== undefined)
       .map((l) => ({ ...l.summary })),
 
+    setSpeed(id, speed) {
+      const live = runs.get(id)
+      if (!live?.sim) return false
+      live.summary.speed = clampSpeed(speed)
+      live.controlSeq += 1
+      live.sim.control({
+        desired: live.summary.status === 'paused' ? 'pause' : 'run',
+        speed: live.summary.speed,
+        seq: live.controlSeq,
+      })
+      publish(live, { t: 'status', run: { ...live.summary } })
+      return true
+    },
+
     control(id, action) {
       const live = runs.get(id)
       if (!live || !live.sim) return false
@@ -258,7 +306,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
       const desired = action === 'resume' ? 'run' : action === 'stop' ? 'stop' : action
       if (action === 'pause') setStatus(live, 'paused')
       if (action === 'resume') setStatus(live, 'running')
-      live.sim.control({ desired, speed: 0, seq: live.controlSeq })
+      live.sim.control({ desired, speed: live.summary.speed, seq: live.controlSeq })
       return true
     },
 
@@ -286,6 +334,8 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
     },
   }
 }
+
+const blank = (): Extent => ({ peak: 0, min: 0, current: 0 })
 
 /** The only place a key is used, and it never leaves this process. */
 function httpClient(apiKey: string): SystemOneLike {

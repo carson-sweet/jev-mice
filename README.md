@@ -11,18 +11,17 @@ Version 0.1.0 · 2026-09-20
 
 ```bash
 npm install
-npm run build      # builds the viewer
-npm start          # serves it on http://localhost:8787
+cp .env.example .env   # optional; put your key in it
+npm run build          # builds the viewer
+npm start              # serves it on http://localhost:8787
 ```
 
-Without a key every decision is computed by the fixed rules, and the page says
-so. To have Jev judge them instead:
+With no key the page offers only the fixed rules and says why. With one, each
+run is started on Jev or on the rules from a switch on the configuration panel,
+so the same seed can be run both ways and compared. The key is read by the host
+process and never reaches a browser.
 
-```bash
-TYPESAFE_API_KEY=... npm start
-```
-
-The key is read in the host process and never reaches a browser.
+`.env` is gitignored. Every setting it holds is listed in `.env.example`.
 
 For viewer work, `npm run dev` serves the page with hot reload and proxies the
 API to a host already running on 8787.
@@ -75,6 +74,19 @@ multiplier would be cancelled exactly and do nothing.
 When the service is slow, over budget or unreachable, that batch is answered by
 the fixed rules and the run continues. The record says which decisions were
 judged and which were computed, so the two are never confused.
+
+## Watching a run
+
+The speed slider paces the run in ticks a second, from one at the left to about
+three hundred and thirty at the right, which is a full-length run in a minute or
+as fast as the machine manages. The server does the pacing, so the slider
+changes the simulation's rate rather than dropping frames on the way to the
+page. How often frames are sent follows the pace, so one tick a second is
+watchable and full speed does not flood the socket.
+
+`/#/runs` lists every run so far, newest first, with its seed, its settings, and
+the highest, lowest and final count of mice and cats. That is the page for
+seeing how starting conditions change outcomes.
 
 ## Reading the map
 

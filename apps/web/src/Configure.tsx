@@ -77,12 +77,17 @@ function Number_({ label, value, min, max, onChange, hint }: {
   )
 }
 
-export function Configure({ onStart, busy }: {
-  onStart: (config: RunConfig, seed: number | undefined) => void
+export function Configure({ onStart, busy, jevAvailable }: {
+  onStart: (o: { config: RunConfig; seed?: number; decider: 'jev' | 'rules' }) => void
   busy: boolean
+  jevAvailable: boolean
 }): React.ReactElement {
   const [config, setConfig] = useState<RunConfig>(() => defaultConfig('medium'))
   const [seed, setSeed] = useState<string>('')
+  const [decider, setDecider] = useState<'jev' | 'rules'>('rules')
+
+  // Jev is the interesting case, so it is the default the moment it is possible.
+  useEffect(() => { setDecider(jevAvailable ? 'jev' : 'rules') }, [jevAvailable])
   const caps = capsFor(config.preset)
   const errors = validateConfig(config)
   const mix = PERSONALITIES.reduce((t, p) => t + config.personality[p], 0)
@@ -100,9 +105,55 @@ export function Configure({ onStart, busy }: {
       onSubmit={(e) => {
         e.preventDefault()
         if (errors.length > 0) return
-        onStart(config, seed.trim() === '' ? undefined : Number(seed))
+        onStart({
+          config,
+          decider,
+          ...(seed.trim() === '' ? {} : { seed: Number(seed) }),
+        })
       }}
     >
+      <div>
+        <span className="flex items-center gap-1.5">
+          <span className="text-xs text-zinc-400">Decided by</span>
+          <InfoTip label="About who decides">
+            Jev judges each animal's next move from what it can see. The rules
+            compute the same decisions from a fixed table. Running the same seed
+            both ways is how you see what the judgment is worth.
+          </InfoTip>
+        </span>
+        <div role="radiogroup" aria-label="Decided by" className="mt-1 flex gap-1">
+          {([['jev', 'Use Jev'], ['rules', 'Use rules']] as const).map(([value, label]) => {
+            const unavailable = value === 'jev' && !jevAvailable
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={decider === value}
+                disabled={unavailable}
+                title={unavailable
+                  ? 'No decision key is configured. Set TYPESAFE_API_KEY in .env to offer Jev.'
+                  : undefined}
+                onClick={() => { setDecider(value) }}
+                className={`flex-1 rounded border px-2 py-1 text-sm ${
+                  decider === value
+                    ? 'border-sky-500 bg-sky-500/15 text-sky-200'
+                    : 'border-zinc-700 text-zinc-300 hover:border-zinc-500'
+                } disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        {!jevAvailable && (
+          <span className="text-[11px] text-zinc-600">
+            No key is set, so only the rules are available. Put TYPESAFE_API_KEY in
+            {' '}.env to offer Jev.
+          </span>
+        )}
+      </div>
+
       <div>
         <span className="text-xs text-zinc-400">World</span>
         <div className="mt-1 flex gap-1">

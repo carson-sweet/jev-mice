@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { defaultConfig } from '@jev-mice/engine'
+import { SPEED } from '@jev-mice/sim'
 import { createRunManager, type RunManager } from '../src/runs.js'
 
 const dirs: string[] = []
@@ -143,4 +144,84 @@ describe('The run manager', () => {
     expect(list[0]).toMatchObject({ status: 'completed', seed: 2 })
     expect(typeof list[0]?.createdAt).toBe('string')
   }, 40_000)
+})
+
+describe('Choosing who decides', () => {
+  it('Runs on the rules when the rules are asked for, even with a key present', async () => {
+    const m = manager({ apiKey: 'not-used-because-rules-were-asked-for' })
+    const run = m.create({ config: small({ ticks: 260 }), seed: 1, decider: 'rules' })
+    expect(run.decidedBy).toBe('rules')
+    await settled(m, run.id)
+    expect(m.get(run.id)?.totals.requests).toBe(0)
+  }, 30_000)
+
+  it('Refuses Jev when there is no key to call it with', () => {
+    const m = manager({ apiKey: null })
+    expect(() => m.create({ config: small(), seed: 1, decider: 'jev' }))
+      .toThrow(/no decision key/i)
+  })
+
+  it('Defaults to the rules when nothing is said and no key is set', () => {
+    const m = manager({ apiKey: null })
+    expect(m.create({ config: small(), seed: 1 }).decidedBy).toBe('rules')
+  })
+
+  it('Says whether Jev is available at all', () => {
+    expect(manager({ apiKey: null }).jevAvailable).toBe(false)
+    expect(manager({ apiKey: 'present' }).jevAvailable).toBe(true)
+  })
+})
+
+describe('Setting the pace', () => {
+  it('Starts at the speed it was given and reports it', () => {
+    const m = manager()
+    const run = m.create({ config: small({ ticks: 20_000 }), seed: 1, speed: 25 })
+    expect(run.speed).toBe(25)
+    m.control(run.id, 'stop')
+  })
+
+  it('Changes the pace of a running simulation', async () => {
+    const m = manager()
+    const run = m.create({ config: small({ ticks: 20_000 }), seed: 1, speed: 2 })
+    await new Promise((r) => setTimeout(r, 300))
+    const crawling = m.get(run.id)?.currentTick ?? 0
+    expect(m.setSpeed(run.id, 300)).toBe(true)
+    expect(m.get(run.id)?.speed).toBe(300)
+    await new Promise((r) => setTimeout(r, 400))
+    expect(m.get(run.id)?.currentTick ?? 0).toBeGreaterThan(crawling)
+    m.control(run.id, 'stop')
+    await settled(m, run.id)
+  }, 30_000)
+
+  it('Keeps a speed inside the range a slider can ask for', () => {
+    const m = manager()
+    const tooSlow = m.create({ config: small({ ticks: 20_000 }), seed: 1, speed: 0 })
+    expect(tooSlow.speed).toBe(SPEED.slowest)
+    m.control(tooSlow.id, 'stop')
+    const tooFast = m.create({ config: small({ ticks: 20_000 }), seed: 2, speed: 99_999 })
+    expect(tooFast.speed).toBe(SPEED.fastest)
+    m.control(tooFast.id, 'stop')
+  })
+})
+
+describe('What the library needs about a finished run', () => {
+  it('Records the highest, lowest and final mice and cats', async () => {
+    const m = manager()
+    const run = m.create({ config: small({ ticks: 400 }), seed: 3 })
+    await settled(m, run.id)
+    const done = m.get(run.id)
+    expect(done?.population.mice.peak).toBeGreaterThan(0)
+    expect(done?.population.mice.min).toBeLessThanOrEqual(done!.population.mice.peak)
+    expect(done?.population.cats.peak).toBeGreaterThanOrEqual(done!.population.cats.current)
+    expect(done?.population.cats.min).toBeLessThanOrEqual(done!.population.cats.peak)
+  }, 30_000)
+
+  it('Keeps the settings the run was started with, so a table can show them', async () => {
+    const config = small({ ticks: 300, cats: 2, traps: 3 })
+    const m = manager()
+    const run = m.create({ config, seed: 9 })
+    await settled(m, run.id)
+    expect(m.get(run.id)?.config).toEqual(config)
+    expect(m.get(run.id)?.seed).toBe(9)
+  }, 30_000)
 })

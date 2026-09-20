@@ -22,7 +22,7 @@ interface Recorded {
   puts: { url: string; body: Uint8Array }[]
   reports: ChunkReport[]
   frames: Frame[][]
-  done: { finalTick: number }[]
+  done: { finalTick: number; totals: ChunkReport['totals'] }[]
   failed: { atTick: number; reason: string }[]
 }
 
@@ -255,4 +255,187 @@ describe('The simulation process', () => {
     expect(second.rec.reports[0]?.firstTick).toBe(251)
     expect(second.rec.done[0]?.finalTick).toBe(500)
   })
+})
+
+describe('Simulation speed', () => {
+  it('Runs as fast as it can when no speed is asked for', async () => {
+    const { sim } = harness({ config: { ticks: 400 } })
+    const started = Date.now()
+    await sim.start()
+    expect(Date.now() - started).toBeLessThan(4_000)
+    expect(sim.currentTick()).toBe(400)
+  }, 20_000)
+
+  it('Paces itself at the ticks a second it was given', async () => {
+    const { sim } = harness({
+      config: { ticks: 20_000 },
+      ackFor: () => ack({ control: { desired: 'run', speed: 40, seq: 0 } }),
+    })
+    const running = sim.start()
+    await new Promise((r) => setTimeout(r, 1_000))
+    const reached = sim.currentTick()
+    sim.control({ desired: 'stop', speed: 40, seq: 9 })
+    await running
+    // Forty a second for about a second. Loose bounds: this is a pacing
+    // control, not a real-time guarantee, and a slow machine may undershoot.
+    expect(reached).toBeGreaterThan(10)
+    expect(reached).toBeLessThan(120)
+  }, 20_000)
+
+  it('Goes faster when asked to go faster', async () => {
+    const reach = async (speed: number): Promise<number> => {
+      const { sim } = harness({
+        config: { ticks: 20_000 },
+        ackFor: () => ack({ control: { desired: 'run', speed, seq: 0 } }),
+      })
+      const running = sim.start()
+      await new Promise((r) => setTimeout(r, 800))
+      const n = sim.currentTick()
+      sim.control({ desired: 'stop', speed, seq: 9 })
+      await running
+      return n
+    }
+    const slow = await reach(5)
+    const fast = await reach(200)
+    expect(fast).toBeGreaterThan(slow * 3)
+  }, 30_000)
+
+  it('Changes pace without restarting, when the speed is pushed mid-run', async () => {
+    const { sim } = harness({
+      config: { ticks: 20_000 },
+      ackFor: () => ack({ control: { desired: 'run', speed: 2, seq: 0 } }),
+    })
+    const running = sim.start()
+    await new Promise((r) => setTimeout(r, 500))
+    const crawling = sim.currentTick()
+    sim.control({ desired: 'run', speed: 300, seq: 5 })
+    await new Promise((r) => setTimeout(r, 500))
+    const sprinting = sim.currentTick() - crawling
+    sim.control({ desired: 'stop', speed: 300, seq: 6 })
+    await running
+    expect(crawling).toBeLessThan(20)
+    expect(sprinting).toBeGreaterThan(crawling)
+  }, 20_000)
+
+  it('Does not lose the pace budget while paused', async () => {
+    const { sim } = harness({
+      config: { ticks: 20_000 },
+      ackFor: () => ack({ control: { desired: 'run', speed: 20, seq: 0 } }),
+    })
+    const running = sim.start()
+    sim.control({ desired: 'pause', speed: 20, seq: 1 })
+    await new Promise((r) => setTimeout(r, 600))
+    const held = sim.currentTick()
+    sim.control({ desired: 'run', speed: 20, seq: 2 })
+    await new Promise((r) => setTimeout(r, 200))
+    // A pause must not bank six hundred milliseconds of ticks and spend them
+    // all at once the moment it resumes.
+    expect(sim.currentTick() - held).toBeLessThan(40)
+    sim.control({ desired: 'stop', speed: 20, seq: 3 })
+    await running
+  }, 20_000)
+})
+
+describe('How often a watcher hears anything', () => {
+  it('Sends a frame promptly even at the slowest pace', async () => {
+    const rec: { at: number; tick: number }[] = []
+    const started = Date.now()
+    const coordinator: Coordinator = {
+      ready: () => Promise.resolve(ack({ control: { desired: 'run', speed: 1, seq: 0 } })),
+      chunk: () => Promise.resolve(ack({ control: { desired: 'run', speed: 1, seq: 0 } })),
+      frames: (f) => {
+        for (const x of f) rec.push({ at: Date.now() - started, tick: x.tick })
+        return Promise.resolve()
+      },
+      done: () => Promise.resolve(),
+      failed: () => Promise.resolve(),
+    }
+    const sim = createSimulation({
+      runId: 'slow',
+      config: { ...defaultConfig('small'), ticks: 20_000 },
+      seed: 4,
+      coordinator,
+      upload: () => Promise.resolve(),
+      provider: () => baselineProvider(),
+    })
+    const running = sim.start()
+    await new Promise((r) => setTimeout(r, 2_500))
+    sim.control({ desired: 'stop', speed: 1, seq: 9 })
+    await running
+    // One tick a second for two and a half seconds. A watcher must see the
+    // first tick within about a second, not wait for a batch of twenty.
+    expect(rec.length).toBeGreaterThanOrEqual(2)
+    expect(rec[0]?.at).toBeLessThan(1_800)
+    expect(rec[0]?.tick).toBe(1)
+  }, 20_000)
+
+  it('Does not drown a watcher when running flat out', async () => {
+    const batches: number[] = []
+    const coordinator: Coordinator = {
+      ready: () => Promise.resolve(ack()),
+      chunk: () => Promise.resolve(ack()),
+      frames: (f) => { batches.push(f.length); return Promise.resolve() },
+      done: () => Promise.resolve(),
+      failed: () => Promise.resolve(),
+    }
+    const sim = createSimulation({
+      runId: 'fast',
+      config: { ...defaultConfig('small'), ticks: 3_000 },
+      seed: 4,
+      coordinator,
+      upload: () => Promise.resolve(),
+      provider: () => baselineProvider(),
+    })
+    await sim.start()
+    const sent = batches.reduce((a, b) => a + b, 0)
+    expect(sent).toBeGreaterThan(0)
+    // Far fewer frames than ticks, or a fast run would flood the socket.
+    expect(sent).toBeLessThan(3_000 / 2)
+  }, 20_000)
+})
+
+describe('What a run reports about its population', () => {
+  it('Reports the highest and lowest mice and cats it has seen', async () => {
+    const { sim, rec } = harness({ config: { ticks: 500 } })
+    await sim.start()
+    const last = rec.reports.at(-1)
+    expect(last).toBeDefined()
+    const p = last!.totals.population
+    expect(p.mice.peak).toBeGreaterThanOrEqual(p.mice.current)
+    expect(p.mice.min).toBeLessThanOrEqual(p.mice.current)
+    expect(p.cats.peak).toBeGreaterThanOrEqual(p.cats.current)
+    expect(p.cats.min).toBeLessThanOrEqual(p.cats.current)
+  }, 20_000)
+
+  it('Starts the peak at the population it began with', async () => {
+    const config = { ...defaultConfig('small'), ticks: 300 }
+    const { sim, rec } = harness({ config })
+    await sim.start()
+    const p = rec.reports[0]!.totals.population
+    expect(p.mice.peak).toBeGreaterThanOrEqual(config.maleMice + config.femaleMice)
+    expect(p.cats.peak).toBe(config.cats)
+  }, 20_000)
+
+  it('Carries the extremes forward rather than resetting them each chunk', async () => {
+    const { sim, rec } = harness({ config: { ticks: 750 } })
+    await sim.start()
+    expect(rec.reports.length).toBeGreaterThan(1)
+    for (let i = 1; i < rec.reports.length; i++) {
+      const prev = rec.reports[i - 1]!.totals.population
+      const now = rec.reports[i]!.totals.population
+      expect(now.mice.peak).toBeGreaterThanOrEqual(prev.mice.peak)
+      expect(now.mice.min).toBeLessThanOrEqual(prev.mice.min)
+      expect(now.cats.peak).toBeGreaterThanOrEqual(prev.cats.peak)
+      expect(now.cats.min).toBeLessThanOrEqual(prev.cats.min)
+    }
+  }, 20_000)
+
+  it('Ends with what was actually left alive', async () => {
+    const { sim, rec } = harness({ config: { ticks: 300 } })
+    await sim.start()
+    const done = rec.done[0]
+    expect(done).toBeDefined()
+    expect(done!.totals.population.mice.current).toBeGreaterThanOrEqual(0)
+    expect(done!.totals.population.cats.current).toBeGreaterThanOrEqual(0)
+  }, 20_000)
 })

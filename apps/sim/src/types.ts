@@ -8,10 +8,19 @@ export type Desired = 'run' | 'pause' | 'step' | 'stop'
 
 export interface Control {
   desired: Desired
-  /** Ticks a second, as a multiple of thirty. Zero runs as fast as it can. */
+  /** Ticks a second. Zero runs as fast as the machine allows. */
   speed: number
   seq: number
 }
+
+/** The slowest and fastest a run may be paced at, in ticks a second. */
+export const SPEED = {
+  slowest: 1,
+  /** A full-length run in about a minute, which is as fast as is worth watching. */
+  fastest: 334,
+} as const
+
+export interface Extent { peak: number; min: number; current: number }
 
 export interface Allowance {
   tokens: number
@@ -34,7 +43,11 @@ export interface ChunkReport {
   bytesRaw: number
   bytesGzip: number
   usage: { requests: number; inputTokens: number; fallbacks: number; model: string | null }
-  totals: { currentTick: number; requests: number; inputTokens: number; fallbackCount: number }
+  totals: {
+    currentTick: number; requests: number; inputTokens: number; fallbackCount: number
+    /** Highest, lowest and latest seen since the run began, not since this chunk. */
+    population: { mice: Extent; cats: Extent }
+  }
 }
 
 /** What a viewer draws. Positions only, small enough to send every few ticks. */
@@ -54,6 +67,7 @@ export interface Frame {
 export interface SummaryPoint {
   tick: number
   population: number
+  cats: number
   births: number
   deathsByStarvation: number
   deathsByTrap: number
@@ -93,6 +107,8 @@ export interface SimulationOptions {
   upload: (url: string, body: Uint8Array) => Promise<void>
   /** Rebuilt whenever the allowance changes, so a withdrawn budget takes effect. */
   provider: (o: Allowance) => import('@jev-mice/engine').DecisionProvider
+  /** Pacing only. Overridden in tests; the engine never reads a clock. */
+  now?: () => number
 }
 
 export interface Simulation {

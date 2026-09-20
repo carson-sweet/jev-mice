@@ -4,6 +4,15 @@
 import type { RunConfig, Preset } from '@jev-mice/engine'
 import type { Frame } from '@jev-mice/sim'
 
+export interface Extent { peak: number; min: number; current: number }
+
+export interface Capabilities {
+  jevAvailable: boolean
+  speed: { slowest: number; fastest: number }
+}
+
+export type Decider = 'jev' | 'rules'
+
 export interface RunSummary {
   id: string
   status: 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
@@ -15,7 +24,9 @@ export interface RunSummary {
   chunks: { seq: number; firstTick: number; lastTick: number; bytesGzip: number }[]
   totals: { currentTick: number; requests: number; inputTokens: number; fallbackCount: number }
   error: string | null
-  decidedBy: 'jev' | 'rules'
+  decidedBy: Decider
+  speed: number
+  population: { mice: Extent; cats: Extent }
 }
 
 export type ViewerMessage =
@@ -42,11 +53,16 @@ export const api = {
   get: async (id: string): Promise<RunSummary> =>
     (await body<{ run: RunSummary }>(await fetch(`/api/runs/${id}`))).run,
 
-  create: async (config: RunConfig, seed?: number): Promise<RunSummary> =>
+  capabilities: async (): Promise<Capabilities> =>
+    await body<Capabilities>(await fetch('/api/capabilities')),
+
+  create: async (o: {
+    config: RunConfig; seed?: number; decider?: Decider; speed?: number
+  }): Promise<RunSummary> =>
     (await body<{ run: RunSummary }>(await fetch('/api/runs', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ config, seed }),
+      body: JSON.stringify(o),
     }))).run,
 
   control: async (id: string, action: 'pause' | 'resume' | 'step' | 'stop'): Promise<void> => {
@@ -54,6 +70,14 @@ export const api = {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action }),
+    }))
+  },
+
+  setSpeed: async (id: string, speed: number): Promise<void> => {
+    await body(await fetch(`/api/runs/${id}/control`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'speed', speed }),
     }))
   },
 }
@@ -81,6 +105,17 @@ export function watchRun(id: string, on: (m: ViewerMessage) => void): () => void
   }
 }
 
-export function sendControl(id: string, action: string): void {
-  void api.control(id, action as 'pause').catch(() => undefined)
+/**
+ * The slider is logarithmic: a tick a second and ten a second are worlds apart
+ * to watch, while three hundred and three hundred and twenty are the same
+ * thing. Position runs 0 to 100.
+ */
+export function speedFromSlider(position: number, fastest: number): number {
+  const p = Math.max(0, Math.min(100, position)) / 100
+  return Math.round(Math.exp(Math.log(fastest) * p))
+}
+
+export function sliderFromSpeed(speed: number, fastest: number): number {
+  const s = Math.max(1, Math.min(fastest, speed))
+  return Math.round((Math.log(s) / Math.log(fastest)) * 100)
 }

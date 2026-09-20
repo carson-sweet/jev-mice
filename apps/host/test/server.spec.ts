@@ -106,3 +106,83 @@ describe('The local host', () => {
     }
   })
 })
+
+describe('What the host tells the page it can offer', () => {
+  it('Says whether Jev is available, without revealing anything about the key', async () => {
+    const r = await fetch(`${base}/api/capabilities`)
+    expect(r.status).toBe(200)
+    const text = await r.text()
+    expect(JSON.parse(text)).toMatchObject({
+      jevAvailable: false,
+      speed: { slowest: 1, fastest: 334 },
+    })
+    expect(text.toLowerCase()).not.toContain('key')
+  })
+
+  it('Refuses a run on Jev when no key is configured, and explains why', async () => {
+    const r = await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 300 }, seed: 1, decider: 'jev',
+    })
+    expect(r.status).toBe(400)
+    expect(String(r.body.error)).toMatch(/no decision key/i)
+  })
+
+  it('Refuses a decider it does not recognise', async () => {
+    const r = await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 300 }, seed: 1, decider: 'vibes',
+    })
+    expect(r.status).toBe(400)
+  })
+
+  it('Takes a speed when a run is created and reports it back', async () => {
+    const r = await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 11, speed: 12,
+    })
+    expect(r.status).toBe(201)
+    expect(r.body.run.speed).toBe(12)
+    await post(`/api/runs/${r.body.run.id as string}/control`, { action: 'stop' })
+  })
+
+  it('Changes the speed of a run already going', async () => {
+    const created = await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 12, speed: 3,
+    })
+    const id = created.body.run.id as string
+    const changed = await post(`/api/runs/${id}/control`, { action: 'speed', speed: 120 })
+    expect(changed.status).toBe(200)
+    expect(changed.body.run.speed).toBe(120)
+    await post(`/api/runs/${id}/control`, { action: 'stop' })
+  })
+
+  it('Refuses a speed change with no speed in it', async () => {
+    const created = await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 13,
+    })
+    const id = created.body.run.id as string
+    const r = await post(`/api/runs/${id}/control`, { action: 'speed' })
+    expect(r.status).toBe(400)
+    await post(`/api/runs/${id}/control`, { action: 'stop' })
+  })
+
+  it('Lists what a table of previous runs needs', async () => {
+    const created = await post('/api/runs', {
+      config: { ...defaultConfig('small'), ticks: 300 }, seed: 21,
+    })
+    const id = created.body.run.id as string
+    for (let i = 0; i < 200; i++) {
+      const s = await (await fetch(`${base}/api/runs/${id}`)).json() as any
+      if (s.run.status === 'completed') break
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    const listed = await (await fetch(`${base}/api/runs`)).json() as any
+    const row = listed.runs.find((r: any) => r.seed === 21)
+    expect(row).toBeDefined()
+    expect(typeof row.createdAt).toBe('string')
+    expect(row.config.preset).toBe('small')
+    expect(row.population.mice.peak).toBeGreaterThan(0)
+    expect(row.population.cats).toMatchObject({
+      peak: expect.any(Number), min: expect.any(Number), current: expect.any(Number),
+    })
+    expect(row.decidedBy).toBe('rules')
+  }, 30_000)
+})

@@ -7,7 +7,8 @@ import { readFileSync, existsSync, statSync } from 'node:fs'
 import { join, extname, normalize } from 'node:path'
 import { WebSocketServer } from 'ws'
 import { defaultConfig, validateConfig, type RunConfig } from '@jev-mice/engine'
-import { createRunManager, type RunManager, type ViewerMessage } from './runs.js'
+import { SPEED } from '@jev-mice/sim'
+import { createRunManager, type Decider, type RunManager, type ViewerMessage } from './runs.js'
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -69,6 +70,15 @@ export function createHost(opts: HostOptions): {
     const path = url.pathname
     const method = req.method ?? 'GET'
 
+    if (path === '/api/capabilities') {
+      // What the page is allowed to offer. It never learns the key itself,
+      // only whether one exists.
+      return json(res, 200, {
+        jevAvailable: manager.jevAvailable,
+        speed: { slowest: SPEED.slowest, fastest: SPEED.fastest },
+      })
+    }
+
     if (path === '/api/config/defaults') {
       const preset = url.searchParams.get('preset') ?? 'medium'
       if (preset !== 'small' && preset !== 'medium' && preset !== 'large') {
@@ -82,12 +92,26 @@ export function createHost(opts: HostOptions): {
     }
 
     if (path === '/api/runs' && method === 'POST') {
-      const body = await readBody(req) as { config?: RunConfig; seed?: number }
+      const body = await readBody(req) as {
+        config?: RunConfig; seed?: number; decider?: string; speed?: number
+      }
       if (!body.config) return json(res, 400, { error: 'a configuration is required' })
       const errors = validateConfig(body.config)
       if (errors.length > 0) return json(res, 400, { errors })
+      if (body.decider !== undefined && body.decider !== 'jev' && body.decider !== 'rules') {
+        return json(res, 400, { error: 'decider must be jev or rules' })
+      }
       const seed = Number.isFinite(body.seed) ? Number(body.seed) : Math.floor(Math.random() * 2 ** 31)
-      return json(res, 201, { run: manager.create({ config: body.config, seed }) })
+      try {
+        return json(res, 201, { run: manager.create({
+          config: body.config,
+          seed,
+          ...(body.decider === undefined ? {} : { decider: body.decider as Decider }),
+          ...(body.speed === undefined ? {} : { speed: body.speed }),
+        }) })
+      } catch (err) {
+        return json(res, 400, { error: err instanceof Error ? err.message : 'could not start' })
+      }
     }
 
     const run = /^\/api\/runs\/([^/]+)(\/.*)?$/.exec(path)
@@ -100,8 +124,15 @@ export function createHost(opts: HostOptions): {
       if (rest === '' && method === 'GET') return json(res, 200, { run: state })
 
       if (rest === '/control' && method === 'POST') {
-        const body = await readBody(req) as { action?: string }
+        const body = await readBody(req) as { action?: string; speed?: number }
         const action = body.action
+        if (action === 'speed') {
+          if (!Number.isFinite(body.speed)) {
+            return json(res, 400, { error: 'a speed in ticks a second is required' })
+          }
+          const ok = manager.setSpeed(id, Number(body.speed))
+          return json(res, ok ? 200 : 409, { run: manager.get(id) })
+        }
         if (action !== 'pause' && action !== 'resume' && action !== 'step' && action !== 'stop') {
           return json(res, 400, { error: 'unknown action' })
         }
@@ -169,10 +200,12 @@ export function createHost(opts: HostOptions): {
       const stop = manager.watch(id, send)
       ws.on('message', (raw) => {
         try {
-          const msg = JSON.parse(String(raw)) as { t?: string; action?: string }
+          const msg = JSON.parse(String(raw)) as
+            { t?: string; action?: string; speed?: number }
           if (msg.t === 'control' && typeof msg.action === 'string') {
             const a = msg.action
-            if (a === 'pause' || a === 'resume' || a === 'step' || a === 'stop') {
+            if (a === 'speed' && Number.isFinite(msg.speed)) manager.setSpeed(id, Number(msg.speed))
+            else if (a === 'pause' || a === 'resume' || a === 'step' || a === 'stop') {
               manager.control(id, a)
             }
           }

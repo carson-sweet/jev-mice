@@ -1,16 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PRESETS, type RunConfig } from '@jev-mice/engine'
 import type { Frame } from '@jev-mice/sim'
-import { api, watchRun, type RunSummary } from './api'
+import {
+  api, watchRun, type Capabilities, type Decider, type RunSummary,
+} from './api'
 import { Grid } from './Grid'
 import { Chart } from './Chart'
 import { Inspector } from './Inspector'
 import { Configure } from './Configure'
 import { Legend } from './Legend'
+import { Speed } from './Speed'
+import { Runs } from './Runs'
 
 const MAX_POINTS = 600
 
 interface Point { tick: number; population: number; food: number; cats: number }
+
+/** Two pages, addressable so a link to the library can be shared or bookmarked. */
+function useRoute(): string {
+  const [hash, setHash] = useState(() => window.location.hash || '#/')
+  useEffect(() => {
+    const on = (): void => { setHash(window.location.hash || '#/') }
+    window.addEventListener('hashchange', on)
+    return () => { window.removeEventListener('hashchange', on) }
+  }, [])
+  return hash
+}
 
 function Controls({ run, onAction }: {
   run: RunSummary
@@ -60,7 +75,14 @@ export function App(): React.ReactElement {
   const [points, setPoints] = useState<Point[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [caps, setCaps] = useState<Capabilities>(
+    { jevAvailable: false, speed: { slowest: 1, fastest: 334 } })
   const stop = useRef<(() => void) | null>(null)
+  const route = useRoute()
+
+  useEffect(() => {
+    void api.capabilities().then(setCaps).catch(() => undefined)
+  }, [])
 
   const refresh = useCallback(() => {
     void api.list().then(setRuns).catch(() => undefined)
@@ -99,14 +121,22 @@ export function App(): React.ReactElement {
 
   useEffect(() => () => { stop.current?.() }, [])
 
-  const start = useCallback((config: RunConfig, seed: number | undefined) => {
+  const start = useCallback((o: {
+    config: RunConfig; seed?: number; decider: Decider
+  }) => {
     setBusy(true)
     setError(null)
-    api.create(config, seed)
+    api.create(o)
       .then((created) => { setRun(created); open(created.id); refresh() })
       .catch((e: unknown) => { setError(e instanceof Error ? e.message : 'could not start') })
       .finally(() => { setBusy(false) })
   }, [open, refresh])
+
+  const setSpeed = useCallback((ticksPerSecond: number) => {
+    setRun((r) => (r === null ? r : { ...r, speed: ticksPerSecond }))
+    const id = run?.id
+    if (id !== undefined) void api.setSpeed(id, ticksPerSecond).catch(() => undefined)
+  }, [run?.id])
 
   const act = useCallback((a: 'pause' | 'resume' | 'step' | 'stop') => {
     if (!run) return
@@ -120,6 +150,10 @@ export function App(): React.ReactElement {
     { label: 'food', colour: '#4ade80', values: points.map((p) => p.food) },
     { label: 'cats', colour: '#fb923c', values: points.map((p) => p.cats) },
   ], [points])
+
+  if (route.startsWith('#/runs')) {
+    return <Runs onBack={() => undefined} />
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -138,6 +172,13 @@ export function App(): React.ReactElement {
             <span className="text-xs text-zinc-500">
               decided by {run.decidedBy === 'jev' ? 'Jev' : 'the fixed rules'}
             </span>
+            <Speed
+              speed={run.speed}
+              fastest={caps.speed.fastest}
+              disabled={run.status === 'completed' || run.status === 'failed'
+                        || run.status === 'cancelled'}
+              onChange={setSpeed}
+            />
             <Status run={run} />
             <Controls run={run} onAction={act} />
           </div>
@@ -152,8 +193,13 @@ export function App(): React.ReactElement {
 
       <div className="flex min-h-0 flex-1">
         <aside className="w-72 shrink-0 overflow-y-auto border-r border-zinc-800 p-4">
-          <Configure onStart={start} busy={busy} />
-          <h2 className="mt-6 text-xs font-medium uppercase tracking-wide text-zinc-500">Runs</h2>
+          <Configure onStart={start} busy={busy} jevAvailable={caps.jevAvailable} />
+          <div className="mt-6 flex items-baseline justify-between">
+            <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-500">Runs</h2>
+            <a href="#/runs" className="text-xs text-sky-400 hover:text-sky-300 hover:underline">
+              See all previous runs
+            </a>
+          </div>
           <ul className="mt-2 space-y-1">
             {runs.length === 0 && <li className="text-xs text-zinc-600">Nothing yet.</li>}
             {runs.map((r) => (
