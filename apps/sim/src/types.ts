@@ -144,8 +144,17 @@ export interface SimulationOptions {
   onEngine?: (engine: import('@jev-mice/engine').Engine) => void
 }
 
+/** What one call to start did, so a caller driving batches knows to come back. */
+export interface Advanced { finished: boolean; tick: number }
+
 export interface Simulation {
-  start(o?: { snapshot?: Snapshot }): Promise<void>
+  /**
+   * Runs until the configured tick count, or until `until` if that comes first.
+   * A ceiling is how the Run Durable Object advances a long run without holding
+   * one invocation open for all of it: each call stops on a chunk boundary
+   * having written a snapshot, and the next resumes from it.
+   */
+  start(o?: { snapshot?: Snapshot; until?: number }): Promise<Advanced>
   control(c: Control): void
   currentTick(): number
 }

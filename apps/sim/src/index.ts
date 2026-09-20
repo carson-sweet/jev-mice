@@ -2,14 +2,13 @@
 // produced through URLs it was handed, and reports sizes rather than keys, so
 // it can neither name nor reach an object it was not given.
 
-import { gzipSync } from 'node:zlib'
 import {
   createEngine, restore, ENGINE_VERSION, hungerBand, narrate, CHANGES_POPULATION,
   type Engine, type SimEvent,
 } from '@jev-mice/engine'
 import type {
-  Allowance, ChunkAck, ChunkBody, ChunkReport, Control, EndReason, Extent, Frame,
-  LogEntry, Simulation, SimulationOptions, SummaryBody, SummaryPoint,
+  Advanced, Allowance, ChunkAck, ChunkBody, ChunkReport, Control, EndReason, Extent,
+  Frame, LogEntry, Simulation, SimulationOptions, SummaryBody, SummaryPoint,
 } from './types.js'
 
 export * from './types.js'
@@ -44,9 +43,28 @@ const YIELD_EVERY_TICKS = 8
 /** How long the loop naps when it is ahead of the pace it was asked for. */
 const PACE_NAP_MS = 4
 
-const encode = (v: unknown): { raw: number; gzip: Uint8Array } => {
-  const text = JSON.stringify(v)
-  return { raw: Buffer.byteLength(text, 'utf8'), gzip: gzipSync(text) }
+const utf8 = new TextEncoder()
+
+/**
+ * Gzip through the web stream, which both Node and the Workers runtime have.
+ * node:zlib would have been simpler and synchronous, but the loop now runs
+ * inside a Durable Object as well, where it does not exist.
+ */
+async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
+  const source = new ReadableStream<Uint8Array>({
+    start(c) { c.enqueue(bytes); c.close() },
+  })
+  // Cast because Node and the Workers runtime declare the stream's element type
+  // differently and neither declaration is the one in this project's lib set.
+  // Only the bytes crossing it matter, and the test gunzips them.
+  const gz = new CompressionStream('gzip') as unknown as
+    ReadableWritablePair<Uint8Array, Uint8Array>
+  return new Uint8Array(await new Response(source.pipeThrough(gz)).arrayBuffer())
+}
+
+const encode = async (v: unknown): Promise<{ raw: number; gzip: Uint8Array }> => {
+  const bytes = utf8.encode(JSON.stringify(v))
+  return { raw: bytes.byteLength, gzip: await gzip(bytes) }
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
@@ -227,9 +245,12 @@ export function createSimulation(opts: SimulationOptions): Simulation {
     const summaryBody: SummaryBody = { runId: opts.runId, seq: chunkSeq, points }
     const snapshot = engine?.serialize() ?? { version: 1 as const, tick }
 
-    const chunk = encode(chunkBody)
-    const summary = encode(summaryBody)
-    const snap = encode(snapshot)
+    // Named rather than destructured from an array, because the three are not
+    // interchangeable and a mis-ordered upload would put a snapshot where a
+    // chunk belongs.
+    const chunk = await encode(chunkBody)
+    const summary = await encode(summaryBody)
+    const snap = await encode(snapshot)
 
     await opts.upload(presigned.chunk, chunk.gzip)
     await opts.upload(presigned.summary, summary.gzip)
@@ -271,8 +292,10 @@ export function createSimulation(opts: SimulationOptions): Simulation {
     }
   }
 
-  async function loop(): Promise<void> {
-    const limit = opts.config.ticks
+  /** The run's own end, as distinct from a batch ceiling. */
+  const limit = opts.config.ticks
+
+  async function loop(ceiling: number): Promise<void> {
     let sinceYield = 0
     // Ticks earned but not yet spent. Elapsed wall time buys ticks at the
     // requested rate, which paces accurately without sleeping once per tick.
@@ -280,7 +303,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
     let lastPaced = now()
     let holding = false
 
-    while (tick < limit && control.desired !== 'stop') {
+    while (tick < limit && tick < ceiling && control.desired !== 'stop') {
       if (control.desired === 'pause' && stepsOwed === 0) {
         if (!holding) {
           // One frame on the way in, so the page shows where it actually
@@ -378,6 +401,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
     },
 
     async start(o = {}) {
+      const ceiling = o.until ?? Number.POSITIVE_INFINITY
       try {
         if (o.snapshot) {
           engine = restore(o.snapshot, { provider: forwarding })
@@ -401,21 +425,31 @@ export function createSimulation(opts: SimulationOptions): Simulation {
           ...(o.snapshot ? { resumedFromTick: tick } : {}),
         }))
 
-        await loop()
+        await loop(ceiling)
         // The run's last state is its last frame, whatever the interval was
         // due to send. Without this a finished run showed one turn and
         // reported another.
         pendingFrames.push(frameNow())
         await flushFrames()
         if (buffered.length > 0 || points.length > 0) await closeChunk()
+
+        // Stopped on the ceiling with the run still going. The chunk above
+        // carried the snapshot, so the next call picks up from there. Reporting
+        // done here would archive a run that is only part way through.
+        if (tick < limit && control.desired !== 'stop' && engineEnded === null) {
+          return { finished: false, tick }
+        }
+
         await opts.coordinator.done({
           finalTick: tick,
           totals: snapshotTotals(),
           reason: engineEnded ?? (control.desired === 'stop' ? 'stopped' : 'completed'),
         })
+        return { finished: true, tick }
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
         await opts.coordinator.failed({ atTick: tick, reason })
+        return { finished: true, tick }
       }
     },
   }

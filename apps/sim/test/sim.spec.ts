@@ -729,3 +729,55 @@ describe('What the process holds on to', () => {
     }
   }, 30_000)
 })
+
+describe('Advancing a run in batches, as the Run Durable Object does', () => {
+  const snapshotsOf = (rec: Recorded): Snapshot[] =>
+    rec.puts.filter((p) => p.url === 'put:snapshot')
+      .map((p) => JSON.parse(gunzipSync(p.body).toString('utf8')) as Snapshot)
+
+  it('Stops at the ceiling it was given and does not call the run finished', async () => {
+    const { sim, rec } = harness({ config: { ticks: 600 } })
+    const out = await sim.start({ until: CHUNK_TICKS })
+    expect(out).toEqual({ finished: false, tick: CHUNK_TICKS })
+    // The important half: a batch boundary must not look like the end of a run,
+    // or the coordinator would archive a run still only a third done.
+    expect(rec.done).toHaveLength(0)
+    expect(rec.failed).toHaveLength(0)
+  })
+
+  it('Leaves a snapshot to carry on from', async () => {
+    const { sim, rec } = harness({ config: { ticks: 600 } })
+    await sim.start({ until: CHUNK_TICKS })
+    const snaps = snapshotsOf(rec)
+    expect(snaps).toHaveLength(1)
+    expect(snaps[0]!.tick).toBe(CHUNK_TICKS)
+  })
+
+  it('Says so when the last batch reaches the end', async () => {
+    const { sim, rec } = harness({ config: { ticks: 300 } })
+    const out = await sim.start({ until: 1000 })
+    expect(out).toEqual({ finished: true, tick: 300 })
+    expect(rec.done).toHaveLength(1)
+  })
+
+  it('Produces the same run in batches as in one pass', async () => {
+    // This is what makes the Durable Object design safe at all. If a run
+    // advanced in batches were not the same run, every survival figure and
+    // every replay would be measured against something the deployment does not
+    // actually do.
+    const whole = harness({ config: { ticks: 600 } })
+    await whole.sim.start()
+
+    const parts = harness({ config: { ticks: 600 } })
+    let snapshot: Snapshot | undefined
+    for (let ceiling = CHUNK_TICKS; ; ceiling += CHUNK_TICKS) {
+      const out = await parts.sim.start(snapshot ? { snapshot, until: ceiling } : { until: ceiling })
+      if (out.finished) break
+      snapshot = snapshotsOf(parts.rec).at(-1)!
+    }
+
+    const events = (rec: Recorded): unknown[] =>
+      (chunkBodies(rec) as { events: unknown[] }[]).flatMap((b) => b.events)
+    expect(events(parts.rec)).toEqual(events(whole.rec))
+  })
+})
