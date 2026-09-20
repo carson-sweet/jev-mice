@@ -62,9 +62,15 @@ Largely fixed 2026-09-20. Tests went from 269 to 322.
 
 ## Still open
 
-`metrics.ts` is now wired up and covered: both measures are computed for every
-finished run, sixteen tests cover the report and the dump, and decision 101
-records what the numbers say about the fixed rules. `validateConfig` still has
-untested branches: a single personality percentage out of range while the sum is
-100, a negative or fractional count, and decay or starting nutrition out of
-bounds. Both are small and worth doing; neither is load-bearing today.
+Nothing. `metrics.ts` is wired up and covered: both measures are computed for
+every finished run, sixteen tests cover the report and the dump, and decision
+101 records what the numbers say about the fixed rules.
+
+`validateConfig` now has 25 tests, one per branch, and they found three real
+defects rather than only filling a gap. An unknown preset threw a TypeError out
+of `capsFor`, which the server returned as a bare 500; it is now a 400 naming
+the three worlds. A fractional turn count passed. And every bound was a bare
+comparison, so NaN satisfied all of them at once: a NaN decay made a mouse's
+nutrition NaN, which is never at or below zero, so nothing starved, and a NaN
+percentage made the personality sum NaN, which is never a hair from 100, so the
+mix validated and every mouse drawn came out social.

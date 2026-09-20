@@ -47,19 +47,42 @@ export function defaultConfig(preset: Preset): RunConfig {
   }
 }
 
+/**
+ * Not a finite number.
+ *
+ * Every bound below was a bare comparison, and every comparison against NaN is
+ * false, so NaN satisfied all of them at once. A NaN decay made a mouse's
+ * nutrition NaN, which is never at or below zero, so nothing ever starved; a
+ * NaN percentage made the personality sum NaN, which is never more than a
+ * hair from 100, so the mix validated and every mouse drawn came out social.
+ */
+const notANumber = (v: unknown): boolean =>
+  typeof v !== 'number' || !Number.isFinite(v)
+
 export function validateConfig(c: RunConfig): ValidationError[] {
   const errors: ValidationError[] = []
+
+  // First, because the caps cannot be read without it. An unknown preset threw
+  // out of capsFor, which the server turned into a bare 500.
+  if (!(c.preset in PRESETS)) {
+    return [{
+      field: 'preset', code: 'out_of_range',
+      message: `World must be one of ${Object.keys(PRESETS).join(', ')}; `
+        + `this asks for ${JSON.stringify(c.preset) ?? 'nothing'}.`,
+    }]
+  }
   const caps = capsFor(c.preset)
 
-  if (c.ticks < TICK_RANGE.min || c.ticks > TICK_RANGE.max) {
+  if (notANumber(c.ticks) || !Number.isInteger(c.ticks)
+      || c.ticks < TICK_RANGE.min || c.ticks > TICK_RANGE.max) {
     errors.push({
       field: 'ticks', code: 'out_of_range',
-      message: `Tick count must be between ${TICK_RANGE.min} and ${TICK_RANGE.max}.`,
+      message: `Tick count must be a whole number between ${TICK_RANGE.min} and ${TICK_RANGE.max}.`,
     })
   }
 
   const mice = c.maleMice + c.femaleMice
-  if (mice > caps.mice) {
+  if (Number.isFinite(mice) && mice > caps.mice) {
     errors.push({
       field: 'mice', code: 'above_cap', cap: caps.mice,
       message: `${label(c.preset)} allows ${caps.mice} mice in total; this asks for ${mice}.`,
@@ -71,7 +94,7 @@ export function validateConfig(c: RunConfig): ValidationError[] {
     ['traps', c.traps, caps.traps],
     ['cats', c.cats, caps.cats],
   ] as const) {
-    if (value > cap) {
+    if (Number.isFinite(value) && value > cap) {
       errors.push({
         field, code: 'above_cap', cap,
         message: `${label(c.preset)} allows ${cap} ${field}; this asks for ${value}.`,
@@ -84,36 +107,44 @@ export function validateConfig(c: RunConfig): ValidationError[] {
     ['traps', c.traps], ['foodPiles', c.foodPiles], ['mouseholes', c.mouseholes],
     ['foodRespawnTicks', c.foodRespawnTicks],
   ] as const) {
-    if (!Number.isInteger(value) || value < 0) {
-      errors.push({ field, code: 'out_of_range', message: `${field} must be a whole number of zero or more.` })
+    if (notANumber(value) || !Number.isInteger(value) || value < 0) {
+      errors.push({
+        field, code: 'out_of_range',
+        message: `${field} must be a whole number of zero or more.`,
+      })
     }
   }
-  if (c.nutritionDecayPerTick <= 0 || c.nutritionDecayPerTick > 10) {
+  if (notANumber(c.nutritionDecayPerTick)
+      || c.nutritionDecayPerTick <= 0 || c.nutritionDecayPerTick > 10) {
     errors.push({
       field: 'nutritionDecayPerTick', code: 'out_of_range',
-      message: 'Nutrition decay must be greater than zero and at most 10 per tick.',
+      message: 'Nutrition decay must be a number greater than zero and at most 10 per tick.',
     })
   }
   const start = c.startingNutrition ?? 100
-  if (start <= 0 || start > 100) {
+  if (notANumber(start) || start <= 0 || start > 100) {
     errors.push({
       field: 'startingNutrition', code: 'out_of_range',
-      message: 'Starting nutrition must be greater than zero and at most 100.',
+      message: 'Starting nutrition must be a number greater than zero and at most 100.',
     })
   }
 
-  const sum = PERSONALITIES.reduce((t, p) => t + (c.personality[p] ?? 0), 0)
-  if (Math.abs(sum - 100) > 1e-9) {
+  // Each one first: a sum of NaN would otherwise swallow the reason.
+  for (const p of PERSONALITIES) {
+    const v = c.personality?.[p]
+    if (notANumber(v) || (v as number) < 0 || (v as number) > 100) {
+      errors.push({
+        field: `personality.${p}`, code: 'out_of_range',
+        message: `${p} must be a number between 0 and 100.`,
+      })
+    }
+  }
+  const sum = PERSONALITIES.reduce((t, p) => t + (c.personality?.[p] ?? 0), 0)
+  if (notANumber(sum) || Math.abs(sum - 100) > 1e-9) {
     errors.push({
       field: 'personality', code: 'sum_not_100',
       message: `The four personality percentages must total 100; these total ${sum}.`,
     })
-  }
-  for (const p of PERSONALITIES) {
-    const v = c.personality[p] ?? 0
-    if (v < 0 || v > 100) {
-      errors.push({ field: `personality.${p}`, code: 'out_of_range', message: `${p} must be between 0 and 100.` })
-    }
   }
   return errors
 }
