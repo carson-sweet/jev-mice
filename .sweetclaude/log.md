@@ -291,3 +291,13 @@
 **Method:** four independent passes (requirement coverage, cross-document contradiction, metrics/NFR/security, mechanical cross-reference and arithmetic verification)
 
 **Implementation is not authorized** until the blocking set is resolved.
+
+## 2026-09-20T02:44:45Z — remediation plan
+
+**Status:** completed (plan draft, awaiting decisions)
+
+**Produced:** .sweetclaude/work/WI-001/design/jev-mice-remediation-plan-draft-v1.0-20260919.md; ISSUE-001 to ISSUE-011 in the backlog
+
+**Structure:** 4 decisions for Carson, 11 work packages, 6 of which need no decision
+
+**Open:** D-1 capacity approach, D-2 browser error reporting, D-3 geographic scoping, D-4 personality metric threshold
