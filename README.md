@@ -95,10 +95,13 @@ a sequence of lines rather than as a chart going flat.
 Pointing at anything on the map names it and says how it is doing. Hovering a
 line in the log rings whatever that line is about, where it is still standing.
 
-The transport controls are a video player: play, pause, stop, a step and a scan
-each way. Forward is the simulation advancing. Backward moves a playhead through
-the frames this page has already received, because the engine runs forwards only
-and reconstructing an earlier turn live would mean replaying from a snapshot.
+The transport controls are a video player: jump to the start, step back, play or
+pause, step forward, jump to the end, and a scrubber. Forward is the simulation
+advancing. Backward moves a playhead through the frames this page has already
+received, because the engine runs forwards only and reconstructing an earlier
+turn live would mean replaying from a snapshot. The scrubber therefore covers
+what this page has seen, not the whole run; for the whole run, open it from the
+library.
 
 `/#/runs` lists every run so far, newest first, with its seed, its settings, and
 the highest, lowest and final count of mice and cats. Opening a run reads it

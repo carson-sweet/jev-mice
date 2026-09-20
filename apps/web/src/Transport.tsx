@@ -1,105 +1,133 @@
-// Video-player controls for a running simulation. Play, pause, stop, and steps
-// and scans in both directions.
+// Video-player controls for a simulation, in the order a video player puts
+// them: to the start, back one, play or pause, forward one, to the end.
 //
-// Forward is the simulation advancing. Backward is the frames already received:
-// the engine only runs forwards, so stepping back moves a playhead through what
-// this page has already seen rather than asking the server to un-run a turn.
+// Nothing here appears or disappears. Every button is always rendered and the
+// frame label is zero-padded, so no control moves under the pointer when the
+// state changes. What a button does is said in its tooltip, which costs no
+// layout, and the state is in the buttons themselves rather than in a word
+// beside them: the middle button shows play or pause, and a run that is over
+// has all of them disabled.
+
+import { pad } from './playhead'
 
 export interface TransportState {
   playing: boolean
   over: boolean
-  /** How far back from the newest frame the playhead is, in frames. */
-  behind: number
-  /** How many frames are held to scan back through. */
+  live: boolean
+  /** Frames held, and which of them is being shown. */
   buffered: number
+  index: number
+  /** The turn on screen, and the last turn this run will reach. */
+  tick: number
+  totalTicks: number
 }
 
 export interface TransportActions {
   play: () => void
   pause: () => void
   stop: () => void
+  toStart: () => void
   stepBack: () => void
   stepForward: () => void
-  scanBack: () => void
-  scanForward: () => void
-  live: () => void
+  toEnd: () => void
+  seek: (index: number) => void
 }
 
-const BTN = 'flex h-7 w-7 items-center justify-center rounded border border-zinc-700 '
-  + 'text-zinc-200 hover:border-zinc-500 disabled:cursor-not-allowed '
+const BTN = 'flex h-7 w-8 shrink-0 items-center justify-center rounded border '
+  + 'border-zinc-700 text-zinc-200 hover:border-zinc-500 focus-visible:outline-none '
+  + 'focus-visible:ring-1 focus-visible:ring-sky-500 disabled:cursor-not-allowed '
   + 'disabled:border-zinc-800 disabled:text-zinc-600'
 
-function Icon({ d, mirrored = false }: { d: string; mirrored?: boolean }): React.ReactElement {
+function Icon({ d }: { d: string }): React.ReactElement {
   return (
-    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false"
-         style={mirrored ? { transform: 'scaleX(-1)' } : undefined}>
+    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
       <path d={d} fill="currentColor" />
     </svg>
   )
 }
 
-const PLAY = 'M4.5 2.7v10.6L13 8z'
-const PAUSE = 'M4 2.8h3v10.4H4zM9 2.8h3v10.4H9z'
-const STOP = 'M3.4 3.4h9.2v9.2H3.4z'
-const SCAN = 'M7.6 3.2v9.6L1.8 8zM14.2 3.2v9.6L8.4 8z'
-const STEP = 'M5.4 3.2v9.6L11.2 8zM12 3.2h1.9v9.6H12z'
+// A bar and two triangles for the ends, one triangle and a bar for a step, so
+// "all the way" and "one at a time" are told apart at a glance.
+const TO_START = 'M2 3h1.7v10H2zM10 3v10L4.8 8zM15 3v10L9.8 8z'
+const STEP_BACK = 'M3.3 3h1.9v10H3.3zM12.8 3v10L6.5 8z'
+const PLAY = 'M4.8 2.8v10.4L13.2 8z'
+const PAUSE = 'M4.2 2.8h3.1v10.4H4.2zM8.7 2.8h3.1v10.4H8.7z'
+const STEP_FORWARD = 'M3.2 3v10L9.5 8zM10.8 3h1.9v10h-1.9z'
+const TO_END = 'M14 3h-1.7v10H14zM6 3v10l5.2-5zM1 3v10l5.2-5z'
+const STOP = 'M3.6 3.6h8.8v8.8H3.6z'
 
 export function Transport({ state, actions }: {
   state: TransportState
   actions: TransportActions
 }): React.ReactElement {
-  const { playing, over, behind, buffered } = state
-  const scanning = behind > 0
+  const { playing, over, live, buffered, index, tick, totalTicks } = state
+  const nothing = buffered === 0
+  const atStart = nothing || index <= 0
+  const atEnd = nothing || live
 
   return (
-    <div className="flex items-center gap-1" role="group" aria-label="Playback">
-      <button type="button" className={BTN} title="Scan back"
-              aria-label="Scan back" disabled={buffered <= 1}
-              onClick={actions.scanBack}>
-        <Icon d={SCAN} mirrored />
-      </button>
-      <button type="button" className={BTN} title="Step back one frame"
-              aria-label="Step back" disabled={behind >= buffered - 1 || buffered <= 1}
-              onClick={actions.stepBack}>
-        <Icon d={STEP} mirrored />
-      </button>
-
-      {playing && !scanning
-        ? <button type="button" className={BTN} title="Pause" aria-label="Pause"
-                  disabled={over} onClick={actions.pause}>
-            <Icon d={PAUSE} />
-          </button>
-        : <button type="button" className={BTN} title={scanning ? 'Return to live' : 'Play'}
-                  aria-label={scanning ? 'Return to live' : 'Play'} disabled={over}
-                  onClick={scanning ? actions.live : actions.play}>
-            <Icon d={PLAY} />
-          </button>}
-
-      <button type="button" className={BTN} title="Step forward one turn"
-              aria-label="Step forward" disabled={over && behind === 0}
-              onClick={actions.stepForward}>
-        <Icon d={STEP} />
-      </button>
-      <button type="button" className={BTN} title="Scan forward"
-              aria-label="Scan forward" disabled={behind === 0}
-              onClick={actions.scanForward}>
-        <Icon d={SCAN} />
-      </button>
-      <button type="button" className={BTN} title="Stop the run"
-              aria-label="Stop" disabled={over} onClick={actions.stop}>
-        <Icon d={STOP} />
-      </button>
-
-      {scanning && (
+    <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1" role="group" aria-label="Playback">
+        <button type="button" className={BTN} disabled={atStart}
+                title="To the first frame held" aria-label="To the start"
+                onClick={actions.toStart}>
+          <Icon d={TO_START} />
+        </button>
+        <button type="button" className={BTN} disabled={atStart}
+                title="Back one frame" aria-label="Step back"
+                onClick={actions.stepBack}>
+          <Icon d={STEP_BACK} />
+        </button>
         <button
           type="button"
-          onClick={actions.live}
-          className="ml-1 rounded bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300
-                     hover:bg-amber-500/25"
+          className={BTN}
+          disabled={over && live}
+          title={playing && live ? 'Pause' : live ? 'Play' : 'Play from the newest frame'}
+          aria-label={playing && live ? 'Pause' : 'Play'}
+          aria-pressed={playing && live}
+          onClick={playing && live ? actions.pause : actions.play}
         >
-          {behind} frame{behind === 1 ? '' : 's'} back, return to live
+          <Icon d={playing && live ? PAUSE : PLAY} />
         </button>
-      )}
+        <button type="button" className={BTN} disabled={over && live}
+                title={live ? 'Advance one turn' : 'Forward one frame'}
+                aria-label="Step forward" onClick={actions.stepForward}>
+          <Icon d={STEP_FORWARD} />
+        </button>
+        <button type="button" className={BTN} disabled={atEnd}
+                title="To the newest frame, and follow along" aria-label="To the end"
+                onClick={actions.toEnd}>
+          <Icon d={TO_END} />
+        </button>
+        <button type="button" className={`${BTN} ml-2`} disabled={over}
+                title="End this run" aria-label="Stop the run" onClick={actions.stop}>
+          <Icon d={STOP} />
+        </button>
+      </div>
+
+      <label className="flex min-w-0 items-center gap-2">
+        <span className="sr-only">Scrub through the frames held</span>
+        <input
+          type="range"
+          min={0}
+          max={Math.max(0, buffered - 1)}
+          value={Math.max(0, index)}
+          disabled={buffered <= 1}
+          aria-label="Scrub through the frames held"
+          aria-valuetext={`turn ${String(tick)}`}
+          onChange={(e) => { actions.seek(Number(e.target.value)) }}
+          className="w-40 accent-sky-500 disabled:opacity-40"
+        />
+      </label>
+
+      {/* Zero-padded and tabular, so the label never changes width. */}
+      <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-zinc-400">
+        turn <span className="text-zinc-200">{pad(tick)}</span> of {pad(totalTicks)}
+        {/* Both words are four characters, so the label keeps its width. */}
+        <span className={live ? 'text-emerald-400' : 'text-amber-400'}>
+          {' '}{live ? 'live' : 'back'}
+        </span>
+      </span>
     </div>
   )
 }

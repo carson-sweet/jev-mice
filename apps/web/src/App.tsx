@@ -15,14 +15,13 @@ import { Speed } from './Speed'
 import { Runs } from './Runs'
 import { RunDetail } from './RunDetail'
 import { Transport } from './Transport'
+import { resolve, type Playhead } from './playhead'
 
 const MAX_POINTS = 600
 /** Enough to scroll back through without letting the page grow forever. */
 const MAX_LOG = 400
 /** Frames kept for scanning back through what has already been seen. */
 const MAX_FRAMES = 240
-/** How far a scan jumps, in frames. */
-const SCAN = 10
 
 interface Point { tick: number; population: number; food: number; cats: number }
 
@@ -37,51 +36,11 @@ function useRoute(): string {
   return hash
 }
 
-function Controls({ run, onAction }: {
-  run: RunSummary
-  onAction: (a: 'pause' | 'resume' | 'step' | 'stop') => void
-}): React.ReactElement {
-  const over = run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled'
-  const btn = 'rounded border border-zinc-700 px-3 py-1 text-sm text-zinc-200 ' +
-              'hover:border-zinc-500 disabled:cursor-not-allowed disabled:text-zinc-600'
-  return (
-    <div className="flex items-center gap-2">
-      {run.status === 'paused'
-        ? <button type="button" className={btn} onClick={() => { onAction('resume') }}>Resume</button>
-        : <button type="button" className={btn} disabled={over}
-                  onClick={() => { onAction('pause') }}>Pause</button>}
-      <button type="button" className={btn} disabled={over || run.status !== 'paused'}
-              onClick={() => { onAction('step') }}>Step</button>
-      <button type="button" className={btn} disabled={over}
-              onClick={() => { onAction('stop') }}>Stop</button>
-    </div>
-  )
-}
-
-function Status({ run }: { run: RunSummary }): React.ReactElement {
-  const tone: Record<string, string> = {
-    running: 'text-emerald-300 border-emerald-800 bg-emerald-950/40',
-    paused: 'text-amber-300 border-amber-800 bg-amber-950/40',
-    queued: 'text-sky-300 border-sky-800 bg-sky-950/40',
-    completed: 'text-zinc-300 border-zinc-700 bg-zinc-900',
-    failed: 'text-red-300 border-red-800 bg-red-950/40',
-    cancelled: 'text-zinc-400 border-zinc-700 bg-zinc-900',
-  }
-  return (
-    <span className={`rounded border px-2 py-0.5 text-xs ${tone[run.status] ?? ''}`}>
-      {run.status}
-      {run.status === 'queued' && run.queuePosition !== null
-        ? `, ${String(run.queuePosition)} in line`
-        : ''}
-    </span>
-  )
-}
-
 export function App(): React.ReactElement {
   const [runs, setRuns] = useState<RunSummary[]>([])
   const [run, setRun] = useState<RunSummary | null>(null)
   const [frames, setFrames] = useState<Frame[]>([])
-  const [behind, setBehind] = useState(0)
+  const [playhead, setPlayhead] = useState<Playhead>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [highlighted, setHighlighted] = useState<readonly string[]>([])
   const [points, setPoints] = useState<Point[]>([])
@@ -110,7 +69,7 @@ export function App(): React.ReactElement {
   const open = useCallback((id: string) => {
     stop.current?.()
     setFrames([])
-    setBehind(0)
+    setPlayhead(null)
     setPoints([])
     setLog([])
     setSelected(null)
@@ -132,6 +91,7 @@ export function App(): React.ReactElement {
         }].slice(-MAX_POINTS))
       } else if (m.t === 'status') {
         setRun(m.run)
+        if (m.run.status === 'failed' && m.run.error !== null) setError(m.run.error)
       } else {
         setError(m.message)
       }
@@ -162,27 +122,25 @@ export function App(): React.ReactElement {
     void api.control(run.id, a).then(refresh).catch(() => undefined)
   }, [run, refresh])
 
-  // The playhead. At zero it is the newest frame, which is the live edge.
-  const frame = frames.length === 0
-    ? null
-    : frames[Math.max(0, frames.length - 1 - behind)] ?? null
+  const at = resolve(frames.map((f) => f.tick), playhead)
+  const frame = at.index < 0 ? null : frames[at.index] ?? null
 
   const over = run === null || run.status === 'completed' || run.status === 'failed'
     || run.status === 'cancelled'
 
   const transport = {
-    play: () => { setBehind(0); act('resume') },
+    play: () => { setPlayhead(null); act('resume') },
     pause: () => { act('pause') },
     stop: () => { act('stop') },
-    live: () => { setBehind(0) },
-    stepBack: () => { setBehind((b) => Math.min(frames.length - 1, b + 1)) },
+    toStart: () => { setPlayhead(at.start) },
+    toEnd: () => { setPlayhead(null) },
+    stepBack: () => { setPlayhead(at.back) },
     stepForward: () => {
-      // Forward out of the buffer first; at the live edge, ask for a turn.
-      if (behind > 0) setBehind((b) => Math.max(0, b - 1))
-      else act('step')
+      // Out of the buffer first; at the newest frame, ask for another turn.
+      if (at.live) act('step')
+      else setPlayhead(at.forward)
     },
-    scanBack: () => { setBehind((b) => Math.min(frames.length - 1, b + SCAN)) },
-    scanForward: () => { setBehind((b) => Math.max(0, b - SCAN)) },
+    seek: (i: number) => { setPlayhead(at.seek(i)) },
   }
 
   const world = run ? PRESETS[run.config.preset] : PRESETS.medium
@@ -213,9 +171,6 @@ export function App(): React.ReactElement {
         </div>
         {run && (
           <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400">
-              tick {run.currentTick} of {run.config.ticks}
-            </span>
             <span className="text-xs text-zinc-500">
               decided by {run.decidedBy === 'jev' ? 'Jev' : 'the fixed rules'}
             </span>
@@ -226,13 +181,15 @@ export function App(): React.ReactElement {
                         || run.status === 'cancelled'}
               onChange={setSpeed}
             />
-            <Status run={run} />
             <Transport
               state={{
                 playing: run.status === 'running',
                 over,
-                behind,
+                live: at.live,
                 buffered: frames.length,
+                index: at.index,
+                tick: frame?.tick ?? run.currentTick,
+                totalTicks: run.config.ticks,
               }}
               actions={transport}
             />
