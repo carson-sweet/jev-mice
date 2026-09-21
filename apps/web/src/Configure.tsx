@@ -5,8 +5,6 @@ import { useEffect, useId, useState } from 'react'
 import { capsFor, defaultConfig, validateConfig, PRESETS,
          type Personality, type Preset, type RunConfig } from '@jev-mice/engine'
 
-import { OddsPanel } from './OddsPanel.js'
-
 const PERSONALITIES: Personality[] = ['bold', 'cautious', 'vigilant', 'social']
 
 /**
@@ -58,12 +56,21 @@ function InfoTip({ label, children }: {
   )
 }
 
+/**
+ * A bounded number.
+ *
+ * The range used to be printed under every field, which cost five rows of
+ * height across the form and said what the input already enforces. It is the
+ * field's title now, so it is still there on hover but no longer competes with
+ * the controls for a short window.
+ */
 function Number_({ label, value, min, max, onChange, hint }: {
   label: string; value: number; min: number; max: number
   onChange: (n: number) => void; hint?: string
 }): React.ReactElement {
+  const range = hint ?? `${String(min)} to ${String(max)}`
   return (
-    <label className="block">
+    <label className="block" title={`${label}: ${range}`}>
       <span className="text-xs text-zinc-400">{label}</span>
       <input
         type="number"
@@ -71,10 +78,9 @@ function Number_({ label, value, min, max, onChange, hint }: {
         min={min}
         max={max}
         onChange={(e) => { onChange(Number(e.target.value)) }}
-        className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1
+        className="mt-0.5 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1
                    text-zinc-100 focus:border-sky-500 focus:outline-none"
       />
-      <span className="text-[11px] text-zinc-600">{hint ?? `${String(min)} to ${String(max)}`}</span>
     </label>
   )
 }
@@ -103,7 +109,7 @@ export function Configure({ onStart, busy, jevAvailable }: {
 
   return (
     <form
-      className="space-y-4"
+      className="space-y-2"
       onSubmit={(e) => {
         e.preventDefault()
         if (errors.length > 0) return
@@ -114,6 +120,24 @@ export function Configure({ onStart, busy, jevAvailable }: {
         })
       }}
     >
+      {/* First, and deliberately. At the bottom it could be pushed off a short
+          window, which is the one control that must never be out of reach. The
+          errors sit with it because an error is the reason it is disabled. */}
+      <button
+        type="submit"
+        disabled={busy || errors.length > 0}
+        className="w-full rounded bg-sky-600 px-3 py-2 font-medium text-white
+                   hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-zinc-700"
+      >
+        {busy ? 'Starting' : 'Start a run'}
+      </button>
+
+      {errors.length > 0 && (
+        <ul className="rounded border border-amber-700/50 bg-amber-950/30 p-2 text-xs text-amber-200">
+          {errors.map((e) => <li key={e.field + e.code}>{e.message}</li>)}
+        </ul>
+      )}
+
       <div>
         <span className="flex items-center gap-1.5">
           <span className="text-xs text-zinc-400">Decided by</span>
@@ -157,7 +181,12 @@ export function Configure({ onStart, busy, jevAvailable }: {
       </div>
 
       <div>
-        <span className="text-xs text-zinc-400">World</span>
+        <span className="flex items-baseline justify-between">
+          <span className="text-xs text-zinc-400">World</span>
+          <span className="text-[11px] text-zinc-600">
+            {world.width} by {world.height} cells
+          </span>
+        </span>
         <div className="mt-1 flex gap-1">
           {(Object.keys(PRESETS) as Preset[]).map((p) => (
             <button
@@ -174,12 +203,9 @@ export function Configure({ onStart, busy, jevAvailable }: {
             </button>
           ))}
         </div>
-        <span className="text-[11px] text-zinc-600">
-          {world.width} by {world.height} cells
-        </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
         <Number_ label="Male mice" value={config.maleMice} min={0} max={caps.mice}
                  onChange={(n) => { set({ maleMice: n }) }} />
         <Number_ label="Female mice" value={config.femaleMice} min={0} max={caps.mice}
@@ -208,10 +234,17 @@ export function Configure({ onStart, busy, jevAvailable }: {
             {mix} percent
           </span>
         </div>
-        <div className="mt-1 space-y-1">
+        {/* Two columns rather than four rows: the same four sliders in half the
+            height, which is what lets the whole form fit a short window. */}
+        <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1">
           {PERSONALITIES.map((p) => (
-            <label key={p} className="flex items-center gap-2">
-              <span className="w-20 text-xs capitalize text-zinc-400">{p}</span>
+            <label key={p} className="block" title={`${p}: ${String(config.personality[p])} percent`}>
+              <span className="flex items-baseline justify-between">
+                <span className="text-[11px] capitalize text-zinc-400">{p}</span>
+                <span className="text-[11px] tabular-nums text-zinc-300">
+                  {config.personality[p]}
+                </span>
+              </span>
               <input
                 type="range"
                 min={0}
@@ -220,11 +253,8 @@ export function Configure({ onStart, busy, jevAvailable }: {
                 onChange={(e) => {
                   set({ personality: { ...config.personality, [p]: Number(e.target.value) } })
                 }}
-                className="flex-1 accent-sky-500"
+                className="w-full accent-sky-500"
               />
-              <span className="w-8 text-right text-xs tabular-nums text-zinc-300">
-                {config.personality[p]}
-              </span>
             </label>
           ))}
         </div>
@@ -246,27 +276,8 @@ export function Configure({ onStart, busy, jevAvailable }: {
           className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1
                      text-zinc-100 focus:border-sky-500 focus:outline-none"
         />
-        <span className="block text-[11px] text-zinc-600">
-          Leave it blank and a new seed is chosen for you.
-        </span>
       </div>
 
-      <OddsPanel config={config} decider={decider} />
-
-      {errors.length > 0 && (
-        <ul className="rounded border border-amber-700/50 bg-amber-950/30 p-2 text-xs text-amber-200">
-          {errors.map((e) => <li key={e.field + e.code}>{e.message}</li>)}
-        </ul>
-      )}
-
-      <button
-        type="submit"
-        disabled={busy || errors.length > 0}
-        className="w-full rounded bg-sky-600 px-3 py-2 font-medium text-white
-                   hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-zinc-700"
-      >
-        {busy ? 'Starting' : 'Start a run'}
-      </button>
     </form>
   )
 }

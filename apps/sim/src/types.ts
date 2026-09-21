@@ -3,6 +3,7 @@
 // Object in the deployment and behind a local server on a laptop.
 
 import type { RunConfig, SimEvent, Snapshot } from '@jev-mice/engine'
+import type { DecisionLine } from './protocol.js'
 
 export type Desired = 'run' | 'pause' | 'step' | 'stop'
 /** Why a run finished. Extinction is the engine stopping itself. */
@@ -115,8 +116,8 @@ export interface LogEntry {
 export interface Coordinator {
   ready(info: { engineVersion: string; pid: number; resumedFromTick?: number }): Promise<ChunkAck>
   chunk(report: ChunkReport): Promise<ChunkAck>
-  /** Frames and log lines travel together, on the same flush. */
-  frames(frames: Frame[], log: LogEntry[]): Promise<void>
+  /** Frames, log lines and decisions travel together, on the same flush. */
+  frames(frames: Frame[], log: LogEntry[], decisions?: DecisionLine[]): Promise<void>
   done(d: {
     finalTick: number; totals: ChunkReport['totals']; reason: EndReason
   }): Promise<void>

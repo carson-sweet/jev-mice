@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PRESETS, type RunConfig } from '@jev-mice/engine'
-import type { Frame, LogEntry } from '@jev-mice/sim'
+import type { DecisionLine, Frame, LogEntry } from '@jev-mice/sim'
 import {
   api, watchRun, type Capabilities, type Decider, type RunSummary,
 } from './api'
@@ -11,6 +11,8 @@ import { Configure } from './Configure'
 import { Legend } from './Legend'
 import { COLOURS } from './glyphs'
 import { Log } from './Log'
+import { Decisions } from './Decisions'
+import { TABS, initialTab, type TabId } from './tabs'
 import { Speed } from './Speed'
 import { Runs } from './Runs'
 import { RunDetail } from './RunDetail'
@@ -21,6 +23,8 @@ import { resolve, type Playhead } from './playhead'
 const MAX_POINTS = 600
 /** Enough to scroll back through without letting the page grow forever. */
 const MAX_LOG = 400
+/** The same, for the decisions tab. */
+const MAX_DECISIONS = 300
 /** Frames kept for scanning back through what has already been seen. */
 const MAX_FRAMES = 240
 
@@ -46,6 +50,8 @@ export function App(): React.ReactElement {
   const [highlighted, setHighlighted] = useState<readonly string[]>([])
   const [points, setPoints] = useState<Point[]>([])
   const [log, setLog] = useState<LogEntry[]>([])
+  const [decisions, setDecisions] = useState<DecisionLine[]>([])
+  const [tab, setTab] = useState<TabId>(() => initialTab({ watching: false }))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [caps, setCaps] = useState<Capabilities>(
@@ -73,6 +79,10 @@ export function App(): React.ReactElement {
     setPlayhead(null)
     setPoints([])
     setLog([])
+    setDecisions([])
+    // Attaching to a run means there is something to watch, so the panel moves
+    // off the history it was showing while idle.
+    setTab(initialTab({ watching: true }))
     setSelected(null)
     setHighlighted([])
     stop.current = watchRun(id, (m) => {
@@ -80,8 +90,11 @@ export function App(): React.ReactElement {
         setRun(m.run)
         if (m.frame) setFrames([m.frame])
         setLog(m.log.slice(-MAX_LOG))
+        setDecisions(m.decisions.slice(-MAX_DECISIONS))
       } else if (m.t === 'log') {
         setLog((l) => [...l, ...m.entries].slice(-MAX_LOG))
+      } else if (m.t === 'decisions') {
+        setDecisions((d) => [...d, ...m.entries].slice(-MAX_DECISIONS))
       } else if (m.t === 'frame') {
         setFrames((f) => [...f, m.frame].slice(-MAX_FRAMES))
         setPoints((p) => [...p, {
@@ -205,38 +218,14 @@ export function App(): React.ReactElement {
       )}
 
       <div className="flex min-h-0 flex-1">
+        {/* Sized to show everything at once down to a 720-pixel window, which is
+            what moving the runs list out to the HISTORY tab and dropping the
+            per-field range lines bought. The scroll is a safety net for a window
+            shorter than that, not the plan: without it a field below the fold is
+            unreachable rather than merely out of sight. Start is first either
+            way, so it is never the thing that goes. */}
         <aside className="w-72 shrink-0 overflow-y-auto border-r border-zinc-800 p-4">
           <Configure onStart={start} busy={busy} jevAvailable={caps.jevAvailable} />
-          <div className="mt-6 flex items-baseline justify-between">
-            <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-500">Runs</h2>
-            <a
-              href="#/runs"
-              target="_blank"
-              rel="noopener"
-              className="text-xs text-sky-400 hover:text-sky-300 hover:underline"
-            >
-              See all previous runs
-            </a>
-          </div>
-          <ul className="mt-2 space-y-1">
-            {runs.length === 0 && <li className="text-xs text-zinc-600">Nothing yet.</li>}
-            {runs.map((r) => (
-              <li key={r.id}>
-                <button
-                  type="button"
-                  onClick={() => { setRun(r); open(r.id) }}
-                  aria-current={run?.id === r.id}
-                  className={`w-full rounded px-2 py-1 text-left text-xs ${
-                    run?.id === r.id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-900'}`}
-                >
-                  <span className="block truncate">
-                    seed {r.seed} · {r.config.preset} · tick {r.currentTick}
-                  </span>
-                  <span className="text-[11px] text-zinc-600">{r.status}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
         </aside>
 
         {/* No items-center on the column: it would shrink the grid's wrapper to
@@ -261,7 +250,10 @@ export function App(): React.ReactElement {
               </p>}
         </main>
 
-        <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l
+        {/* w-72 is 18rem; a quarter wider is 22.5rem. Named exactly rather than
+            rounded to the nearest step, because the step above is 24rem and
+            takes a third of the map with it. */}
+        <aside className="flex w-[22.5rem] shrink-0 flex-col overflow-hidden border-l
                           border-zinc-800 p-4">
           <Inspector frame={frame} id={selected} onClear={() => { setSelected(null) }} />
           <h2 className="mt-4 text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -284,9 +276,71 @@ export function App(): React.ReactElement {
               <dd className="tabular-nums text-zinc-200">{run.seed}</dd>
             </dl>
           )}
-          {run && (
-            <Log entries={log} decidedBy={run.decidedBy} onHover={setHighlighted} />
-          )}
+          <section className="mt-4 flex min-h-0 flex-1 flex-col">
+            <div role="tablist" aria-label="Detail" className="flex gap-1 border-b border-zinc-800">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t.id}
+                  onClick={() => { setTab(t.id) }}
+                  className={`-mb-px border-b-2 px-2 py-1 text-[11px] font-medium tracking-wide ${
+                    tab === t.id
+                      ? 'border-sky-500 text-sky-200'
+                      : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {tab === 'ecosystem' && (run
+              ? <Log entries={log} decidedBy={run.decidedBy} onHover={setHighlighted} />
+              : <p className="mt-2 text-xs text-zinc-600">
+                  Start a run and the births, deaths and near misses appear here.
+                </p>)}
+
+            {tab === 'decisions' && (run
+              ? <Decisions entries={decisions} decidedBy={run.decidedBy} />
+              : <p className="mt-2 text-xs text-zinc-600">
+                  Start a run and every question and answer appears here.
+                </p>)}
+
+            {tab === 'history' && (
+              <div className="mt-2 flex min-h-0 flex-1 flex-col">
+                <a
+                  href="#/runs"
+                  target="_blank"
+                  rel="noopener"
+                  className="self-start text-xs text-sky-400 hover:text-sky-300 hover:underline"
+                >
+                  See all previous runs
+                </a>
+                <ul className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto">
+                  {runs.length === 0 && <li className="text-xs text-zinc-600">Nothing yet.</li>}
+                  {runs.map((r) => (
+                    <li key={r.id}>
+                      <button
+                        type="button"
+                        onClick={() => { setRun(r); open(r.id) }}
+                        aria-current={run?.id === r.id}
+                        className={`w-full rounded px-2 py-1 text-left text-xs ${
+                          run?.id === r.id
+                            ? 'bg-zinc-800 text-zinc-100'
+                            : 'text-zinc-400 hover:bg-zinc-900'}`}
+                      >
+                        <span className="block truncate">
+                          seed {r.seed} · {r.config.preset} · tick {r.currentTick}
+                        </span>
+                        <span className="text-[11px] text-zinc-600">{r.status}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
         </aside>
       </div>
     </div>

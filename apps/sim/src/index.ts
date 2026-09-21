@@ -3,13 +3,16 @@
 // it can neither name nor reach an object it was not given.
 
 import {
-  createEngine, restore, ENGINE_VERSION, hungerBand, narrate, CHANGES_POPULATION,
+  createEngine, restore, ENGINE_VERSION, hungerBand, narrate, situationLine,
+  CHANGES_POPULATION,
   type Engine, type SimEvent,
 } from '@jev-mice/engine'
 import type {
-  Advanced, Allowance, ChunkAck, ChunkBody, ChunkReport, Control, EndReason, Extent,
-  Frame, LogEntry, Simulation, SimulationOptions, SummaryBody, SummaryPoint,
+  Advanced, Allowance, ChunkAck, ChunkBody, ChunkReport, Control,
+  EndReason, Extent, Frame, LogEntry, Simulation, SimulationOptions, SummaryBody,
+  SummaryPoint,
 } from './types.js'
+import type { DecisionLine } from './protocol.js'
 
 export * from './types.js'
 export * from './protocol.js'
@@ -27,6 +30,8 @@ export const FRAMES_PER_SECOND = 20
 export const FRAME_EVERY_TICKS = 5
 export const FRAME_BATCH = 4
 export const FRAME_FLUSH_MS = 100
+/** Decisions carried on one flush. A busy turn makes more than anyone can read. */
+export const DECISION_BATCH = 12
 /** Which log kind each event becomes, for the mark shown beside the line. */
 const KIND_OF: Partial<Record<SimEvent['kind'], LogEntry['kind']>> = {
   death: 'starved',
@@ -115,6 +120,12 @@ export function createSimulation(opts: SimulationOptions): Simulation {
   let points: SummaryPoint[] = []
   let pendingFrames: Frame[] = []
   let pendingLog: LogEntry[] = []
+  /**
+   * Decisions waiting to go to whoever is watching. Capped per flush: a busy
+   * turn can produce twenty batches, and the tab is for reading rather than for
+   * completeness. The stored record keeps every one of them.
+   */
+  let pendingDecisions: DecisionLine[] = []
   /** The last decision each agent was given, so a death can name its cause. */
   const lastDecision = new Map<string, { intent: string; source: 'jev' | 'baseline' }>()
   let control: Control = { desired: 'run', speed: 0, seq: -1 }
@@ -163,6 +174,44 @@ export function createSimulation(opts: SimulationOptions): Simulation {
    * Only what changes the population, phrased by the engine's own narrator so
    * the live log and the turn history cannot say the same event differently.
    */
+  /**
+   * The decisions log. Only mice: a cat's state has none of the fields the
+   * summary reads, and its answer is a target rather than a drive.
+   */
+  function decisionsFrom(events: readonly SimEvent[], atTick: number): void {
+    for (const e of events) {
+      if (e.kind === 'decision_fallback') {
+        pendingDecisions.push({
+          seq: e.seq, tick: atTick, source: 'baseline', latencyMs: 0,
+          fallback: e.reason, subjects: [],
+        })
+        continue
+      }
+      if (e.kind !== 'decision_returned') continue
+      pendingDecisions.push({
+        seq: e.seq,
+        tick: atTick,
+        source: e.source,
+        latencyMs: e.latencyMs,
+        ...(e.model === undefined ? {} : { model: e.model }),
+        ...(e.inputTokens === undefined ? {} : { inputTokens: e.inputTokens }),
+        subjects: e.subjects
+          .filter((s) => s.agentId.startsWith('m'))
+          .map((s) => ({
+            agentId: s.agentId,
+            situation: situationLine(s.state),
+            intent: s.intent,
+            fear: s.fear,
+            confidence: Math.round(((s.answers['drive'] as { confidence?: number } | undefined)
+              ?.confidence ?? 0) * 100) / 100,
+          })),
+      })
+    }
+    if (pendingDecisions.length > DECISION_BATCH) {
+      pendingDecisions = pendingDecisions.slice(-DECISION_BATCH)
+    }
+  }
+
   function logFrom(events: readonly SimEvent[], atTick: number): void {
     for (const e of events) {
       if (!CHANGES_POPULATION.has(e.kind)) continue
@@ -259,12 +308,15 @@ export function createSimulation(opts: SimulationOptions): Simulation {
 
   async function flushFrames(): Promise<void> {
     lastFrameFlush = now()
-    if (pendingFrames.length === 0 && pendingLog.length === 0) return
+    if (pendingFrames.length === 0 && pendingLog.length === 0
+        && pendingDecisions.length === 0) return
     const batch = pendingFrames
     const log = pendingLog
+    const decisions = pendingDecisions
     pendingFrames = []
     pendingLog = []
-    await opts.coordinator.frames(batch, log)
+    pendingDecisions = []
+    await opts.coordinator.frames(batch, log, decisions)
   }
 
   /**
@@ -385,6 +437,7 @@ export function createSimulation(opts: SimulationOptions): Simulation {
 
       accumulate(fresh)
       logFrom(fresh, tick)
+      decisionsFrom(fresh, tick)
       for (const e of fresh) {
         if (e.kind === 'run_ended' && e.reason === 'extinct') engineEnded = 'extinct'
         else if (e.kind === 'run_ended') engineEnded = 'completed'

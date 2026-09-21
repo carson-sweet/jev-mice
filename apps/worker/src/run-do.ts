@@ -19,6 +19,7 @@ import { jevProvider } from '@jev-mice/provider-jev'
 import {
   createSimulation, SPEED,
   type Allowance, type ChunkAck, type Control, type Coordinator, type Decider,
+  type DecisionLine,
   type Extent, type Frame, type LogEntry, type RunStatus, type RunSummary,
   type ViewerMessage,
 } from '@jev-mice/sim'
@@ -39,6 +40,8 @@ interface Stored {
   snapshot: Snapshot | null
   lastFrame: Frame | null
   log: LogEntry[]
+  /** Kept for a viewer that joins part way through, as the log is. */
+  decisions: DecisionLine[]
 }
 
 export class RunDO implements DurableObject {
@@ -176,6 +179,7 @@ export class RunDO implements DurableObject {
     const allowance = await this.#allowanceFor(summary.decidedBy)
     const snapshot = await this.#get('snapshot')
     const log = await this.#get('log') ?? []
+    const decided = await this.#get('decisions') ?? []
 
     let nextSeq = summary.chunks.length
     let engineRef: { serialize(): Snapshot } | null = null
@@ -209,7 +213,7 @@ export class RunDO implements DurableObject {
         this.#publish({ t: 'status', run: summary })
         return ackNow()
       },
-      frames: (frames, entries) => {
+      frames: (frames, entries, decisions) => {
         for (const frame of frames) {
           summary.currentTick = frame.tick
           this.#publish({ t: 'frame', frame })
@@ -219,6 +223,11 @@ export class RunDO implements DurableObject {
           log.push(...entries)
           if (log.length > LOG_TAIL) log.splice(0, log.length - LOG_TAIL)
           this.#publish({ t: 'log', entries })
+        }
+        if (decisions && decisions.length > 0) {
+          decided.push(...decisions)
+          if (decided.length > LOG_TAIL) decided.splice(0, decided.length - LOG_TAIL)
+          this.#publish({ t: 'decisions', entries: decisions })
         }
         return Promise.resolve()
       },
@@ -268,6 +277,7 @@ export class RunDO implements DurableObject {
       await this.#put('snapshot', (engineRef as { serialize(): Snapshot }).serialize())
     }
     await this.#put('log', log)
+    await this.#put('decisions', decided)
     await this.#recordUsage(usage)
 
     if (summary.status === 'failed') {
@@ -349,6 +359,7 @@ export class RunDO implements DurableObject {
       await this.#announce(summary)
       await this.#put('control', { desired: 'run', speed: summary.speed, seq: 0 })
       await this.#put('log', [])
+      await this.#put('decisions', [])
       await this.#state.storage.setAlarm(Date.now() + 1)
       return Response.json({ run: summary }, { status: 201 })
     }
@@ -387,6 +398,7 @@ export class RunDO implements DurableObject {
         run: summary,
         frame: await this.#get('lastFrame') ?? null,
         log: await this.#get('log') ?? [],
+        decisions: await this.#get('decisions') ?? [],
       } satisfies ViewerMessage))
       return new Response(null, { status: 101, webSocket: client })
     }

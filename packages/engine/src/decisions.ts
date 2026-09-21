@@ -100,6 +100,42 @@ export function stateForMouse(c: MouseContext): Record<string, unknown> {
   return { mouse, surroundings, memories: c.memories.map((m) => m.sentence) }
 }
 
+/**
+ * One readable line describing what a mouse was asked, for the decisions log.
+ *
+ * A subject's full state is about a kilobyte, which is far more than a reader
+ * can take in and far more than is worth carrying anywhere. This keeps only
+ * what an answer has to be judged against -- the condition the mouse is in and
+ * what is actually around it -- and drops the absences, because five "nothing
+ * in sight" clauses on one line bury the one thing that matters.
+ *
+ * Tolerant of shapes it does not know: a cat's state has none of these fields,
+ * and nothing on the way to a log line may throw.
+ */
+export function situationLine(state: unknown): string {
+  if (typeof state !== 'object' || state === null) return ''
+  const s = state as { mouse?: Record<string, unknown>; surroundings?: Record<string, unknown> }
+  const mouse = s.mouse
+  if (typeof mouse !== 'object' || mouse === null) return ''
+
+  const parts: string[] = []
+  if (typeof mouse['hunger'] === 'string') parts.push(mouse['hunger'])
+  // The catalogue entry is a sentence; the log wants the word it starts with.
+  if (typeof mouse['personality'] === 'string') {
+    const word = mouse['personality'].split(':')[0]?.trim().toLowerCase()
+    if (word) parts.push(word)
+  }
+
+  const around: string[] = []
+  for (const key of ['cats', 'food', 'shelter', 'knownTraps', 'mice'] as const) {
+    const v = s.surroundings?.[key]
+    // An absence is phrased as "no ..." or "nothing ...", and is dropped.
+    if (typeof v === 'string' && !/^(no|nothing)\b/.test(v)) around.push(v)
+  }
+  parts.push(around.length > 0 ? around.join('; ') : 'nothing in sight')
+  return parts.join(', ')
+}
+
 // --------------------------------------------------------------- composition
 
 /**

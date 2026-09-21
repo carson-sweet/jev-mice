@@ -8,6 +8,7 @@ export {
   bucketNutrition, bucketDistance, bucketAge, catStateWord,
   composeRequests, contextFor, availableDrives, spatialOrder,
   baselineProvider, baselineDrive, baselineFear, baselineSubjects, baselineBatch, baselineCat, BLOCK, DANGER_FLOOR,
+  situationLine,
   type CatContext,
   type MouseContext,
 } from './decisions.js'

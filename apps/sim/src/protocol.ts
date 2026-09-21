@@ -33,10 +33,39 @@ export interface RunSummary {
   endReason: EndReason | null
 }
 
+/**
+ * One decision, reduced for the DECISIONS tab: what was asked and what came
+ * back. Reduced rather than passed through because a subject's full state is
+ * about a kilobyte and this travels on every flush.
+ */
+export interface DecisionLine {
+  /** The event's own sequence number, monotonic across the run. */
+  seq: number
+  tick: number
+  /** Who answered. A fallback says 'baseline' and carries a reason. */
+  source: 'jev' | 'baseline'
+  latencyMs: number
+  model?: string
+  inputTokens?: number
+  /** Present only when a batch meant for Jev was answered by the rules. */
+  fallback?: 'timeout' | 'error' | 'quota' | 'disabled'
+  subjects: {
+    agentId: string
+    /** One line of what it was asked, from situationLine. */
+    situation: string
+    /** What came back. */
+    intent: string
+    fear: string
+    confidence: number
+  }[]
+}
+
 export type ViewerMessage =
-  | { t: 'hello'; run: RunSummary; frame: Frame | null; log: LogEntry[] }
+  | { t: 'hello'; run: RunSummary; frame: Frame | null; log: LogEntry[]
+      decisions: DecisionLine[] }
   | { t: 'frame'; frame: Frame }
   | { t: 'log'; entries: LogEntry[] }
+  | { t: 'decisions'; entries: DecisionLine[] }
   | { t: 'status'; run: RunSummary }
   | { t: 'error'; message: string }
 

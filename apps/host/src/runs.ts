@@ -14,7 +14,7 @@ import { forget } from './turns.js'
 import {
   createSimulation, SPEED,
   type ChunkAck, type ChunkReport, type Control, type Coordinator, type Decider,
-  type Extent, type Frame, type LogEntry, type RunStatus, type RunSummary,
+  type DecisionLine, type Extent, type Frame, type LogEntry, type RunStatus, type RunSummary,
   type Simulation, type ViewerMessage,
 } from '@jev-mice/sim'
 
@@ -71,6 +71,8 @@ interface Live {
   lastFrame: Frame | null
   /** Bounded: a long run must not grow the process's memory through its log. */
   log: LogEntry[]
+  /** Kept for a viewer that joins part way through, as the log is. */
+  decisions: DecisionLine[]
   controlSeq: number
   /**
    * What this run was last told to do. Held rather than derived from the
@@ -185,7 +187,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         publish(live, { t: 'status', run: { ...live.summary } })
         return Promise.resolve(ackNow())
       },
-      frames: (frames, entries) => {
+      frames: (frames, entries, decisions) => {
         for (const frame of frames) {
           live.lastFrame = frame
           live.summary.currentTick = frame.tick
@@ -195,6 +197,13 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
           live.log.push(...entries)
           if (live.log.length > history) live.log.splice(0, live.log.length - history)
           publish(live, { t: 'log', entries })
+        }
+        if (decisions && decisions.length > 0) {
+          live.decisions.push(...decisions)
+          if (live.decisions.length > history) {
+            live.decisions.splice(0, live.decisions.length - history)
+          }
+          publish(live, { t: 'decisions', entries: decisions })
         }
         return Promise.resolve()
       },
@@ -298,7 +307,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         endReason: null,
       }
       const live: Live = {
-        summary, sim: null, lastFrame: null, log: [], controlSeq: 0,
+        summary, sim: null, lastFrame: null, log: [], decisions: [], controlSeq: 0,
         desired: 'run', watchers: new Set(), decider: chosen,
       }
       runs.set(id, live)
@@ -358,6 +367,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
       send({
         t: 'hello', run: { ...live.summary }, frame: live.lastFrame,
         log: [...live.log],
+        decisions: [...live.decisions],
       })
       return () => live.watchers.delete(send)
     },
