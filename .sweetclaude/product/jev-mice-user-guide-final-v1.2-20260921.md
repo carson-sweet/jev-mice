@@ -1,19 +1,19 @@
 ---
 title: jev-mice User Guide
-version: 1.1
+version: 1.2
 status: final
 author: Carson Sweet
 assisted_by: Claude Code + SweetClaude
 date: 2026-09-20
 audience: hybrid
 nda: false
-changes: minor. Unwrapped: one paragraph is one line. No content changed.
+changes: minor. Two paragraphs added to the limits section: what a Jev timeout fallback looks like in the DECISIONS tab and how rare it is, and what "decisions computed by the rules" counts, because summing that figure across a Jev run and a rules run is meaningless and I did exactly that.
 previous_file: none
 ---
 
 # jev-mice User Guide
 
-**Version:** 1.1
+**Version:** 1.2
 
 **Date:** 2026-09-20
 
@@ -244,6 +244,10 @@ These are the patterns that emerge, and the ones that surprised us.
 ---
 
 ## 6. Limits and known behaviour
+
+**Jev sometimes times out, and the rules answer instead.** If a request takes longer than the deployment allows, that batch falls back to the fixed rules and the run carries on rather than stalling. The DECISIONS tab shows it as `fell back: timeout` on the line it happened to. It is rare and it comes in bursts: across eighteen Jev runs on the deployment, 15 batches out of 10,816 fell back, all of them timeouts, in two clusters about twenty turns long that recovered on their own. If you see a handful in a row, that is Jev having a slow moment, not the run breaking.
+
+**"Decisions computed by the rules" means all of them on a rules run.** The figure in the run panel and in the report counts batches the baseline answered. On a Jev run that is the fallback count and should be near zero. On a rules run it is every decision in the run, because the rules are what you asked for. The two are not comparable and adding them together is meaningless -- which is a mistake worth naming, because it is the one that made this section necessary.
 
 **A Jev run cannot be replayed exactly.** The model is self-consistent but not guaranteed identical, so the same seed gives a different world. Rules runs are byte-identical on the same seed.
 
