@@ -20,6 +20,12 @@ export interface Env {
    * is what local development and any self-hosted copy get.
    */
   CF_ANALYTICS_TOKEN?: string
+  /**
+   * The longest run this deployment allows, in turns. Absent means whatever the
+   * engine allows. Lower than the engine's own ceiling because anyone with the
+   * link can start work here.
+   */
+  MAX_TICKS?: string
 }
 
 export const numberFrom = (v: string | undefined, fallback: number): number => {

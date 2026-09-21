@@ -72,6 +72,11 @@ export type ViewerMessage =
 export interface Capabilities {
   jevAvailable: boolean
   speed: { slowest: number; fastest: number }
+  /**
+   * The longest run this deployment allows. A deployment may allow less than
+   * the engine does; the form offers this rather than the engine's own ceiling.
+   */
+  maxTicks: number
 }
 
 export interface TurnStats { mice: number; cats: number; food: number; traps: number }

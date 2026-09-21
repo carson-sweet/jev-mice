@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { PRESETS, type RunConfig } from '@jev-mice/engine'
+import { PRESETS, TICK_RANGE, type RunConfig } from '@jev-mice/engine'
 import type { DecisionLine, Frame, LogEntry } from '@jev-mice/sim'
 import {
   api, watchRun, type Capabilities, type Decider, type RunSummary,
@@ -88,7 +88,7 @@ export function App(): React.ReactElement {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [caps, setCaps] = useState<Capabilities>(
-    { jevAvailable: false, speed: { slowest: 1, fastest: 334 } })
+    { jevAvailable: false, speed: { slowest: 1, fastest: 334 }, maxTicks: TICK_RANGE.max })
   const stop = useRef<(() => void) | null>(null)
   const route = useRoute()
 
@@ -163,6 +163,21 @@ export function App(): React.ReactElement {
     const id = run?.id
     if (id !== undefined) void api.setSpeed(id, ticksPerSecond).catch(() => undefined)
   }, [run?.id])
+
+  const queued = useMemo(() => runs.filter((r) => r.status === 'queued'), [runs])
+
+  /**
+   * Drop every run still waiting to start.
+   *
+   * A run paced slowly holds its slot for as long as it lasts, so a few long
+   * runs leave everything after them queued, and a queued run is inert in a way
+   * that looks broken. Without this the only way out is to wait, or to stop them
+   * one at a time.
+   */
+  const clearQueued = useCallback(() => {
+    void Promise.all(queued.map((r) => api.control(r.id, 'stop').catch(() => undefined)))
+      .then(refresh)
+  }, [queued, refresh])
 
   const act = useCallback((a: 'pause' | 'resume' | 'step' | 'stop') => {
     if (!run) return
@@ -288,7 +303,8 @@ export function App(): React.ReactElement {
             way, so it is never the thing that goes. */}
         <aside className="w-72 shrink-0 overflow-y-auto border-r border-zinc-800
                           bg-zinc-950/40 p-4">
-          <Configure onStart={start} busy={busy} jevAvailable={caps.jevAvailable} />
+          <Configure onStart={start} busy={busy} jevAvailable={caps.jevAvailable}
+                     maxTicks={caps.maxTicks} />
         </aside>
 
         {/* No items-center on the column: it would shrink the grid's wrapper to
@@ -400,14 +416,28 @@ export function App(): React.ReactElement {
 
             {tab === 'history' && (
               <div className="mt-2 flex min-h-0 flex-1 flex-col">
-                <a
-                  href="#/runs"
-                  target="_blank"
-                  rel="noopener"
-                  className="self-start text-xs text-sky-400 hover:text-sky-300 hover:underline"
-                >
-                  See all previous runs
-                </a>
+                <div className="flex items-baseline justify-between gap-2">
+                  <a
+                    href="#/runs"
+                    target="_blank"
+                    rel="noopener"
+                    className="text-xs text-sky-400 hover:text-sky-300 hover:underline"
+                  >
+                    See all previous runs
+                  </a>
+                  {queued.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearQueued}
+                      title={'Stop every run still waiting to start. Nothing already '
+                        + 'running is touched.'}
+                      className="rounded border border-zinc-700 px-1.5 py-0.5 text-[11px]
+                                 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                    >
+                      Clear {queued.length} queued
+                    </button>
+                  )}
+                </div>
                 <ul className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto">
                   {runs.length === 0 && <li className="text-xs text-zinc-600">Nothing yet.</li>}
                   {runs.map((r) => (

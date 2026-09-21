@@ -12,6 +12,7 @@ import { Hono } from 'hono'
 import { defaultConfig, validateConfig, type Preset, type RunConfig } from '@jev-mice/engine'
 import { SPEED, type Decider } from '@jev-mice/sim'
 import { beaconTag } from './analytics.js'
+import { tickCeiling, tooManyTicks } from './limits.js'
 import { httpsRedirect } from './https.js'
 import type { Env } from './env.js'
 
@@ -43,6 +44,9 @@ app.get('/api/capabilities', (c) => c.json({
   // this and learns nothing else.
   jevAvailable: Boolean(c.env.TYPESAFE_API_KEY),
   speed: { slowest: SPEED.slowest, fastest: SPEED.fastest },
+  // So the form offers what the deployment will actually accept, rather than
+  // offering 20,000 and refusing it on submit.
+  maxTicks: tickCeiling(c.env),
 }))
 
 app.get('/api/config/defaults', (c) => {
@@ -64,6 +68,10 @@ app.post('/api/runs', async (c) => {
   }>()
   if (!body.config) return c.json({ error: 'a configuration is required' }, 400)
   const errors = validateConfig(body.config)
+  // The deployment's own ceiling, checked here because the form is a suggestion
+  // and this is where a run actually comes into being.
+  const tooLong = tooManyTicks(body.config.ticks, tickCeiling(c.env))
+  if (tooLong) errors.push(tooLong)
   if (errors.length > 0) return c.json({ errors }, 400)
   if (body.decider !== undefined && body.decider !== 'jev' && body.decider !== 'rules') {
     return c.json({ error: 'decider must be jev or rules' }, 400)

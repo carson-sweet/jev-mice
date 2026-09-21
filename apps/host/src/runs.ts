@@ -343,7 +343,22 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
 
     control(id, action) {
       const live = runs.get(id)
-      if (!live || !live.sim) return false
+      if (!live) return false
+      if (!live.sim) {
+        // Queued: there is no simulation to tell anything. Stopping one is still
+        // meaningful and used to be refused outright, which left a backlog with
+        // no way out but waiting. Pausing or stepping is not: there is nothing
+        // to pause, and saying otherwise would report a state it is not in.
+        if (action !== 'stop') return false
+        const at = queue.indexOf(id)
+        if (at !== -1) queue.splice(at, 1)
+        live.desired = 'stop'
+        live.summary.queuePosition = null
+        setStatus(live, 'cancelled')
+        // The queue has to move on, or a slot sits idle with runs waiting for it.
+        renumberQueue()
+        return true
+      }
       live.controlSeq += 1
       const desired = action === 'resume' ? 'run' : action === 'stop' ? 'stop' : action
       // A step is one turn and then a hold, so what it leaves behind is a pause.

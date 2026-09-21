@@ -31,7 +31,11 @@ const host = createHost({
   ...(bind === undefined ? {} : { host: bind }),
   root: process.env.JEV_MICE_DATA ?? join(repoRoot, '.data'),
   webRoot: process.env.JEV_MICE_WEB ?? join(repoRoot, 'apps', 'web', 'dist'),
-  maxConcurrent: Number(process.env.JEV_MICE_MAX_RUNS ?? 4),
+  // Eight rather than four. A run paced slowly holds its slot for as long as it
+  // lasts, so a handful of long runs used to leave everything afterwards queued
+  // behind them, which is indistinguishable from the controls being broken.
+  // Eight on a ten-core machine leaves room for the browser drawing them.
+  maxConcurrent: Number(process.env.JEV_MICE_MAX_RUNS ?? 8),
   ...(process.env.JEV_MICE_KEEP_RUNS === undefined
     ? {}
     : { maxRuns: Number(process.env.JEV_MICE_KEEP_RUNS) }),

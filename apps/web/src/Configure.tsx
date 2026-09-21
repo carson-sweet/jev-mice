@@ -85,10 +85,12 @@ function Number_({ label, value, min, max, onChange, hint }: {
   )
 }
 
-export function Configure({ onStart, busy, jevAvailable }: {
+export function Configure({ onStart, busy, jevAvailable, maxTicks }: {
   onStart: (o: { config: RunConfig; seed?: number; decider: 'jev' | 'rules' }) => void
   busy: boolean
   jevAvailable: boolean
+  /** This deployment's ceiling, which may be lower than the engine's. */
+  maxTicks: number
 }): React.ReactElement {
   const [config, setConfig] = useState<RunConfig>(() => defaultConfig('medium'))
   const [seed, setSeed] = useState<string>('')
@@ -225,7 +227,7 @@ export function Configure({ onStart, busy, jevAvailable }: {
                  onChange={(n) => { set({ foodPiles: n }) }} />
         <Number_ label="Mouseholes" value={config.mouseholes} min={0} max={caps.mouseholes}
                  onChange={(n) => { set({ mouseholes: n }) }} />
-        <Number_ label="Ticks" value={config.ticks} min={100} max={20000}
+        <Number_ label="Ticks" value={config.ticks} min={100} max={maxTicks}
                  onChange={(n) => { set({ ticks: n }) }} />
         <Number_ label="Food respawn" value={config.foodRespawnTicks} min={0} max={1000}
                  onChange={(n) => { set({ foodRespawnTicks: n }) }} hint="ticks" />

@@ -8,7 +8,7 @@ import { once } from 'node:events'
 import { readFileSync, existsSync, statSync } from 'node:fs'
 import { join, extname, normalize } from 'node:path'
 import { WebSocketServer } from 'ws'
-import { defaultConfig, validateConfig, type RunConfig } from '@jev-mice/engine'
+import { defaultConfig, validateConfig, TICK_RANGE, type RunConfig } from '@jev-mice/engine'
 import { SPEED } from '@jev-mice/sim'
 import { createRunManager, type Decider, type RunManager, type ViewerMessage } from './runs.js'
 import { turnWindow, MAX_WINDOW, type StoredRun } from './turns.js'
@@ -93,6 +93,8 @@ export function createHost(opts: HostOptions): {
       return json(res, 200, {
         jevAvailable: manager.jevAvailable,
         speed: { slowest: SPEED.slowest, fastest: SPEED.fastest },
+        // A laptop has no reason to allow less than the engine does.
+        maxTicks: TICK_RANGE.max,
       })
     }
 
