@@ -5,6 +5,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { capsFor, defaultConfig, validateConfig, PRESETS,
          type Personality, type Preset, type RunConfig } from '@jev-mice/engine'
 
+import { OPENING_PRESET } from './opening'
+
 const PERSONALITIES: Personality[] = ['bold', 'cautious', 'vigilant', 'social']
 
 /**
@@ -92,7 +94,7 @@ export function Configure({ onStart, busy, jevAvailable, maxTicks }: {
   /** This deployment's ceiling, which may be lower than the engine's. */
   maxTicks: number
 }): React.ReactElement {
-  const [config, setConfig] = useState<RunConfig>(() => defaultConfig('medium'))
+  const [config, setConfig] = useState<RunConfig>(() => defaultConfig(OPENING_PRESET))
   const [seed, setSeed] = useState<string>('')
   const [decider, setDecider] = useState<'jev' | 'rules'>('rules')
 
