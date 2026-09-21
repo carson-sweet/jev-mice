@@ -6,6 +6,7 @@
 // report and the number in a test cannot disagree.
 
 import { fleeOrHideRate, personalityMix, type SimEvent } from '@jev-mice/engine'
+import { Zip, ZipDeflate } from 'fflate'
 import type { ChunkBody } from './types.js'
 import type { RunSummary } from './protocol.js'
 import { unzipJson, type StoredRun } from './turns.js'
@@ -242,4 +243,40 @@ export async function* exportLines(source: ReportSource): AsyncGenerator<string>
   for await (const batch of events(source)) {
     for (const e of batch) yield `${JSON.stringify(e)}\n`
   }
+}
+
+const exportUtf8 = new TextEncoder()
+
+/**
+ * exportLines, zipped into a single archive entry, streamed a chunk at a
+ * time so a long run is never held whole in memory.
+ *
+ * A zip container rather than a bare .gz body: a raw gzip download leaves
+ * Content-Type (what the bytes are) and Content-Encoding (how the transport
+ * compressed them) looking identical over the wire, and not every browser
+ * keeps them straight. One was seen transparently decompressing a plain
+ * gzip response and saving the decompressed bytes under the original
+ * ".gz" name -- a file that claims to be gzip and isn't, which the OS then
+ * refuses to open. A zip archive carries no such ambiguity: nothing
+ * transport-decompresses a zip in flight.
+ */
+export function exportZipStream(source: ReportSource, entryName: string): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const zip = new Zip((err, chunk, final) => {
+        if (err) { controller.error(err); return }
+        if (chunk.byteLength > 0) controller.enqueue(chunk)
+        if (final) controller.close()
+      })
+      const entry = new ZipDeflate(entryName)
+      zip.add(entry)
+      try {
+        for await (const line of exportLines(source)) entry.push(exportUtf8.encode(line))
+        entry.push(new Uint8Array(0), true)
+        zip.end()
+      } catch (err) {
+        controller.error(err)
+      }
+    },
+  })
 }

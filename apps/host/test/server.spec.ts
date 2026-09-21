@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { gunzipSync } from 'node:zlib'
+import { unzipSync } from 'fflate'
 import { WebSocket } from 'ws'
 import { defaultConfig } from '@jev-mice/engine'
 import { createHost } from '../src/server.js'
@@ -422,16 +422,22 @@ describe('Taking a run away with you', () => {
     expect(text).toContain('SM-07')
   }, 60_000)
 
-  it('Gives the whole record as gzipped lines that download', async () => {
+  it('Gives the whole record as a zipped JSON file that downloads', async () => {
     const id = await finishedRun(63)
     const r = await fetch(`${base}/api/runs/${id}/export`)
     expect(r.status).toBe(200)
-    expect(r.headers.get('content-type')).toBe('application/gzip')
-    expect(r.headers.get('content-disposition')).toContain('.jsonl.gz')
-    const body = Buffer.from(await r.arrayBuffer())
-    expect(body[0]).toBe(0x1f)
-    expect(body[1]).toBe(0x8b)
-    const lines = gunzipSync(body).toString('utf8').trimEnd().split('\n')
+    expect(r.headers.get('content-type')).toBe('application/zip')
+    expect(r.headers.get('content-disposition')).toContain('.zip')
+    const body = new Uint8Array(await r.arrayBuffer())
+    // Zip local file header signature: PK\x03\x04.
+    expect(body[0]).toBe(0x50)
+    expect(body[1]).toBe(0x4b)
+    const entries = unzipSync(body)
+    const names = Object.keys(entries)
+    expect(names).toHaveLength(1)
+    expect(names[0]).toContain('.json')
+    const lines = Buffer.from(entries[names[0] as string] as Uint8Array)
+      .toString('utf8').trimEnd().split('\n')
     expect(lines.length).toBeGreaterThan(100)
     const head = JSON.parse(lines[0] as string) as { kind: string; seed: number }
     expect(head.kind).toBe('run')
@@ -445,8 +451,10 @@ describe('Taking a run away with you', () => {
   it('Never puts the decision key in a report or a dump', async () => {
     const id = await finishedRun(64)
     const report = await (await fetch(`${base}/api/runs/${id}/report.md`)).text()
-    const dump = gunzipSync(Buffer.from(
-      await (await fetch(`${base}/api/runs/${id}/export`)).arrayBuffer())).toString('utf8')
+    const zipped = new Uint8Array(
+      await (await fetch(`${base}/api/runs/${id}/export`)).arrayBuffer())
+    const entries = unzipSync(zipped)
+    const dump = Buffer.from(Object.values(entries)[0] as Uint8Array).toString('utf8')
     for (const text of [report, dump]) {
       expect(text.toLowerCase()).not.toContain('apikey')
       expect(text.toLowerCase()).not.toContain('typesafe_api_key')

@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import { defaultConfig, validateConfig, type Preset, type RunConfig } from '@jev-mice/engine'
 import {
-  MAX_WINDOW, SPEED, buildReport, exportLines, renderReport, turnWindow,
+  MAX_WINDOW, SPEED, buildReport, exportZipStream, renderReport, turnWindow,
   type Decider, type RunSummary, type StoredRun,
 } from '@jev-mice/sim'
 import { beaconTag } from './analytics.js'
@@ -245,22 +245,13 @@ app.get('/api/runs/:id/report.md', async (c) => {
 app.get('/api/runs/:id/export', async (c) => {
   const source = await storedRun(c)
   if (!source) return c.json({ error: 'no such run' }, 404)
-  // Streamed and gzipped a line at a time, as the host does it, so a long run
+  // Streamed and zipped a line at a time, as the host does it, so a long run
   // never has to be held in memory to be taken away.
-  const utf8 = new TextEncoder()
-  const lines = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      for await (const line of exportLines(source)) controller.enqueue(utf8.encode(line))
-      controller.close()
-    },
-  })
-  const gz = new CompressionStream('gzip') as unknown as
-    ReadableWritablePair<Uint8Array, Uint8Array>
-  return new Response(lines.pipeThrough(gz), {
+  const seed = String(source.run.seed)
+  return new Response(exportZipStream(source, `jev-mice-${seed}.json`), {
     headers: {
-      'content-type': 'application/gzip',
-      'content-disposition':
-        `attachment; filename="jev-mice-${String(source.run.seed)}.jsonl.gz"`,
+      'content-type': 'application/zip',
+      'content-disposition': `attachment; filename="jev-mice-${seed}.zip"`,
       'cache-control': 'no-store',
     },
   })

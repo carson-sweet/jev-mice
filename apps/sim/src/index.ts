@@ -22,7 +22,7 @@ export {
   MAX_WINDOW, forget, describe, turnWindow, unzip, unzipJson, type StoredRun,
 } from './turns.js'
 export {
-  buildReport, renderReport, exportLines,
+  buildReport, renderReport, exportLines, exportZipStream,
   type Report, type ReportSource, type Measured,
 } from './report.js'
 

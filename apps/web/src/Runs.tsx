@@ -85,7 +85,7 @@ function Row({ run }: { run: RunSummary }): React.ReactElement {
           <a
             href={`/api/runs/${run.id}/export`}
             download
-            title="Every event of this run, as gzipped JSON lines"
+            title="Every event of this run, zipped"
             className="ml-1 rounded px-2 py-0.5 text-xs text-sky-400 hover:bg-zinc-800"
           >
             Data

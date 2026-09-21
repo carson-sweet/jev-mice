@@ -9,5 +9,8 @@
     "@jev-mice/provider-jev": "*",
     "@jev-mice/sim": "*",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "fflate": "^0.8.3"
   }
 }

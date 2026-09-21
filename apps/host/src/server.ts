@@ -3,8 +3,7 @@
 // browser: everything the page receives has already been decided.
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { createGzip } from 'node:zlib'
-import { once } from 'node:events'
+import { Readable } from 'node:stream'
 import { readFileSync, existsSync, statSync } from 'node:fs'
 import { readFile as readFileAsync } from 'node:fs/promises'
 import { join, extname, normalize } from 'node:path'
@@ -13,7 +12,7 @@ import { defaultConfig, validateConfig, TICK_RANGE, type RunConfig } from '@jev-
 import { SPEED } from '@jev-mice/sim'
 import { createRunManager, type Decider, type RunManager, type ViewerMessage } from './runs.js'
 import {
-  turnWindow, MAX_WINDOW, buildReport, renderReport, exportLines, type StoredRun,
+  turnWindow, MAX_WINDOW, buildReport, renderReport, exportZipStream, type StoredRun,
 } from '@jev-mice/sim'
 
 const TYPES: Record<string, string> = {
@@ -194,23 +193,23 @@ export function createHost(opts: HostOptions): {
       }
 
       if (rest === '/export' && method === 'GET') {
-        // Streamed and gzipped a line at a time, so a long run does not have to
+        // Streamed and zipped a line at a time, so a long run does not have to
         // fit in memory to be downloaded.
+        const seed = String(state.seed)
         res.writeHead(200, {
-          'content-type': 'application/gzip',
-          'content-disposition':
-            `attachment; filename="jev-mice-${String(state.seed)}.jsonl.gz"`,
+          'content-type': 'application/zip',
+          'content-disposition': `attachment; filename="jev-mice-${seed}.zip"`,
           'cache-control': 'no-store',
         })
-        const gzip = createGzip()
-        gzip.pipe(res)
-        try {
-          for await (const line of exportLines({ run: state, stored: storedRun() })) {
-            if (!gzip.write(line)) await once(gzip, 'drain')
-          }
-        } finally {
-          gzip.end()
-        }
+        const source = { run: state, stored: storedRun() }
+        await new Promise<void>((resolve, reject) => {
+          const node = Readable.fromWeb(
+            exportZipStream(source, `jev-mice-${seed}.json`) as never,
+          )
+          node.pipe(res)
+          node.on('error', reject)
+          res.on('finish', resolve)
+        })
         return
       }
 
