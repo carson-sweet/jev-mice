@@ -1,7 +1,7 @@
 // The starting conditions. Every knob is bounded by the preset it belongs to,
 // so the form cannot ask for a world the engine will refuse.
 
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { capsFor, defaultConfig, validateConfig, PRESETS,
          type Personality, type Preset, type RunConfig } from '@jev-mice/engine'
 
@@ -94,8 +94,15 @@ export function Configure({ onStart, busy, jevAvailable }: {
   const [seed, setSeed] = useState<string>('')
   const [decider, setDecider] = useState<'jev' | 'rules'>('rules')
 
-  // Jev is the interesting case, so it is the default the moment it is possible.
-  useEffect(() => { setDecider(jevAvailable ? 'jev' : 'rules') }, [jevAvailable])
+  // Jev is the interesting case, so it is the default the moment it is possible
+  // -- but only until someone chooses. Capabilities arrive after the first
+  // render, and without the guard this effect fired afterwards and put the
+  // choice back to Jev, so picking "Use rules" quickly then pressing Start gave
+  // a Jev run.
+  const chosen = useRef(false)
+  useEffect(() => {
+    if (!chosen.current) setDecider(jevAvailable ? 'jev' : 'rules')
+  }, [jevAvailable])
   const caps = capsFor(config.preset)
   const errors = validateConfig(config)
   const mix = PERSONALITIES.reduce((t, p) => t + config.personality[p], 0)
@@ -160,7 +167,7 @@ export function Configure({ onStart, busy, jevAvailable }: {
                 title={unavailable
                   ? 'No decision key is configured. Set TYPESAFE_API_KEY in .env to offer Jev.'
                   : undefined}
-                onClick={() => { setDecider(value) }}
+                onClick={() => { chosen.current = true; setDecider(value) }}
                 className={`flex-1 rounded border px-2 py-1 text-sm ${
                   decider === value
                     ? 'border-sky-500 bg-sky-500/15 text-sky-200'

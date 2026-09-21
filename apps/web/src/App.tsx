@@ -39,15 +39,25 @@ const STATUS: Record<string, { label: string; dot: string; text: string }> = {
   failed: { label: 'failed', dot: 'bg-red-400', text: 'text-red-300' },
 }
 
-/** Status as a light and a word. A light is read without being parsed. */
-function StatusDot({ status, live }: { status: string; live: boolean }): React.ReactElement {
+/**
+ * Status as a light and a word. A light is read without being parsed.
+ *
+ * The queue position is part of it, because a queued run sits at turn zero with
+ * every control inert and is otherwise indistinguishable from a broken one.
+ */
+function StatusDot({ status, live, queued }: {
+  status: string; live: boolean; queued?: number | null
+}): React.ReactElement {
   const s = STATUS[status] ?? STATUS['queued']!
+  const ahead = status === 'queued' && typeof queued === 'number' && queued > 1
+    ? `, ${String(queued - 1)} ahead`
+    : ''
   return (
     <span className="flex items-center gap-1.5">
       <span className={`h-1.5 w-1.5 rounded-full ${s.dot} ${
         status === 'running' ? 'animate-pulse' : ''}`} aria-hidden="true" />
       <span className={`text-[11px] ${s.text}`}>
-        {s.label}{status === 'running' && !live ? ', behind' : ''}
+        {s.label}{ahead}{status === 'running' && !live ? ', behind' : ''}
       </span>
     </span>
   )
@@ -231,7 +241,8 @@ export function App(): React.ReactElement {
                 </span>
                 <span className="text-zinc-600"> / {run.config.ticks.toLocaleString('en-US')}</span>
               </span>
-              <StatusDot status={run.status} live={at.live} />
+              <StatusDot status={run.status} live={at.live}
+                         queued={run.queuePosition} />
             </div>
           )}
         </div>
@@ -294,6 +305,24 @@ export function App(): React.ReactElement {
                   {run.endReason === 'extinct' && (
                     <Extinction tick={run.currentTick} />
                   )}
+                  {run.status === 'queued' && (
+                    <div className="absolute inset-0 flex items-center justify-center
+                                    bg-zinc-950/70 p-6 text-center">
+                      <p className="max-w-sm text-sm text-zinc-400">
+                        <span className="block font-medium text-zinc-200">
+                          Waiting in the queue
+                        </span>
+                        <span className="mt-1 block text-xs">
+                          {typeof run.queuePosition === 'number' && run.queuePosition > 1
+                            ? `${String(run.queuePosition - 1)} runs are ahead of this one. `
+                            : ''}
+                          This machine runs a few simulations at a time and starts
+                          this one when a slot frees. Nothing will move, and the
+                          controls stay inert, until it does.
+                        </span>
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <Legend />
               </>
@@ -312,16 +341,18 @@ export function App(): React.ReactElement {
           <h2 className="mt-4 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
             Over time
           </h2>
-          <div className="mt-2">
-            {points.length > 1
-              ? <Chart ticks={ticks} series={series} />
-              : <p className="text-xs text-zinc-600">
-                  {run && over
-                    // A finished run sends no more frames, so nothing will ever
-                    // arrive and saying "waiting" is simply untrue.
-                    ? 'This run is over. Its turn-by-turn record is in HISTORY.'
-                    : 'Waiting for the first frames.'}
-                </p>}
+          {/* Always drawn, even with nothing in it. It used to be replaced by a
+              line of text until the first frames arrived, so the whole panel
+              jumped the moment a run started. An empty chart is a frame waiting
+              to be filled; a line of text is a different layout. */}
+          <div className="relative mt-2">
+            <Chart ticks={ticks} series={series} />
+            {points.length <= 1 && (
+              <p className="absolute inset-0 flex items-center justify-center
+                            text-xs text-zinc-600">
+                {run && over ? 'This run is over.' : 'Waiting for the first frames.'}
+              </p>
+            )}
           </div>
           {run && (
             <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-md border
