@@ -66,7 +66,8 @@ export function Transport({ state, actions }: {
   const atEnd = nothing || live
 
   return (
-    <div className="flex items-center gap-3">
+    <div className={`flex items-center gap-3 ${over && live ? 'opacity-50' : ''}`}
+         title={over && live ? 'This run has finished. Scrub back to look at it again.' : undefined}>
       <div className="flex items-center gap-1" role="group" aria-label="Playback">
         <button type="button" className={BTN} disabled={atStart}
                 title="To the first frame held" aria-label="To the start"

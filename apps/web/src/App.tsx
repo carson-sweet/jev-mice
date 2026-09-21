@@ -237,8 +237,8 @@ export function App(): React.ReactElement {
         </div>
 
         {run && (
-          <div className="flex items-center gap-4 border-t border-zinc-800/70 bg-zinc-900/30
-                          px-4 py-1.5">
+          <div className="flex items-center justify-end gap-4 border-t border-zinc-800/70
+                          bg-zinc-900/30 px-4 py-1.5">
             <Speed
               speed={run.speed}
               fastest={caps.speed.fastest}
