@@ -294,7 +294,8 @@ export function createSimulation(opts: SimulationOptions): Simulation {
         id: c.id, x: c.at.x, y: c.at.y, mode: c.mode,
         nutrition: Math.round(c.nutrition), hungry: c.hungry, shedding: c.shedding,
       })),
-      food: (w?.food ?? []).filter((f) => f.present).map((f) => ({ id: f.id, x: f.at.x, y: f.at.y })),
+      food: (w?.food ?? []).filter((f) => f.present)
+        .map((f) => ({ id: f.id, x: f.at.x, y: f.at.y, contaminated: f.contaminated })),
       traps: (w?.traps ?? []).map((t) => ({
         id: t.id, x: t.at.x, y: t.at.y, occupied: t.occupantId !== null })),
       holes: (w?.holes ?? []).map((h) => ({

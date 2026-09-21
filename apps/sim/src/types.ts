@@ -67,7 +67,9 @@ export interface Frame {
           nutrition: number; hungry: boolean
           /** Passing oocysts into the environment. */
           shedding: boolean }[]
-  food: { id: string; x: number; y: number }[]
+  food: { id: string; x: number; y: number
+          /** Carrying oocysts, so eating it infects. */
+          contaminated: boolean }[]
   traps: { id: string; x: number; y: number; occupied: boolean }[]
   holes: { id: string; x: number; y: number; occupancy: string }[]
 }

@@ -14,6 +14,8 @@ import { COLOURS } from './glyphs'
 import { Log } from './Log'
 import { Decisions } from './Decisions'
 import { TABS, initialTab, type TabId } from './tabs'
+import { decides, decisionsFor, logFor } from './filtering'
+import { kindOf, KIND_LABEL } from './kinds'
 import { Speed } from './Speed'
 import { Runs } from './Runs'
 import { RunDetail } from './RunDetail'
@@ -219,6 +221,12 @@ export function App(): React.ReactElement {
       values: points.map((p) => p.cats) },
   ], [points])
 
+  // Both panels narrow to whatever is being tracked. Derived rather than
+  // stored: selection is the only state, so clearing it cannot leave a stale
+  // filter behind.
+  const shownLog = useMemo(() => logFor(log, selected), [log, selected])
+  const shownDecisions = useMemo(() => decisionsFor(decisions, selected), [decisions, selected])
+
   const detail = /^#\/runs\/(.+)$/.exec(route)
   if (detail) return <RunDetail id={detail[1] ?? ''} />
   if (route.startsWith('#/runs')) return <Runs onBack={() => undefined} />
@@ -235,9 +243,15 @@ export function App(): React.ReactElement {
             <h1 className="shrink-0 text-sm font-semibold tracking-tight text-zinc-100">
               jev-mice
             </h1>
-            <span className="hidden truncate text-xs text-zinc-600 lg:block">
-              mice, cats, traps and food, decided one animal at a time
-            </span>
+            <span aria-hidden="true" className="text-zinc-700">&bull;</span>
+            <a
+              href="https://carsonsweet.com"
+              target="_blank"
+              rel="noopener"
+              className="font-mono text-xs text-zinc-500 hover:text-zinc-300 hover:underline"
+            >
+              carsonsweet.com
+            </a>
           </div>
 
           {run && (
@@ -405,14 +419,43 @@ export function App(): React.ReactElement {
               ))}
             </div>
 
+            {selected !== null && (tab === 'ecosystem' || tab === 'decisions') && (
+              <div className="mt-1.5 flex items-baseline justify-between gap-2 rounded
+                              border border-sky-800/50 bg-sky-950/20 px-2 py-1 text-[11px]">
+                <span className="text-sky-200">
+                  Only {selected}
+                  {kindOf(selected) !== null && (
+                    <span className="text-sky-400/70">
+                      {' '}&mdash; {KIND_LABEL[kindOf(selected)!].toLowerCase()}
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setSelected(null) }}
+                  className="shrink-0 text-sky-400 hover:text-sky-200 hover:underline"
+                >
+                  Show everything
+                </button>
+              </div>
+            )}
+
             {tab === 'ecosystem' && (run
-              ? <Log entries={log} decidedBy={run.decidedBy} onHover={setHighlighted} />
+              ? <Log entries={shownLog} decidedBy={run.decidedBy} onHover={setHighlighted} />
               : <p className="mt-2 text-xs text-zinc-600">
                   Start a run and the births, deaths and near misses appear here.
                 </p>)}
 
             {tab === 'decisions' && (run
-              ? <Decisions entries={decisions} decidedBy={run.decidedBy} />
+              ? selected !== null && !decides(selected)
+                // A trap, a food pile and a mousehole never answer a question.
+                // An empty list would read as a fault rather than as the point.
+                ? <p className="mt-2 text-xs text-zinc-600">
+                    A {KIND_LABEL[kindOf(selected) ?? 'food'].toLowerCase()} makes no
+                    decisions. Track a mouse or a cat to see judgment, or show
+                    everything.
+                  </p>
+                : <Decisions entries={shownDecisions} decidedBy={run.decidedBy} />
               : <p className="mt-2 text-xs text-zinc-600">
                   Start a run and every question and answer appears here.
                 </p>)}

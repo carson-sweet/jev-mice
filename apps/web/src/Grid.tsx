@@ -5,6 +5,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import type { Frame } from '@jev-mice/sim'
 import { COLOURS, drawGlyph, drawInfectionRing, glyphLabel, type GlyphKind } from './glyphs'
+import { pickAt } from './picking'
 import { useDevicePixelRatio } from './dpr'
 
 /** What sits on one cell, named by the key rather than by a second wording. */
@@ -117,17 +118,31 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
       // hungry and infected shows both rather than one winning.
       drawGlyph(ctx, m.hungry ? 'mouseHungry' : 'mouse', m.x * size, m.y * size, size)
       if (m.infected) drawInfectionRing(ctx, m.x * size, m.y * size, size)
-      if (m.id === selected) {
-        ctx.strokeStyle = COLOURS.selected
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.arc(m.x * size + size / 2, m.y * size + size / 2, Math.max(2, size / 2), 0, Math.PI * 2)
-        ctx.stroke()
-      }
     }
     for (const c of frame.cats) {
       drawGlyph(ctx, c.shedding ? 'catShedding' : c.hungry ? 'catHungry' : 'cat',
                 c.x * size, c.y * size, size)
+    }
+
+    // The selected thing, whatever kind it is. Drawn after every glyph so the
+    // ring is never painted over, and in one place so a cat, a trap and a
+    // mousehole are all ringed the same way a mouse is.
+    if (selected !== null) {
+      const at = [
+        ...frame.mice.filter((m) => !m.inHole && m.id === selected),
+        ...frame.cats.filter((c) => c.id === selected),
+        ...frame.traps.filter((t) => t.id === selected),
+        ...frame.food.filter((f) => f.id === selected),
+        ...frame.holes.filter((h) => h.id === selected),
+      ][0]
+      if (at) {
+        ctx.strokeStyle = COLOURS.selected
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.arc(at.x * size + size / 2, at.y * size + size / 2,
+                Math.max(2, size / 2), 0, Math.PI * 2)
+        ctx.stroke()
+      }
     }
 
     // Anything a hovered log line is about, ringed where it still stands.
@@ -177,8 +192,8 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
         onMouseLeave={() => { setHover(null) }}
         onClick={(e) => {
           const { x, y } = cellAt(e)
-          const hit = frame?.mice.find((m) => !m.inHole && m.x === x && m.y === y)
-          onSelect(hit?.id ?? null)
+          // Everything on the map is selectable, and pickAt resolves a stack.
+          onSelect(pickAt(frame, x, y)?.id ?? null)
         }}
       />
       {hover !== null && (
