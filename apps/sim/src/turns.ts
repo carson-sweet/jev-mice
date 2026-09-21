@@ -5,18 +5,19 @@
 // Plain movement is left out. It is most of the stream by count and none of the
 // story, and a turn view that includes it cannot be read.
 
-import { readFile } from 'node:fs/promises'
-import { gunzip } from 'node:zlib'
-import { promisify } from 'node:util'
 import { narrate, NOT_WORTH_SAYING, type SimEvent } from '@jev-mice/engine'
 import type {
-  ChunkBody, SummaryBody, SummaryPoint, Turn, TurnEvent, TurnStats, TurnWindow,
-} from '@jev-mice/sim'
-
-export type { Turn, TurnEvent, TurnStats, TurnWindow } from '@jev-mice/sim'
+  ChunkBody, SummaryBody, SummaryPoint,
+} from './types.js'
+import type { Turn, TurnEvent, TurnStats, TurnWindow } from './protocol.js'
 
 /** The most turns one request will assemble. A page asks for a screenful. */
 export const MAX_WINDOW = 500
+
+/** Gunzip and parse, which is what every caller actually wants. */
+export async function unzipJson<T>(bytes: Uint8Array): Promise<T> {
+  return JSON.parse(await unzip(bytes)) as T
+}
 
 const zeroStats: TurnStats = { mice: 0, cats: 0, food: 0, traps: 0 }
 const statsOf = (p: SummaryPoint): TurnStats =>
@@ -26,7 +27,19 @@ const minus = (a: TurnStats, b: TurnStats): TurnStats => ({
   food: a.food - b.food, traps: a.traps - b.traps,
 })
 
-const unzip = promisify(gunzip)
+/**
+ * Gunzip through the web stream, which both Node and the Workers runtime have.
+ * node:zlib would be simpler and does not exist in a Durable Object, and this
+ * module now runs in one.
+ */
+export async function unzip(bytes: Uint8Array): Promise<string> {
+  const source = new ReadableStream<Uint8Array>({
+    start(c) { c.enqueue(bytes); c.close() },
+  })
+  const gz = new DecompressionStream('gzip') as unknown as
+    ReadableWritablePair<Uint8Array, Uint8Array>
+  return await new Response(source.pipeThrough(gz)).text()
+}
 
 /**
  * Decoded chunks, kept briefly.
@@ -58,17 +71,20 @@ export function forget(runId: string): void {
   }
 }
 
-async function read<T>(key: string, path: string): Promise<T | null> {
+async function read<T>(
+  key: string, load: () => Promise<Uint8Array | null>,
+): Promise<T | null> {
   if (cache.has(key)) return cache.get(key) as T
-  let raw: Buffer
+  let raw: Uint8Array | null
   try {
-    raw = await readFile(path)
+    raw = await load()
   } catch {
-    // A chunk that is not there yet is not an error: a run in progress has not
-    // written its open chunk, and a reader may legitimately ask for it.
-    return null
+    raw = null
   }
-  const parsed = JSON.parse((await unzip(raw)).toString('utf8')) as T
+  // A chunk that is not there yet is not an error: a run in progress has not
+  // written its open chunk, and a reader may legitimately ask for it.
+  if (raw === null) return null
+  const parsed = JSON.parse(await unzip(raw)) as T
   remember(key, parsed)
   return parsed
 }
@@ -89,8 +105,15 @@ export interface StoredRun {
   /** Namespaces this run's cache entries. */
   id: string
   chunks: { seq: number; firstTick: number; lastTick: number }[]
-  chunkPath(seq: number): string
-  summaryPath(seq: number): string
+  /**
+   * The stored bytes for one chunk, still gzipped, or null if it is not there.
+   *
+   * A reader rather than a path, so the same assembly runs over a filesystem on
+   * a laptop and over object storage in the deployment. It used to be a path,
+   * which is why the deployment had no turn history at all.
+   */
+  readChunk(seq: number): Promise<Uint8Array | null>
+  readSummary(seq: number): Promise<Uint8Array | null>
   totalTurns: number
 }
 
@@ -107,12 +130,12 @@ export async function turnWindow(
 
   for (const c of need) {
     const summary = await read<SummaryBody>(
-      `${run.id}:summary:${String(c.seq)}`, run.summaryPath(c.seq))
+      `${run.id}:summary:${String(c.seq)}`, () => run.readSummary(c.seq))
     for (const p of summary?.points ?? []) {
       if (p.tick >= first - 1 && p.tick <= last) points.set(p.tick, p)
     }
     const chunk = await read<ChunkBody>(
-      `${run.id}:chunk:${String(c.seq)}`, run.chunkPath(c.seq))
+      `${run.id}:chunk:${String(c.seq)}`, () => run.readChunk(c.seq))
     for (const e of chunk?.events ?? []) {
       if (e.tick < first || e.tick > last || NOT_WORTH_SAYING.has(e.kind)) continue
       const bucket = events.get(e.tick)

@@ -10,9 +10,9 @@ import {
   baselineProvider, validateConfig, type DecisionProvider, type RunConfig,
 } from '@jev-mice/engine'
 import { jevProvider, type SystemOneLike } from '@jev-mice/provider-jev'
-import { forget } from './turns.js'
+
 import {
-  createSimulation, SPEED, SPEED_CEILING,
+  createSimulation, forget, SPEED, SPEED_CEILING,
   type ChunkAck, type ChunkReport, type Control, type Coordinator, type Decider,
   type DecisionLine, type Extent, type Frame, type LogEntry, type RunStatus, type RunSummary,
   type Simulation, type ViewerMessage,

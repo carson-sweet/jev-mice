@@ -14,6 +14,7 @@ import { COLOURS } from './glyphs'
 import { Log } from './Log'
 import { Decisions } from './Decisions'
 import { TABS, initialTab, type TabId } from './tabs'
+import { hrefFor, parseRoute, type Route } from './routing'
 import { decides, decisionsFor, logFor } from './filtering'
 import { kindOf, KIND_LABEL } from './kinds'
 import { Speed } from './Speed'
@@ -66,15 +67,26 @@ function StatusDot({ status, live, queued }: {
   )
 }
 
-/** Two pages, addressable so a link to the library can be shared or bookmarked. */
-function useRoute(): string {
-  const [hash, setHash] = useState(() => window.location.hash || '#/')
+/**
+ * Which page is showing, from the URL.
+ *
+ * Real paths rather than a hash: the deployment now serves the application for
+ * any unmatched path, so /runs is a link someone can paste without a # in it.
+ * popstate covers the back button, and an old hash link is still read.
+ */
+function useRoute(): Route {
+  const read = (): Route => parseRoute(window.location.pathname, window.location.hash)
+  const [route, setRoute] = useState<Route>(read)
   useEffect(() => {
-    const on = (): void => { setHash(window.location.hash || '#/') }
+    const on = (): void => { setRoute(read()) }
+    window.addEventListener('popstate', on)
     window.addEventListener('hashchange', on)
-    return () => { window.removeEventListener('hashchange', on) }
+    return () => {
+      window.removeEventListener('popstate', on)
+      window.removeEventListener('hashchange', on)
+    }
   }, [])
-  return hash
+  return route
 }
 
 export function App(): React.ReactElement {
@@ -227,9 +239,8 @@ export function App(): React.ReactElement {
   const shownLog = useMemo(() => logFor(log, selected), [log, selected])
   const shownDecisions = useMemo(() => decisionsFor(decisions, selected), [decisions, selected])
 
-  const detail = /^#\/runs\/(.+)$/.exec(route)
-  if (detail) return <RunDetail id={detail[1] ?? ''} />
-  if (route.startsWith('#/runs')) return <Runs onBack={() => undefined} />
+  if (route.kind === 'run') return <RunDetail id={route.id} />
+  if (route.kind === 'runs') return <Runs onBack={() => undefined} />
 
   return (
     <div className="flex h-full flex-col">
@@ -464,7 +475,7 @@ export function App(): React.ReactElement {
               <div className="mt-2 flex min-h-0 flex-1 flex-col">
                 <div className="flex items-baseline justify-between gap-2">
                   <a
-                    href="#/runs"
+                    href={hrefFor({ kind: 'runs' })}
                     target="_blank"
                     rel="noopener"
                     className="text-xs text-sky-400 hover:text-sky-300 hover:underline"

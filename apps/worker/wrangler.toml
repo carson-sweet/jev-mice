@@ -38,6 +38,11 @@ binding = "ASSETS"
 # and / did not. Running the Worker first costs an invocation per asset and is
 # what makes a rule about every request actually apply to every request.
 run_worker_first = true
+# Any path with no file behind it gets the application, so /runs and
+# /runs/<id> are real links. Without this the deployment 404'd on both, which
+# is the only reason routing went through the hash.
+not_found_handling = "single-page-application"
+
 
 [[durable_objects.bindings]]
 name = "RUN"

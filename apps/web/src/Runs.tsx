@@ -42,7 +42,7 @@ function Row({ run }: { run: RunSummary }): React.ReactElement {
       <tr className="border-t border-zinc-800 align-top hover:bg-zinc-900/60">
         <td className="whitespace-nowrap px-3 py-2">
           <a
-            href={`#/runs/${run.id}`}
+            href={`/runs/${run.id}`}
             className="text-sky-400 hover:text-sky-300 hover:underline"
             title="Open this run turn by turn"
           >

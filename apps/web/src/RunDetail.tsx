@@ -180,7 +180,7 @@ export function RunDetail({ id }: { id: string }): React.ReactElement {
           </span>
         </div>
         <a
-          href="#/runs"
+          href="/runs"
           className="rounded border border-zinc-700 px-3 py-1 text-sm text-zinc-200
                      hover:border-zinc-500"
         >

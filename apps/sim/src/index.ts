@@ -16,6 +16,15 @@ import type { DecisionLine } from './protocol.js'
 
 export * from './types.js'
 export * from './protocol.js'
+// Named rather than star-exported: both modules also mention the wire types,
+// which protocol.js already exports.
+export {
+  MAX_WINDOW, forget, describe, turnWindow, unzip, unzipJson, type StoredRun,
+} from './turns.js'
+export {
+  buildReport, renderReport, exportLines,
+  type Report, type ReportSource, type Measured,
+} from './report.js'
 
 /** A chunk closes at whichever of these comes first. */
 export const CHUNK_TICKS = 250

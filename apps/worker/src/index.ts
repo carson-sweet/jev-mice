@@ -10,7 +10,10 @@
 
 import { Hono } from 'hono'
 import { defaultConfig, validateConfig, type Preset, type RunConfig } from '@jev-mice/engine'
-import { SPEED, type Decider } from '@jev-mice/sim'
+import {
+  MAX_WINDOW, SPEED, buildReport, exportLines, renderReport, turnWindow,
+  type Decider, type RunSummary, type StoredRun,
+} from '@jev-mice/sim'
 import { beaconTag } from './analytics.js'
 import { tickCeiling, tooManyTicks } from './limits.js'
 import { httpsRedirect } from './https.js'
@@ -173,6 +176,95 @@ app.get('/api/runs/:id/chunks/:seq', (c) =>
 
 app.get('/api/runs/:id/summary/:seq', (c) =>
   object(c, `runs/${c.req.param('id')}/summary/${c.req.param('seq')}.json.gz`))
+
+/**
+ * The stored telemetry: the turn-by-turn record, the report and the whole run.
+ *
+ * These four existed on the local host and never on the deployment, so the run
+ * history page and every download answered "no such route" in production while
+ * working on a laptop. The assembly is shared now -- the same code over a
+ * filesystem there and over object storage here -- rather than written twice.
+ */
+const storedRun = async (c: {
+  env: Env
+  req: { param(k: string): string }
+}): Promise<{ run: RunSummary; stored: StoredRun } | null> => {
+  const id = c.req.param('id')
+  const state = await runStub(c.env, id).fetch('https://run/state')
+  if (!state.ok) return null
+  const { run } = await state.json<{ run: RunSummary }>()
+  const bytes = async (key: string): Promise<Uint8Array | null> => {
+    const got = await c.env.RECORDS.get(key)
+    return got ? new Uint8Array(await got.arrayBuffer()) : null
+  }
+  return {
+    run,
+    stored: {
+      id,
+      chunks: run.chunks,
+      readChunk: (seq) => bytes(`runs/${id}/chunks/${String(seq)}.json.gz`),
+      readSummary: (seq) => bytes(`runs/${id}/summary/${String(seq)}.json.gz`),
+      totalTurns: run.currentTick,
+    },
+  }
+}
+
+app.get('/api/runs/:id/turns', async (c) => {
+  const source = await storedRun(c)
+  if (!source) return c.json({ error: 'no such run' }, 404)
+  const from = Number(c.req.query('from') ?? 1)
+  const to = Number(c.req.query('to') ?? from + 49)
+  const window = await turnWindow(
+    source.stored,
+    Number.isFinite(from) ? from : 1,
+    Math.min(Number.isFinite(to) ? to : from + 49, (Number.isFinite(from) ? from : 1) + MAX_WINDOW),
+  )
+  return c.json({ ...window, runId: c.req.param('id') })
+})
+
+app.get('/api/runs/:id/report', async (c) => {
+  const source = await storedRun(c)
+  if (!source) return c.json({ error: 'no such run' }, 404)
+  return c.json(await buildReport(source))
+})
+
+app.get('/api/runs/:id/report.md', async (c) => {
+  const source = await storedRun(c)
+  if (!source) return c.json({ error: 'no such run' }, 404)
+  const text = renderReport(await buildReport(source))
+  return new Response(text, {
+    headers: {
+      'content-type': 'text/markdown; charset=utf-8',
+      'content-disposition':
+        `attachment; filename="jev-mice-${String(source.run.seed)}-report.md"`,
+      'cache-control': 'no-store',
+    },
+  })
+})
+
+app.get('/api/runs/:id/export', async (c) => {
+  const source = await storedRun(c)
+  if (!source) return c.json({ error: 'no such run' }, 404)
+  // Streamed and gzipped a line at a time, as the host does it, so a long run
+  // never has to be held in memory to be taken away.
+  const utf8 = new TextEncoder()
+  const lines = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      for await (const line of exportLines(source)) controller.enqueue(utf8.encode(line))
+      controller.close()
+    },
+  })
+  const gz = new CompressionStream('gzip') as unknown as
+    ReadableWritablePair<Uint8Array, Uint8Array>
+  return new Response(lines.pipeThrough(gz), {
+    headers: {
+      'content-type': 'application/gzip',
+      'content-disposition':
+        `attachment; filename="jev-mice-${String(source.run.seed)}.jsonl.gz"`,
+      'cache-control': 'no-store',
+    },
+  })
+})
 
 app.all('/api/*', (c) => c.json({ error: 'no such route' }, 404))
 

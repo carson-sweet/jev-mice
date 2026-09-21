@@ -5,14 +5,11 @@
 // behavioural measures come from the engine's own reducers, so the number in a
 // report and the number in a test cannot disagree.
 
-import { readFile } from 'node:fs/promises'
-import { gunzip } from 'node:zlib'
-import { promisify } from 'node:util'
 import { fleeOrHideRate, personalityMix, type SimEvent } from '@jev-mice/engine'
-import type { ChunkBody, RunSummary } from '@jev-mice/sim'
-import type { StoredRun } from './turns.js'
+import type { ChunkBody } from './types.js'
+import type { RunSummary } from './protocol.js'
+import { unzipJson, type StoredRun } from './turns.js'
 
-const unzip = promisify(gunzip)
 
 export interface ReportSource {
   run: RunSummary
@@ -56,15 +53,16 @@ export interface Report {
 /** Every event of a run, chunk by chunk, so nothing holds the whole record. */
 async function* events(source: ReportSource): AsyncGenerator<SimEvent[]> {
   for (const c of source.stored.chunks) {
-    let raw: Buffer
+    let raw: Uint8Array | null
     try {
-      raw = await readFile(source.stored.chunkPath(c.seq))
+      raw = await source.stored.readChunk(c.seq)
     } catch {
       // A chunk that never made it to storage leaves a gap rather than a
       // failure: a report of most of a run is worth more than none of it.
       continue
     }
-    const body = JSON.parse((await unzip(raw)).toString('utf8')) as ChunkBody
+    if (raw === null) continue
+    const body = await unzipJson<ChunkBody>(raw)
     yield body.events
   }
 }

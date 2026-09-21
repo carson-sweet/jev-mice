@@ -3,7 +3,9 @@
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true,
-    "types": ["@cloudflare/workers-types"],
+    // node is here for the tests, which read the viewer's client off disk to
+    // compare route surfaces. The source must not use it; runtime.spec.ts guards that.
+    "types": ["@cloudflare/workers-types", "node"],
     "lib": ["ES2022"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]

@@ -2,10 +2,17 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import { defaultConfig, type RunConfig, type SimEvent } from '@jev-mice/engine'
-import { buildReport, renderReport, exportLines, type ReportSource } from '../src/report.js'
+import { buildReport, renderReport, exportLines, type ReportSource } from '@jev-mice/sim'
+
+/** The stored bytes, or null if the file is not there, as the reader contract asks. */
+async function readOrNull(path: string): Promise<Uint8Array | null> {
+  try { return new Uint8Array(await readFile(path)) } catch { return null }
+}
+
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -50,8 +57,8 @@ function stored(o: {
     stored: {
       id: root,
       chunks: [{ seq: 0, firstTick: 1, lastTick: turns }],
-      chunkPath: (seq) => join(root, 'chunks', `${String(seq)}.json.gz`),
-      summaryPath: (seq) => join(root, 'summary', `${String(seq)}.json.gz`),
+      readChunk: (seq: number) => readOrNull(join(root, 'chunks', `${String(seq)}.json.gz`)),
+      readSummary: (seq: number) => readOrNull(join(root, 'summary', `${String(seq)}.json.gz`)),
       totalTurns: turns,
     },
   }
@@ -227,7 +234,9 @@ describe('The data dump', () => {
 
   it('Survives a run whose chunk is missing, rather than failing', async () => {
     const source = stored({ events: [] })
-    rmSync(source.stored.chunkPath(0))
+    // The reader now hides where the bytes live, so the test removes them by
+    // replacing the reader rather than by deleting a path it happens to know.
+    source.stored = { ...source.stored, readChunk: async () => null }
     const lines: string[] = []
     for await (const line of exportLines(source)) lines.push(line)
     expect(lines).toHaveLength(1)

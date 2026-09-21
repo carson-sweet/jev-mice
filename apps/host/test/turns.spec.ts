@@ -4,11 +4,18 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import {
   turnWindow, describe as describeEvent, forget, MAX_WINDOW, type StoredRun,
-} from '../src/turns.js'
+} from '@jev-mice/sim'
+
+/** The stored bytes, or null if the file is not there, as the reader contract asks. */
+async function readOrNull(path: string): Promise<Uint8Array | null> {
+  try { return new Uint8Array(await readFile(path)) } catch { return null }
+}
+
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -60,8 +67,8 @@ function stored(o: {
   return {
     id: root,
     chunks: o.chunks,
-    chunkPath: (seq) => join(root, 'chunks', `${String(seq)}.json.gz`),
-    summaryPath: (seq) => join(root, 'summary', `${String(seq)}.json.gz`),
+    readChunk: (seq: number) => readOrNull(join(root, 'chunks', `${String(seq)}.json.gz`)),
+    readSummary: (seq: number) => readOrNull(join(root, 'summary', `${String(seq)}.json.gz`)),
     totalTurns: o.totalTurns ?? o.chunks[o.chunks.length - 1]?.lastTick ?? 0,
   }
 }
@@ -142,8 +149,9 @@ describe('When the storage is not what it should be', () => {
   })
 
   it('Answers with no turns for a run that has produced none, rather than failing', async () => {
-    const w = await turnWindow({ id: 'empty', chunks: [], chunkPath: () => '',
-                                 summaryPath: () => '', totalTurns: 0 }, 1, 10)
+    const w = await turnWindow({ id: 'empty', chunks: [],
+                                 readChunk: async () => null,
+                                 readSummary: async () => null, totalTurns: 0 }, 1, 10)
     expect(w.turns).toEqual([])
     expect(w.totalTurns).toBe(0)
     expect(w.from).toBe(1)
@@ -189,8 +197,8 @@ describe('Reading the same chunk repeatedly', () => {
     const run = stored({ chunks: oneChunk })
     const counted: StoredRun = {
       ...run,
-      chunkPath: (seq) => { reads++; return run.chunkPath(seq) },
-      summaryPath: (seq) => run.summaryPath(seq),
+      readChunk: (seq: number) => { reads++; return run.readChunk(seq) },
+      readSummary: (seq: number) => run.readSummary(seq),
     }
     forget(counted.id)
     for (let page = 0; page < 10; page++) {
@@ -198,8 +206,12 @@ describe('Reading the same chunk repeatedly', () => {
       const w = await turnWindow(counted, from, from + 9)
       expect(w.turns).toHaveLength(10)
     }
-    // The path is still asked for each time; the bytes are decoded once.
-    expect(reads).toBe(10)
+    // Read once, for ten pages. This used to assert ten: the old contract
+    // handed out a path, so the path was resolved on every page and only the
+    // decode was cached. A reader is only called on a miss, so the cache now
+    // avoids the read as well -- which matters more in the deployment, where a
+    // read is a request to object storage rather than a local file.
+    expect(reads).toBe(1)
     const again = await turnWindow(counted, 1, 10)
     expect(again.turns[0]?.stats.mice).toBe(10)
   })

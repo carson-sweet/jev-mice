@@ -6,13 +6,15 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createGzip } from 'node:zlib'
 import { once } from 'node:events'
 import { readFileSync, existsSync, statSync } from 'node:fs'
+import { readFile as readFileAsync } from 'node:fs/promises'
 import { join, extname, normalize } from 'node:path'
 import { WebSocketServer } from 'ws'
 import { defaultConfig, validateConfig, TICK_RANGE, type RunConfig } from '@jev-mice/engine'
 import { SPEED } from '@jev-mice/sim'
 import { createRunManager, type Decider, type RunManager, type ViewerMessage } from './runs.js'
-import { turnWindow, MAX_WINDOW, type StoredRun } from './turns.js'
-import { buildReport, renderReport, exportLines } from './report.js'
+import {
+  turnWindow, MAX_WINDOW, buildReport, renderReport, exportLines, type StoredRun,
+} from '@jev-mice/sim'
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -162,11 +164,17 @@ export function createHost(opts: HostOptions): {
         return json(res, ok ? 200 : 409, { run: manager.get(id) })
       }
 
+      // Readers rather than paths: the same assembly runs over object storage
+      // in the deployment, which has no filesystem.
+      const fromDisk = async (path: string | null): Promise<Uint8Array | null> => {
+        if (path === null) return null
+        try { return new Uint8Array(await readFileAsync(path)) } catch { return null }
+      }
       const storedRun = (): StoredRun => ({
         id,
         chunks: state.chunks,
-        chunkPath: (seq) => manager.chunkPath(id, seq) ?? '',
-        summaryPath: (seq) => manager.summaryPath(id, seq) ?? '',
+        readChunk: (seq) => fromDisk(manager.chunkPath(id, seq)),
+        readSummary: (seq) => fromDisk(manager.summaryPath(id, seq)),
         totalTurns: state.currentTick,
       })
 
