@@ -15,6 +15,21 @@ pattern = "mice.jev.carsonsweet.com"
 custom_domain = true
 
 # The built viewer. Everything that is not an API route is served from here.
+# Request-level logs, kept by Cloudflare rather than by a beacon in the page.
+#
+# Web Analytics and this answer different questions and neither substitutes for
+# the other. The beacon runs in a browser, so it sees page views, visits,
+# countries and referrers -- and only for people whose browser loaded the page
+# and ran the script. This sees every request the Worker handled: the API calls,
+# the WebSocket upgrades, the status codes, anything that was not a browser, and
+# anything that failed before a page ever rendered.
+#
+# Sampled at 1.0 because the traffic here is tiny and a sample of almost nothing
+# tells you almost nothing.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [assets]
 directory = "../web/dist"
 binding = "ASSETS"

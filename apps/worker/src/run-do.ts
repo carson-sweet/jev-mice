@@ -194,8 +194,13 @@ export class RunDO implements DurableObject {
     if (isOver(summary.status)) return
 
     if (control.desired === 'pause' && summary.status === 'paused') {
-      // Idle, but awake often enough to notice a resume.
-      await this.#state.storage.setAlarm(Date.now() + 1_000)
+      // No alarm. A paused run used to reschedule itself every second to
+      // "notice a resume", which it never needed to: a resume comes through
+      // #control, and #control sets the alarm itself. The poll was pure cost
+      // and it ran forever -- the request logs showed 98 object invocations in
+      // twenty-two seconds against five actual requests, almost all of them
+      // paused runs waking up to find nothing had changed. A paused run now
+      // sleeps until something asks it to move.
       return
     }
 
