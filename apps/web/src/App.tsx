@@ -30,6 +30,29 @@ const MAX_FRAMES = 240
 
 interface Point { tick: number; population: number; food: number; cats: number }
 
+const STATUS: Record<string, { label: string; dot: string; text: string }> = {
+  running: { label: 'running', dot: 'bg-emerald-400', text: 'text-emerald-300' },
+  paused: { label: 'paused', dot: 'bg-amber-400', text: 'text-amber-300' },
+  queued: { label: 'queued', dot: 'bg-zinc-500', text: 'text-zinc-400' },
+  completed: { label: 'finished', dot: 'bg-zinc-500', text: 'text-zinc-400' },
+  cancelled: { label: 'stopped', dot: 'bg-zinc-500', text: 'text-zinc-400' },
+  failed: { label: 'failed', dot: 'bg-red-400', text: 'text-red-300' },
+}
+
+/** Status as a light and a word. A light is read without being parsed. */
+function StatusDot({ status, live }: { status: string; live: boolean }): React.ReactElement {
+  const s = STATUS[status] ?? STATUS['queued']!
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={`h-1.5 w-1.5 rounded-full ${s.dot} ${
+        status === 'running' ? 'animate-pulse' : ''}`} aria-hidden="true" />
+      <span className={`text-[11px] ${s.text}`}>
+        {s.label}{status === 'running' && !live ? ', behind' : ''}
+      </span>
+    </span>
+  )
+}
+
 /** Two pages, addressable so a link to the library can be shared or bookmarked. */
 function useRoute(): string {
   const [hash, setHash] = useState(() => window.location.hash || '#/')
@@ -176,18 +199,46 @@ export function App(): React.ReactElement {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-base font-semibold text-zinc-100">jev-mice</h1>
-          <span className="text-xs text-zinc-500">
-            mice, cats, traps and food, decided one animal at a time
-          </span>
-        </div>
-        {run && (
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-500">
-              decided by {run.decidedBy === 'jev' ? 'Jev' : 'the fixed rules'}
+      {/* Two rows rather than one. Everything used to compete for a single line,
+          and at 1280 the result was a two-line title beside a three-line
+          "decided by the fixed rules". Identity belongs on top; the transport is
+          a strip of its own, which is where a person looks for it anyway. */}
+      <header className="shrink-0 border-b border-zinc-800">
+        <div className="flex items-center gap-4 px-4 py-2">
+          <div className="flex min-w-0 items-baseline gap-2.5">
+            <h1 className="shrink-0 text-sm font-semibold tracking-tight text-zinc-100">
+              jev-mice
+            </h1>
+            <span className="hidden truncate text-xs text-zinc-600 lg:block">
+              mice, cats, traps and food, decided one animal at a time
             </span>
+          </div>
+
+          {run && (
+            <div className="ml-auto flex shrink-0 items-center gap-2.5 text-xs">
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase
+                            tracking-wide ${
+                  run.decidedBy === 'jev'
+                    ? 'bg-sky-500/15 text-sky-300'
+                    : 'bg-zinc-800 text-zinc-400'}`}
+              >
+                {run.decidedBy === 'jev' ? 'Jev' : 'rules'}
+              </span>
+              <span className="tabular-nums text-zinc-500">
+                turn <span className="text-zinc-200">
+                  {(frame?.tick ?? run.currentTick).toLocaleString('en-US')}
+                </span>
+                <span className="text-zinc-600"> / {run.config.ticks.toLocaleString('en-US')}</span>
+              </span>
+              <StatusDot status={run.status} live={at.live} />
+            </div>
+          )}
+        </div>
+
+        {run && (
+          <div className="flex items-center gap-4 border-t border-zinc-800/70 bg-zinc-900/30
+                          px-4 py-1.5">
             <Speed
               speed={run.speed}
               fastest={caps.speed.fastest}
@@ -224,7 +275,8 @@ export function App(): React.ReactElement {
             shorter than that, not the plan: without it a field below the fold is
             unreachable rather than merely out of sight. Start is first either
             way, so it is never the thing that goes. */}
-        <aside className="w-72 shrink-0 overflow-y-auto border-r border-zinc-800 p-4">
+        <aside className="w-72 shrink-0 overflow-y-auto border-r border-zinc-800
+                          bg-zinc-950/40 p-4">
           <Configure onStart={start} busy={busy} jevAvailable={caps.jevAvailable} />
         </aside>
 
@@ -234,7 +286,8 @@ export function App(): React.ReactElement {
           {run
             ? <>
                 <div className="relative flex min-h-0 w-full flex-1 items-center
-                                justify-center">
+                                justify-center rounded-lg border border-zinc-800/80
+                                bg-zinc-950/60 p-2">
                   <Grid frame={frame} width={world.width} height={world.height}
                         selected={selected} highlighted={highlighted}
                         onSelect={setSelected} />
@@ -254,18 +307,25 @@ export function App(): React.ReactElement {
             rounded to the nearest step, because the step above is 24rem and
             takes a third of the map with it. */}
         <aside className="flex w-[22.5rem] shrink-0 flex-col overflow-hidden border-l
-                          border-zinc-800 p-4">
+                          border-zinc-800 bg-zinc-950/40 p-4">
           <Inspector frame={frame} id={selected} onClear={() => { setSelected(null) }} />
-          <h2 className="mt-4 text-xs font-medium uppercase tracking-wide text-zinc-500">
+          <h2 className="mt-4 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
             Over time
           </h2>
           <div className="mt-2">
             {points.length > 1
               ? <Chart ticks={ticks} series={series} />
-              : <p className="text-xs text-zinc-600">Waiting for the first frames.</p>}
+              : <p className="text-xs text-zinc-600">
+                  {run && over
+                    // A finished run sends no more frames, so nothing will ever
+                    // arrive and saying "waiting" is simply untrue.
+                    ? 'This run is over. Its turn-by-turn record is in HISTORY.'
+                    : 'Waiting for the first frames.'}
+                </p>}
           </div>
           {run && (
-            <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-md border
+                           border-zinc-800/80 bg-zinc-900/40 px-2.5 py-2 text-xs">
               <dt className="text-zinc-500">Judged</dt>
               <dd className="tabular-nums text-zinc-200">{run.totals.requests}</dd>
               <dt className="text-zinc-500">Computed</dt>

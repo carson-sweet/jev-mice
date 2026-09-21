@@ -120,13 +120,16 @@ export function Transport({ state, actions }: {
         />
       </label>
 
-      {/* Zero-padded and tabular, so the label never changes width. */}
-      <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-zinc-400">
-        turn <span className="text-zinc-200">{pad(tick)}</span> of {pad(totalTicks)}
-        {/* Both words are four characters, so the label keeps its width. */}
-        <span className={live ? 'text-emerald-400' : 'text-amber-400'}>
-          {' '}{live ? 'live' : 'back'}
-        </span>
+      {/* Only whether the view is live or scrubbed back. The turn itself is in
+          the header now, and having it in both places meant reading "turn 2,407
+          of 4,000 finished" beside "turn 02407 of 04000 live", which disagreed
+          with itself about both the formatting and the state. */}
+      <span
+        className={`shrink-0 whitespace-nowrap font-mono text-[11px] ${
+          live ? 'text-zinc-600' : 'text-amber-400'}`}
+        title={live ? 'Showing the newest frame' : `Scrubbed back to turn ${String(tick)}`}
+      >
+        {live ? 'live' : `back at ${pad(tick)}`}
       </span>
     </div>
   )

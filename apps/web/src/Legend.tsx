@@ -3,10 +3,10 @@
 // somebody remembering to update both.
 
 import { useEffect, useRef } from 'react'
-import { drawGlyph, glyphLabel, LEGEND_COLUMNS, type GlyphKind } from './glyphs'
+import { drawGlyph, glyphLabel, LEGEND_ROWS, type GlyphKind } from './glyphs'
 import { useDevicePixelRatio } from './dpr'
 
-const SWATCH = 18
+const SWATCH = 16
 
 function Swatch({ kind }: { kind: GlyphKind }): React.ReactElement {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -34,28 +34,34 @@ function Swatch({ kind }: { kind: GlyphKind }): React.ReactElement {
 
 export function Legend(): React.ReactElement {
   return (
-    <div className="mx-auto mt-3 w-full max-w-3xl shrink-0">
-      <h2 className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Key</h2>
-      {/* One list per column, so a column can be its own length and a family
-          is never split across two of them. */}
-      <div className="mt-1.5 grid grid-cols-3 gap-x-6">
-        {LEGEND_COLUMNS.map((column, i) => (
-          <ul key={column[0] ?? String(i)} className="space-y-1">
-            {column.map((kind) => (
-              <li key={kind} className="flex items-center gap-2 text-xs text-zinc-400">
-                <Swatch kind={kind} />
-                <span>{glyphLabel(kind)}</span>
-              </li>
-            ))}
-          </ul>
+    <div className="mt-3 shrink-0">
+      <div className="flex items-baseline gap-2">
+        <h2 className="text-[10px] font-medium uppercase tracking-widest text-zinc-500">
+          Key
+        </h2>
+        {/* The rule the key follows, as a title rather than a paragraph. Four
+            lines of prose under the map cost the map four lines of height, and
+            anyone who wants the rule can hover the word it belongs to. */}
+        <span
+          className="cursor-help text-[10px] text-zinc-700 underline decoration-dotted"
+          title={'Shape carries what a thing is and colour never changes with its condition: '
+            + 'a hungry animal keeps its own colour and gains a bright dot, and an infected '
+            + 'one gains a purple ring. Mice are blue, cats red, food green, traps orange, '
+            + 'and the same shapes are used at every world size.'}
+        >
+          how to read it
+        </span>
+      </div>
+      {/* Four columns rather than three. Twelve glyphs in three columns is four
+          rows deep; in four it is three, and the map keeps the difference. */}
+      <div className="mt-1.5 grid grid-cols-2 gap-x-5 gap-y-0.5 sm:grid-cols-3 xl:grid-cols-4">
+        {LEGEND_ROWS.flat().map((kind) => (
+          <div key={kind} className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+            <Swatch kind={kind} />
+            <span className="truncate">{glyphLabel(kind)}</span>
+          </div>
         ))}
       </div>
-      <p className="mt-1.5 text-[11px] text-zinc-600">
-        Shape carries what a thing is and colour never changes with its
-        condition: a hungry animal keeps its own colour and gains a bright dot.
-        Mice are blue, cats red, food green, traps orange, and the same shapes
-        are used at every world size.
-      </p>
     </div>
   )
 }

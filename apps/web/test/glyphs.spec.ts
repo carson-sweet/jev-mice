@@ -1,30 +1,30 @@
 // The legend has to name every glyph the map can draw, or the key is a lie.
 // This is the test that keeps it honest when a glyph is added.
 import { describe, it, expect } from 'vitest'
-import { GLYPH_KINDS, LEGEND_COLUMNS, glyphLabel, COLOURS } from '../src/glyphs.js'
+import { GLYPH_KINDS, LEGEND_ROWS, glyphLabel, COLOURS } from '../src/glyphs.js'
 
 describe('The glyph set', () => {
   it('Is named in the legend exactly once each, with nothing left out', () => {
-    const listed = LEGEND_COLUMNS.flat()
+    const listed = LEGEND_ROWS.flat()
     expect([...listed].sort()).toEqual([...GLYPH_KINDS].sort())
     expect(new Set(listed).size).toBe(listed.length)
   })
 
-  it('Reads down three columns in the order the key is laid out', () => {
+  it('Reads across three rows in the order the key is laid out', () => {
     // Each animal's own states stay together in its own column, so infection
     // reads as another condition of a mouse rather than a separate creature.
-    expect(LEGEND_COLUMNS).toEqual([
+    expect(LEGEND_ROWS).toEqual([
       ['mouse', 'mouseHungry', 'mouseInfected', 'food'],
       ['cat', 'catHungry', 'catShedding', 'trap'],
       ['trapOccupied', 'hole', 'holeAdult', 'holeBrood'],
     ])
   })
 
-  it('Keeps a family together in its own column, whatever length that is', () => {
-    // The three mousehole states belong beside each other, so the third column
-    // is longer rather than a state being pushed into a column of cats.
+  it('Keeps a family together on its own row', () => {
+    // The mousehole states belong beside each other rather than one of them
+    // being pushed in among the cats.
     const holes = GLYPH_KINDS.filter((k) => k.startsWith('hole'))
-    const third = LEGEND_COLUMNS[2] ?? []
+    const third = LEGEND_ROWS[2] ?? []
     for (const h of holes) expect(third).toContain(h)
   })
 

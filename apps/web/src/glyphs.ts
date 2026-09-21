@@ -23,11 +23,11 @@ export const GLYPH_KINDS: readonly GlyphKind[] = [
 ] as const
 
 /**
- * Read down each column, not across. Columns are their own length so that a
- * family stays together: the three mousehole states belong beside each other
- * rather than one of them being pushed in among the cats.
+ * One row per family, read across. A mouse and its conditions sit together, the
+ * cats below them, the fixed things below that, so infection reads as another
+ * state of an animal rather than as a separate creature.
  */
-export const LEGEND_COLUMNS: readonly (readonly GlyphKind[])[] = [
+export const LEGEND_ROWS: readonly (readonly GlyphKind[])[] = [
   ['mouse', 'mouseHungry', 'mouseInfected', 'food'],
   ['cat', 'catHungry', 'catShedding', 'trap'],
   ['trapOccupied', 'hole', 'holeAdult', 'holeBrood'],

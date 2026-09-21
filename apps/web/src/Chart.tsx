@@ -75,7 +75,12 @@ export function Chart({ ticks, series, height = 140 }: {
       // every tick as a date in 1970.
       scales: { x: { time: false } },
       padding: [8, 8, 0, 0],
-      legend: { show: true },
+      // live: false shows the series names without their values. With it on,
+      // the legend read "tick: -- mice: -- food: -- cats: --" whenever the
+      // pointer was anywhere else, which is most of the time and looks broken.
+      // The values appear in the cursor tooltip, where they are being looked
+      // for, rather than as four dashes under the chart.
+      legend: { show: true, live: false },
       axes: [
         { stroke: '#64748b', grid: { stroke: '#1e293b' }, ticks: { stroke: '#1e293b' } },
         { stroke: '#64748b', grid: { stroke: '#1e293b' }, ticks: { stroke: '#1e293b' } },
