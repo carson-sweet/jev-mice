@@ -161,9 +161,11 @@ describe('What the host tells the page it can offer', () => {
       config: { ...defaultConfig('small'), ticks: 20_000 }, seed: 12, speed: 3,
     })
     const id = created.body.run.id as string
-    const changed = await post(`/api/runs/${id}/control`, { action: 'speed', speed: 120 })
+    // 40 is inside the rules' ceiling of 50, so it is kept as asked. Above it
+    // the run would be given the ceiling instead.
+    const changed = await post(`/api/runs/${id}/control`, { action: 'speed', speed: 40 })
     expect(changed.status).toBe(200)
-    expect(changed.body.run.speed).toBe(120)
+    expect(changed.body.run.speed).toBe(40)
     await post(`/api/runs/${id}/control`, { action: 'stop' })
   })
 

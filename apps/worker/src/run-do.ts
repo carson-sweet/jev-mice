@@ -17,7 +17,7 @@ import {
 } from '@jev-mice/engine'
 import { jevProvider } from '@jev-mice/provider-jev'
 import {
-  createSimulation, SPEED,
+  createSimulation, SPEED, SPEED_CEILING,
   type Allowance, type ChunkAck, type Control, type Coordinator, type Decider,
   type DecisionLine,
   type Extent, type Frame, type LogEntry, type RunStatus, type RunSummary,
@@ -115,7 +115,10 @@ export class RunDO implements DurableObject {
     const summary = await this.#get('summary')
     const control = await this.#get('control')
     if (!summary || !control) return
-    const clamped = Math.max(SPEED.slowest, Math.min(SPEED.fastest, Math.round(speed)))
+    // The decider's ceiling, not the engine's: storing a pace the run cannot
+    // honour and reporting it back would be a number that means nothing.
+    const clamped = Math.max(SPEED.slowest,
+      Math.min(SPEED_CEILING[summary.decidedBy], Math.round(speed)))
     summary.speed = clamped
     await this.#put('summary', summary)
     await this.#put('control', { ...control, speed: clamped, seq: control.seq + 1 })
@@ -351,7 +354,7 @@ export class RunDO implements DurableObject {
         error: null,
         decidedBy: body.decider,
         speed: Math.max(SPEED.slowest,
-          Math.min(SPEED.fastest, Math.round(body.speed ?? SPEED.slowest))),
+          Math.min(SPEED_CEILING[body.decider], Math.round(body.speed ?? SPEED.slowest))),
         population: { mice: blank(), cats: blank() },
         endReason: null,
       }

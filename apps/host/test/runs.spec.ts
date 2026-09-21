@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { defaultConfig } from '@jev-mice/engine'
-import { SPEED } from '@jev-mice/sim'
+import { SPEED, SPEED_CEILING } from '@jev-mice/sim'
 import { createRunManager, type RunManager } from '../src/runs.js'
 
 const dirs: string[] = []
@@ -185,8 +185,10 @@ describe('Setting the pace', () => {
     const run = m.create({ config: small({ ticks: 20_000 }), seed: 1, speed: 2 })
     await new Promise((r) => setTimeout(r, 300))
     const crawling = m.get(run.id)?.currentTick ?? 0
+    // 300 is past the rules' ceiling of 50, so it lands on the ceiling rather
+    // than being stored as a number the run could not honour.
     expect(m.setSpeed(run.id, 300)).toBe(true)
-    expect(m.get(run.id)?.speed).toBe(300)
+    expect(m.get(run.id)?.speed).toBe(SPEED_CEILING.rules)
     await new Promise((r) => setTimeout(r, 400))
     expect(m.get(run.id)?.currentTick ?? 0).toBeGreaterThan(crawling)
     m.control(run.id, 'stop')
@@ -194,12 +196,14 @@ describe('Setting the pace', () => {
   }, 30_000)
 
   it('Keeps a speed inside the range a slider can ask for', () => {
+    // The ceiling is the decider's, not the engine's. These runs are decided by
+    // the rules, so the top is 50 rather than 334.
     const m = manager()
     const tooSlow = m.create({ config: small({ ticks: 20_000 }), seed: 1, speed: 0 })
     expect(tooSlow.speed).toBe(SPEED.slowest)
     m.control(tooSlow.id, 'stop')
     const tooFast = m.create({ config: small({ ticks: 20_000 }), seed: 2, speed: 99_999 })
-    expect(tooFast.speed).toBe(SPEED.fastest)
+    expect(tooFast.speed).toBe(SPEED_CEILING.rules)
     m.control(tooFast.id, 'stop')
   })
 })
@@ -273,8 +277,9 @@ describe('How fast a run starts', () => {
 
   it('Still honours a speed that was asked for', () => {
     const m = manager()
-    const run = m.create({ config: small({ ticks: 20_000 }), seed: 2, speed: 120 })
-    expect(run.speed).toBe(120)
+    // Inside the rules' ceiling of 50, so it is kept exactly as asked.
+    const run = m.create({ config: small({ ticks: 20_000 }), seed: 2, speed: 40 })
+    expect(run.speed).toBe(40)
     m.control(run.id, 'stop')
   })
 })

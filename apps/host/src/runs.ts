@@ -12,7 +12,7 @@ import {
 import { jevProvider, type SystemOneLike } from '@jev-mice/provider-jev'
 import { forget } from './turns.js'
 import {
-  createSimulation, SPEED,
+  createSimulation, SPEED, SPEED_CEILING,
   type ChunkAck, type ChunkReport, type Control, type Coordinator, type Decider,
   type DecisionLine, type Extent, type Frame, type LogEntry, type RunStatus, type RunSummary,
   type Simulation, type ViewerMessage,
@@ -23,10 +23,19 @@ export type { Decider, RunStatus, RunSummary, ViewerMessage } from '@jev-mice/si
 /** Runs kept before the oldest finished one is dropped. */
 export const DEFAULT_MAX_RUNS = 200
 
-const clampSpeed = (n: number | undefined): number =>
-  n === undefined || !Number.isFinite(n)
-    ? SPEED.fastest
-    : Math.round(Math.max(SPEED.slowest, Math.min(SPEED.fastest, n)))
+/**
+ * A pace this run can actually be given.
+ *
+ * Clamped to the decider's own ceiling rather than the engine's. Jev answers at
+ * about six turns a second, so accepting 334 for a Jev run would store a number
+ * the run could never honour and report it back to the page as though it had.
+ */
+const clampSpeed = (n: number | undefined, decider: Decider): number => {
+  const ceiling = SPEED_CEILING[decider]
+  return n === undefined || !Number.isFinite(n)
+    ? ceiling
+    : Math.round(Math.max(SPEED.slowest, Math.min(ceiling, n)))
+}
 
 export interface RunManagerOptions {
   root: string
@@ -302,7 +311,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
         decidedBy: chosen,
         // Slow by default: the first thing anyone sees should be watchable, and
         // the slider is right there for anyone who wants it faster.
-        speed: speed === undefined ? SPEED.slowest : clampSpeed(speed),
+        speed: speed === undefined ? SPEED.slowest : clampSpeed(speed, chosen),
         population: { mice: blank(), cats: blank() },
         endReason: null,
       }
@@ -330,7 +339,7 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
     setSpeed(id, speed) {
       const live = runs.get(id)
       if (!live?.sim) return false
-      live.summary.speed = clampSpeed(speed)
+      live.summary.speed = clampSpeed(speed, live.decider)
       live.controlSeq += 1
       live.sim.control({
         desired: live.desired,

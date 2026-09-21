@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PRESETS, TICK_RANGE, type RunConfig } from '@jev-mice/engine'
 import type { DecisionLine, Frame, LogEntry } from '@jev-mice/sim'
+import { SPEED_CEILING } from '@jev-mice/sim'
 import {
   api, watchRun, type Capabilities, type Decider, type RunSummary,
 } from './api'
@@ -267,7 +268,9 @@ export function App(): React.ReactElement {
                           bg-zinc-900/30 px-4 py-1.5">
             <Speed
               speed={run.speed}
-              fastest={caps.speed.fastest}
+              // The ceiling follows the decider: asking Jev for more than it can
+              // answer made the control look broken.
+              fastest={SPEED_CEILING[run.decidedBy]}
               disabled={run.status === 'completed' || run.status === 'failed'
                         || run.status === 'cancelled'}
               onChange={setSpeed}

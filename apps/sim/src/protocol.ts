@@ -13,6 +13,17 @@ export type RunStatus =
   'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
 export type Decider = 'jev' | 'rules'
 
+/**
+ * The fastest a run may be asked to go, by who is deciding.
+ *
+ * Offering the engine's full 334 turns a second for a Jev run was a lie. Jev
+ * answers at about six a second and is the bottleneck, not the pacer, so every
+ * slider position above six asked for something that could not happen and the
+ * control looked broken. The rules reach several hundred a second, but fifty is
+ * as fast as a person can watch a colony rather than a flicker.
+ */
+export const SPEED_CEILING: Record<Decider, number> = { jev: 6, rules: 50 }
+
 export interface RunSummary {
   id: string
   status: RunStatus
