@@ -59,9 +59,13 @@ export interface Frame {
   mice: { id: string; x: number; y: number; nutrition: number; intent: string | null
           fear: string; inHole: boolean
           /** Below the fed band, by the engine's own reckoning. */
-          hungry: boolean }[]
+          hungry: boolean
+          /** Carrying toxoplasmosis. Permanent. */
+          infected: boolean }[]
   cats: { id: string; x: number; y: number; mode: string
-          nutrition: number; hungry: boolean }[]
+          nutrition: number; hungry: boolean
+          /** Passing oocysts into the environment. */
+          shedding: boolean }[]
   food: { id: string; x: number; y: number }[]
   traps: { id: string; x: number; y: number; occupied: boolean }[]
   holes: { id: string; x: number; y: number; occupancy: string }[]

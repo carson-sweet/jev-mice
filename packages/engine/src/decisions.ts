@@ -322,6 +322,13 @@ export function baselineDrive(c: MouseContext): Record<string, number> {
   return seen(pick({ explore: 1 }))
 }
 
+/**
+ * How frightened this mouse is, before illness is taken into account.
+ *
+ * Toxoplasmosis is deliberately not here. It is applied to the answer in the
+ * engine, so Jev and the baseline are affected identically and neither has to
+ * be told the mouse is ill, which it has no way of knowing.
+ */
 export function baselineFear(c: MouseContext, tick: Tick): FearLevel {
   const d = c.nearestCat?.distance ?? Infinity
   if (d <= 1) return 'panicked'

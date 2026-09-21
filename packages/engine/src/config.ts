@@ -67,6 +67,9 @@ export function defaultConfig(preset: Preset): RunConfig {
     // The sweep held this at 0.3, so the survival figure the configuration
     // screen shows is only exact while the default matches it.
     nutritionDecayPerTick: 0.3,
+    // Off by default. The survival table was measured without the parasite, so
+    // any rate above zero puts a run outside what was measured.
+    toxoplasmosisRate: 0,
     startingNutrition: 100,
     personality: { bold: 25, cautious: 25, vigilant: 25, social: 25 },
   }
@@ -144,6 +147,13 @@ export function validateConfig(c: RunConfig): ValidationError[] {
     errors.push({
       field: 'nutritionDecayPerTick', code: 'out_of_range',
       message: 'Nutrition decay must be a number greater than zero and at most 10 per tick.',
+    })
+  }
+  if (notANumber(c.toxoplasmosisRate)
+      || c.toxoplasmosisRate < 0 || c.toxoplasmosisRate > 100) {
+    errors.push({
+      field: 'toxoplasmosisRate', code: 'out_of_range',
+      message: 'Toxoplasmosis rate must be a number between 0 and 100 percent.',
     })
   }
   const start = c.startingNutrition ?? 100

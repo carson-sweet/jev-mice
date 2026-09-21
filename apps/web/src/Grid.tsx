@@ -4,7 +4,7 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 import type { Frame } from '@jev-mice/sim'
-import { COLOURS, drawGlyph, glyphLabel, type GlyphKind } from './glyphs'
+import { COLOURS, drawGlyph, drawInfectionRing, glyphLabel, type GlyphKind } from './glyphs'
 import { useDevicePixelRatio } from './dpr'
 
 /** What sits on one cell, named by the key rather than by a second wording. */
@@ -33,12 +33,12 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
     if (!frame) return null
     const cat = frame.cats.find((c) => c.x === fx && c.y === fy)
     if (cat) {
-      return { id: cat.id, kind: cat.hungry ? 'catHungry' : 'cat',
+      return { id: cat.id, kind: cat.shedding ? 'catShedding' : cat.hungry ? 'catHungry' : 'cat',
                detail: `${cat.id}, ${cat.mode}, ${String(cat.nutrition)} percent` }
     }
     const mouse = frame.mice.find((m) => !m.inHole && m.x === fx && m.y === fy)
     if (mouse) {
-      return { id: mouse.id, kind: mouse.hungry ? 'mouseHungry' : 'mouse',
+      return { id: mouse.id, kind: mouse.infected ? 'mouseInfected' : mouse.hungry ? 'mouseHungry' : 'mouse',
                detail: `${mouse.id}, ${mouse.intent ?? 'deciding'}, `
                  + `${String(mouse.nutrition)} percent, ${mouse.fear}` }
     }
@@ -113,7 +113,10 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
     }
     for (const m of frame.mice) {
       if (m.inHole) continue
+      // Base glyph first, then the ring on top, so a mouse that is both
+      // hungry and infected shows both rather than one winning.
       drawGlyph(ctx, m.hungry ? 'mouseHungry' : 'mouse', m.x * size, m.y * size, size)
+      if (m.infected) drawInfectionRing(ctx, m.x * size, m.y * size, size)
       if (m.id === selected) {
         ctx.strokeStyle = COLOURS.selected
         ctx.lineWidth = 2
@@ -123,7 +126,8 @@ export function Grid({ frame, width, height, selected, highlighted, onSelect }: 
       }
     }
     for (const c of frame.cats) {
-      drawGlyph(ctx, c.hungry ? 'catHungry' : 'cat', c.x * size, c.y * size, size)
+      drawGlyph(ctx, c.shedding ? 'catShedding' : c.hungry ? 'catHungry' : 'cat',
+                c.x * size, c.y * size, size)
     }
 
     // Anything a hovered log line is about, ringed where it still stands.

@@ -11,9 +11,11 @@ describe('The glyph set', () => {
   })
 
   it('Reads down three columns in the order the key is laid out', () => {
+    // Each animal's own states stay together in its own column, so infection
+    // reads as another condition of a mouse rather than a separate creature.
     expect(LEGEND_COLUMNS).toEqual([
-      ['mouse', 'mouseHungry', 'food'],
-      ['cat', 'catHungry', 'trap'],
+      ['mouse', 'mouseHungry', 'mouseInfected', 'food'],
+      ['cat', 'catHungry', 'catShedding', 'trap'],
       ['trapOccupied', 'hole', 'holeAdult', 'holeBrood'],
     ])
   })

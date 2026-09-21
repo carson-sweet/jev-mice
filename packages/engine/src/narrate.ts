@@ -20,6 +20,10 @@ export interface Narration {
 export const CHANGES_POPULATION: ReadonlySet<SimEvent['kind']> = new Set([
   'death', 'capture', 'mouse_trapped', 'birth', 'mating', 'cat_died',
   'cap_limited_birth',
+  // Not a population change, but it decides one later: an infected mouse is
+  // easier to catch and wastes faster, so the log would be telling half a story
+  // without it.
+  'mouse_infected', 'cat_shedding',
 ])
 
 /** Movement and bookkeeping, which a turn view leaves out. */
@@ -46,6 +50,12 @@ export function narrate(e: SimEvent): Narration {
       return said(`${e.mouseId} was caught by ${e.catId}.`, e.mouseId)
     case 'mouse_trapped':
       return said(`${e.id} died in ${e.trapId}.`, e.id)
+    case 'mouse_infected':
+      return said(e.via === 'birth'
+        ? `${e.id} was born infected.`
+        : `${e.id} picked up toxoplasmosis from what it ate.`, e.id)
+    case 'cat_shedding':
+      return said(`${e.id} ate ${e.from} and is now spreading toxoplasmosis.`, e.id)
     case 'cat_died':
       return said(`${e.id} starved, with nothing left to catch.`, e.id)
     case 'birth':

@@ -10,7 +10,7 @@ import type {
 import {
   ALARM_RANGE, BATCH_SIZE, CAT, catBand, DRIVES, ENGINE_VERSION, hungerBand, JITTER,
   NUTRITION_BANDS,
-  PERCEPTION, PERSONALITIES, PUP_NUTRITION, TIMING,
+  dampenFear, PERCEPTION, PERSONALITIES, PUP_NUTRITION, TIMING, TOXO,
 } from './types.js'
 import { capsFor, drawPersonality, PRESETS } from './config.js'
 import { createRng, type Rng, type RngState } from './rng.js'
@@ -37,6 +37,8 @@ interface MouseState {
   memories: Memory[]
   pregnantSince: Tick | null
   nextMoveTick: Tick
+  /** Permanent once acquired: the behavioural change outlasts the parasite. */
+  infected: boolean
   busyUntil: Tick
   busyWith: 'eat' | 'mate' | 'birth' | null
   eatingFoodId: string | null
@@ -56,6 +58,8 @@ interface CatState {
   target: AgentId | null
   pounceCooldown: number; patience: number
   lastSighting: Cell | null; sightingUntil: Tick
+  /** Passing oocysts into the environment. Changes nothing about the hunt. */
+  shedding: boolean
   busyUntil: Tick
   nutrition: number
   band: 'fed' | 'hungry'
@@ -71,7 +75,9 @@ interface CatState {
   drift: { dx: number; dy: number }
 }
 
-interface FoodState { id: string; x: number; y: number; present: boolean; respawnAt: Tick }
+interface FoodState { id: string; x: number; y: number; present: boolean; respawnAt: Tick
+                      /** Carrying oocysts. Rolled when the pile appears. */
+                      contaminated: boolean }
 interface TrapState { id: string; x: number; y: number; occupantId: AgentId | null; respawnAt: Tick }
 interface HoleState { id: string; x: number; y: number; adult: AgentId | null; brood: AgentId[] }
 
@@ -91,6 +97,11 @@ export interface Engine {
   candidateScores(id: AgentId): CandidateScore[]
   /** Test seam: force a fear level so the danger gradient can be inspected. */
   setFear(id: AgentId, fear: FearLevel): void
+  /**
+   * The chance a pile is contaminated when it next appears. The configured rate
+   * is the floor; shedding cats lift it, so this rises over a run.
+   */
+  contaminationRate(): number
   /** Test seam: how long an intent is held at a given fear level. */
   intentHoldFor(fear: FearLevel): number
 }
@@ -188,7 +199,8 @@ function build(
     }
     for (let i = 0; i < Math.min(config.foodPiles, caps.food); i++) {
       const c = freeCell((x, y) => hasHole(x, y) || hasFood(x, y))
-      food.push({ id: `f${pad(i + 1)}`, x: c.x, y: c.y, present: true, respawnAt: 0 })
+      food.push({ id: `f${pad(i + 1)}`, x: c.x, y: c.y, present: true, respawnAt: 0,
+                  contaminated: rollContamination() })
     }
     for (let i = 0; i < Math.min(config.traps, caps.traps); i++) {
       const c = freeCell((x, y) => hasHole(x, y) || hasFood(x, y) || hasTrap(x, y))
@@ -210,6 +222,7 @@ function build(
       cats.push({ id: `c${pad(i + 1)}`, x: c.x, y: c.y, mode: 'prowl', target: null,
         nutrition: CAT.startingNutrition, band: 'fed', seen: [],
         pounceCooldown: 0, patience: 0, lastSighting: null, sightingUntil: 0,
+        shedding: false,
         busyUntil: 0, bestDistance: null, drift: { dx: 0, dy: 0 } })
     }
   }
@@ -221,10 +234,51 @@ function build(
       id, sex, personality, nutrition, age: 0, x: at.x, y: at.y,
       inHole: null, intent: null, intentSetAt: -TIMING.intentHold, fear: 'unconcerned',
       weights: {}, memories: [], pregnantSince: null,
-      nextMoveTick: 0, busyUntil: 0, busyWith: null, eatingFoodId: null,
+      nextMoveTick: 0, infected: false, busyUntil: 0, busyWith: null, eatingFoodId: null,
       mateTarget: null, isPup, recent: [{ ...at }], alarmedAt: {}, decidedAt: -9999,
       band: hungerBand(nutrition), seen: [],
     }
+  }
+
+  /**
+   * The chance a pile is contaminated when it appears.
+   *
+   * The configured rate is a floor, not the whole story. Cats are the only
+   * source of oocysts, so a map whose cats are shedding is dirtier than its
+   * configuration says, and the parasite feeds itself: more contaminated food
+   * infects more mice, infected mice are caught more easily, and a cat that
+   * eats one starts shedding too.
+   */
+  function contaminationRate(): number {
+    const floor = (config.toxoplasmosisRate ?? 0) / 100
+    if (cats.length === 0) return Math.min(1, Math.max(0, floor))
+    const shedders = cats.filter((c) => c.shedding).length / cats.length
+    return Math.min(1, Math.max(0, floor + shedders * TOXO.sheddingLift))
+  }
+
+  /**
+   * Whether a pile appearing now is contaminated.
+   *
+   * The draw is skipped entirely at a rate of zero rather than rolled and
+   * discarded, because drawing consumes the seeded stream and would give every
+   * existing run a different world the moment this feature was added -- the
+   * survival table was swept over 13,824 runs before the parasite existed, and
+   * a discarded draw would have quietly invalidated all of it.
+   *
+   * Skipping is safe as well as convenient: cats are the only source, a cat can
+   * only start shedding by eating an infected mouse, and no mouse can be
+   * infected while the rate is zero. A clean world stays clean.
+   */
+  function rollContamination(): boolean {
+    const rate = contaminationRate()
+    return rate > 0 && rng.next() < rate
+  }
+
+  /** Infection is one-way and permanent, so this never clears a flag. */
+  function infect(m: MouseState, via: 'food' | 'birth'): void {
+    if (m.infected) return
+    m.infected = true
+    emit({ kind: 'mouse_infected', id: m.id, via } as never)
   }
 
   // -------------------------------------------------------------- perception
@@ -318,6 +372,9 @@ function build(
       if (!f.present && f.respawnAt > 0 && tick >= f.respawnAt) {
         const c = freeCell((x, y) => hasHole(x, y) || hasFood(x, y) || hasTrap(x, y))
         f.x = c.x; f.y = c.y; f.present = true; f.respawnAt = 0
+        // Rolled fresh: a pile that comes back meets whatever the environment
+        // is carrying now, which rises as cats begin shedding.
+        f.contaminated = rollContamination()
         emit({ kind: 'food_respawned', foodId: f.id, at: { x: f.x, y: f.y } } as never)
       }
     }
@@ -353,7 +410,10 @@ function build(
     // nutrition, age, death by starvation
     for (const m of [...mice]) {
       m.age++
-      m.nutrition -= config.nutritionDecayPerTick
+      // Chronic cachexia: an infected mouse wastes, losing roughly a fifth more
+      // and never regaining it. It starves sooner, and it spends more of its
+      // life hungry, which also makes it slower and easier to catch.
+      m.nutrition -= config.nutritionDecayPerTick * (m.infected ? TOXO.cachexia : 1)
       if (m.nutrition <= 0) kill(m, 'starvation')
     }
 
@@ -522,7 +582,15 @@ function build(
       // A cat's mode can never become a mouse's intent, whatever a provider returns.
       m.intent = (DRIVES as readonly string[]).includes(s.intent) ? s.intent as Drive : 'explore'
       m.intentSetAt = tick; m.weights = s.weights
-      m.fear = s.fear; m.decidedAt = tick
+      // Toxoplasmosis is applied to the answer, not asked about in the question.
+      // An infected rodent loses its innate aversion to predators -- generally,
+      // the later work shows, rather than to cats specifically -- so whatever
+      // either decider judged, an infected mouse ends up one step calmer. Doing
+      // it here rather than inside the rules means Jev and the baseline are
+      // affected identically, and neither has to be told the mouse is ill,
+      // which it has no way of knowing.
+      m.fear = m.infected ? dampenFear(s.fear) : s.fear
+      m.decidedAt = tick
       return
     }
     const c = cats.find((x) => x.id === s.agentId)
@@ -697,6 +765,8 @@ function build(
       pile.respawnAt = config.foodRespawnTicks > 0 ? tick + config.foodRespawnTicks : 0
       m.nutrition = 100
       emit({ kind: 'food_eaten', id: m.id, foodId: pile.id } as never)
+      // How a mouse meets the parasite: oocysts on what it ate.
+      if (pile.contaminated) infect(m, 'food')
     }
   }
 
@@ -800,6 +870,14 @@ function build(
       const prey = sortedMice().find((m) => !m.inHole && m.x === c.x && m.y === c.y)
       if (!prey) continue
       emit({ kind: 'capture', catId: c.id, mouseId: prey.id } as never)
+      // The loop closes here. A cat is the only thing that sheds oocysts, and
+      // it becomes one by eating an infected mouse. Nothing about the hunt
+      // changes: the cat had no appetite for this mouse over any other, and
+      // the prevalence among the caught is a result rather than a cause.
+      if (prey.infected && !c.shedding) {
+        c.shedding = true
+        emit({ kind: 'cat_shedding', id: c.id, from: prey.id } as never)
+      }
       kill(prey, 'cat', { x: c.x, y: c.y })
       c.mode = 'eating'; c.busyUntil = tick + TIMING.catEat; c.target = null
       emit({ kind: 'cat_eating_started', id: c.id } as never)
@@ -873,6 +951,9 @@ function build(
         pup.inHole = hole.id
         mice.push(pup); miceVersion++; pups.push(pup.id)
         emit({ kind: 'birth', motherId: m.id, pupId: pup.id, personality, sex } as never)
+        // The only route between mice without a cat. Drawn for every pup, so a
+        // litter is usually but not wholly infected, as the measurements show.
+        if (m.infected && rng.next() < TOXO.verticalTransmission) infect(pup, 'birth')
       }
       if (pups.length > 0) {
         hole.brood = pups
@@ -952,14 +1033,17 @@ function build(
         id: m.id, sex: m.sex, personality: m.personality, nutrition: m.nutrition,
         age: m.age, at: { x: m.x, y: m.y }, inHole: m.inHole, intent: m.intent,
         memories: m.memories.map((x) => ({ ...x })), pregnantSince: m.pregnantSince, fear: m.fear,
+        infected: m.infected,
       })),
       cats: [...cats].sort(byId).map((c) => ({
         id: c.id, at: { x: c.x, y: c.y }, mode: c.mode, target: c.target,
         pounceCooldown: c.pounceCooldown, patience: c.patience,
         lastSighting: c.lastSighting ? { ...c.lastSighting } : null,
-        nutrition: c.nutrition, hungry: isHungry(c),
+        nutrition: c.nutrition, hungry: isHungry(c), shedding: c.shedding,
       })),
-      food: food.map((f) => ({ id: f.id, at: { x: f.x, y: f.y }, present: f.present })),
+      food: food.map((f) => ({
+        id: f.id, at: { x: f.x, y: f.y }, present: f.present, contaminated: f.contaminated,
+      })),
       traps: traps.map((t) => ({ id: t.id, at: { x: t.x, y: t.y }, occupantId: t.occupantId })),
       holes: holes.map((h) => ({
         id: h.id, at: { x: h.x, y: h.y },
@@ -984,6 +1068,7 @@ function build(
       return scoresFor(m)
     },
     setFear: (id, fear) => { const m = mice.find((x) => x.id === id); if (m) m.fear = fear },
+    contaminationRate,
     intentHoldFor: intentHold,
   }
 }

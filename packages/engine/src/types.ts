@@ -16,6 +16,18 @@ export type FearLevel = 'unconcerned' | 'wary' | 'alarmed' | 'panicked'
 export const FEAR_LEVELS: readonly FearLevel[] =
   ['unconcerned', 'wary', 'alarmed', 'panicked'] as const
 
+/**
+ * One step calmer, never below unconcerned.
+ *
+ * This is the whole behavioural effect of toxoplasmosis. An infected rodent
+ * loses its innate aversion to predators, and the later work shows the effect
+ * is a general reduction in anxiety rather than a cat-shaped hole in it, so it
+ * walks the whole scale down a step. One step, not to zero: less afraid, not
+ * fearless.
+ */
+export const dampenFear = (f: FearLevel): FearLevel =>
+  FEAR_LEVELS[Math.max(0, FEAR_LEVELS.indexOf(f) - 1)] ?? 'unconcerned'
+
 export type CatMode = 'prowl' | 'stalk' | 'pounce' | 'rest' | 'eating'
 export type DeathCause = 'starvation' | 'trap' | 'cat'
 export type Provenance = 'seen' | 'heard'
@@ -43,6 +55,11 @@ export interface RunConfig {
   /** Where every mouse starts. Defaults to 100; lowered for experiments and tests. */
   startingNutrition?: number
   personality: Record<Personality, number>
+  /**
+   * Percent chance a pile is contaminated when it appears or comes back. A
+   * floor rather than the whole story: shedding cats lift it.
+   */
+  toxoplasmosisRate: number
 }
 
 export interface Caps {
@@ -68,6 +85,8 @@ export interface Memory {
 export interface MouseView {
   id: AgentId; sex: Sex; personality: Personality
   nutrition: number; age: Tick; at: Cell
+  /** Permanently. The behavioural change outlasts the parasite. */
+  infected: boolean
   inHole: string | null; intent: Drive | null
   memories: Memory[]
   pregnantSince: Tick | null
@@ -81,9 +100,17 @@ export interface CatView {
   nutrition: number
   /** Below CAT.hungryBelow. Hunts further, springs sooner, does not rest. */
   hungry: boolean
+  /**
+   * Passing oocysts into the environment, having eaten an infected mouse.
+   * Permanent here, and it raises the chance that a pile comes back
+   * contaminated. It changes nothing about how this cat hunts.
+   */
+  shedding: boolean
 }
 
-export interface FoodView { id: string; at: Cell; present: boolean }
+export interface FoodView { id: string; at: Cell; present: boolean
+                            /** Carrying oocysts, from a shedding cat. */
+                            contaminated: boolean }
 export interface TrapView { id: string; at: Cell; occupantId: AgentId | null }
 export interface HoleView { id: string; at: Cell; occupancy: 'empty' | 'adult' | 'brood' }
 
@@ -138,6 +165,8 @@ export type SimEvent =
                    personality: Personality; sex: Sex })
   | (EventBase & { kind: 'cap_limited_birth'; motherId: AgentId; lost: number })
   | (EventBase & { kind: 'death'; id: AgentId; cause: DeathCause })
+  | (EventBase & { kind: 'mouse_infected'; id: AgentId; via: 'food' | 'birth' })
+  | (EventBase & { kind: 'cat_shedding'; id: AgentId; from: AgentId })
   | (EventBase & { kind: 'memory_added'; id: AgentId; sentence: string
                    provenance: Provenance; bearing: Bearing })
   | (EventBase & { kind: 'alarm_exchanged'; from: AgentId; to: AgentId; sentence: string
@@ -246,6 +275,37 @@ export const CAT = {
   pounceCooldown: 20,
   pounceCooldownHungry: 10,
 } as const
+/**
+ * Toxoplasma gondii.
+ *
+ * Cats shed oocysts that survive in the environment for months to years and
+ * accumulate, so food is where a mouse meets the parasite. An infected mouse
+ * loses its innate aversion to predators -- generally, not only to cats, and
+ * permanently, since the change outlasts the parasite itself. Cats get no
+ * appetite for infected prey, because none is documented: the manipulation is
+ * of the prey, and the high infection rate among cat-caught rodents is what
+ * that produces rather than what causes it.
+ */
+export const TOXO = {
+  /**
+   * Faster nutrition burn, for the chronic cachexia: roughly a fifth of body
+   * mass lost, with no recovery afterwards.
+   */
+  cachexia: 1.2,
+  /**
+   * Mother to litter, the only documented route between mice without a cat.
+   * Measured between 12.5 and 75 percent depending on dose and timing; 0.7 sits
+   * near the natural-population figure of 75 and the acute figure of 60.6.
+   */
+  verticalTransmission: 0.7,
+  /**
+   * How much a fully shedding population of cats lifts the chance that a pile
+   * comes back contaminated, above the configured floor. Environmental load
+   * rather than a property of any one pile.
+   */
+  sheddingLift: 0.6,
+} as const
+
 export const ALARM_RANGE = { normal: 1, social: 2 } as const
 export const NUTRITION_BANDS = { fed: 60, hungry: 30 } as const
 export const PUP_NUTRITION = 75

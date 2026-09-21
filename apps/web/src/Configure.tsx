@@ -196,6 +196,9 @@ export function Configure({ onStart, busy, jevAvailable }: {
                  onChange={(n) => { set({ ticks: n }) }} />
         <Number_ label="Food respawn" value={config.foodRespawnTicks} min={0} max={1000}
                  onChange={(n) => { set({ foodRespawnTicks: n }) }} hint="ticks" />
+        <Number_ label="Toxoplasmosis" value={config.toxoplasmosisRate} min={0} max={100}
+                 onChange={(n) => { set({ toxoplasmosisRate: n }) }}
+                 hint="percent of food contaminated" />
       </div>
 
       <div>
