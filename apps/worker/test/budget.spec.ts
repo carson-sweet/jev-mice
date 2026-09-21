@@ -60,9 +60,21 @@ describe('The daily ceiling on what Jev may be asked', () => {
   it('Turns a dollar ceiling and a token price into a token ceiling', () => {
     // The price is a deployment setting by FR-134, so the ceiling has to be
     // derived rather than written down as a token count that quietly goes
-    // wrong when the price changes.
-    const c = ceilingsFor({ dailyBudgetUsd: 20, pricePerMillionTokens: 0.28 })
-    expect(c.dailyTokens).toBe(Math.floor((20 / 0.28) * 1_000_000))
+    // wrong when the price changes. It already did once: 0.28 was a guess and
+    // 6.7 times too high, so a $20 ceiling behaved like $3.
+    const c = ceilingsFor({ dailyBudgetUsd: 20, pricePerMillionTokens: 0.042 })
+    expect(c.dailyTokens).toBe(Math.floor((20 / 0.042) * 1_000_000))
+  })
+
+  it('Buys what TypeSafe\u2019s published price says it buys', () => {
+    // $0.042 per Mtok, input only, from docs.typesafe.ai/models. A full default
+    // run on the medium world measures about 4.83M input tokens, so $20 a day
+    // is roughly a hundred of them. If this number collapses, the price in the
+    // deployment settings has drifted from the published one.
+    const c = ceilingsFor({ dailyBudgetUsd: 20, pricePerMillionTokens: 0.042 })
+    const runsPerDay = c.dailyTokens / 4.83e6
+    expect(runsPerDay).toBeGreaterThan(80)
+    expect(runsPerDay).toBeLessThan(120)
   })
 
   it('Refuses Jev outright when the budget is set to nothing', () => {

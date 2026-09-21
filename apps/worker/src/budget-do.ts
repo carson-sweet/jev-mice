@@ -20,10 +20,9 @@ export class BudgetDO implements DurableObject {
   #ceilings(): ReturnType<typeof ceilingsFor> {
     return ceilingsFor({
       dailyBudgetUsd: numberFrom(this.#env.JEV_DAILY_BUDGET_USD, 20),
-      // An assumption until the real figure is confirmed: the requirements put
-      // a run at about $0.20 per thousand ticks, and a tick measured about 700
-      // to 1,900 input tokens.
-      pricePerMillionTokens: numberFrom(this.#env.JEV_PRICE_PER_MTOK, 0.28),
+      // TypeSafe's published price, read from docs.typesafe.ai/models on
+      // 2026-09-21: $42 per Btok, $0.042 per Mtok, input only, output free.
+      pricePerMillionTokens: numberFrom(this.#env.JEV_PRICE_PER_MTOK, 0.042),
     })
   }
 

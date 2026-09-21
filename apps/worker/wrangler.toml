@@ -61,11 +61,16 @@ bucket_name = "jev-mice-records"
 
 [vars]
 # Dollars a day across every visitor, and the price the ceiling is derived from.
-# The price is an assumption until the real TypeSafe figure is confirmed: the
-# requirements put a run at about $0.20 per thousand ticks, and a tick measured
-# 700 to 1,900 input tokens. Change these and redeploy; no code knows the number.
+#
+# The price is TypeSafe's published figure, read from docs.typesafe.ai/models on
+# 2026-09-21: "$42 / $0.042" per Btok / per Mtok, input only, output free. It was
+# 0.28 here, a guess from the requirements' own cost estimate and 6.7 times too
+# high, which made a $20 ceiling behave like $3. At the real price $20 a day is
+# roughly 98 full default runs.
+#
+# Change these and redeploy; no code knows the number.
 JEV_DAILY_BUDGET_USD = "20"
-JEV_PRICE_PER_MTOK = "0.28"
+JEV_PRICE_PER_MTOK = "0.042"
 
 # Cloudflare Web Analytics. Cookieless, no cross-site identity. Empty means no
 # beacon is injected, which is what local development gets.
