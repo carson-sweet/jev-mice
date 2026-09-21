@@ -162,6 +162,37 @@ describe('Toxoplasmosis: how it spreads', () => {
   })
 })
 
+describe('Toxoplasmosis: does the manipulation actually work', () => {
+  it('Gets an infected mouse caught more often than a healthy one', {
+    timeout: 60_000,
+  }, async () => {
+    // The point of the whole feature. Everything else could be wired correctly
+    // and the parasite still fail to do the one thing it is documented to do,
+    // because the effect runs through a single step of fear damping and might
+    // simply be too small to matter. Measured per turn alive rather than per
+    // capture, since infected mice come to outnumber healthy ones and a raw
+    // count would show that instead.
+    const e = engine(medium({ ticks: 4000, toxoplasmosisRate: 8 }))
+    const infected = new Set<string>()
+    let caughtSick = 0, caughtWell = 0, turnsSick = 0, turnsWell = 0
+    for (let t = 1; t <= 4000; t++) {
+      await e.step()
+      for (const ev of e.drain()) {
+        if (ev.kind === 'mouse_infected') infected.add(ev.id)
+        if (ev.kind === 'capture') infected.has(ev.mouseId) ? caughtSick++ : caughtWell++
+      }
+      for (const m of e.world().mice) infected.has(m.id) ? turnsSick++ : turnsWell++
+    }
+    expect(caughtSick).toBeGreaterThan(0)
+    expect(caughtWell).toBeGreaterThan(0)
+    const perTurn = (c: number, t: number) => c / t
+    // Measured at 1.22x. The bar is set low because a one-step damping should
+    // tilt the odds rather than transform them, and a large margin here would
+    // mean the effect had been overdone.
+    expect(perTurn(caughtSick, turnsSick)).toBeGreaterThan(perTurn(caughtWell, turnsWell))
+  })
+})
+
 describe('Toxoplasmosis: the loop back to the food', () => {
   it('Lifts contamination above the configured floor once cats shed', { timeout: 30_000 }, async () => {
     const e = engine(medium({ ticks: 1500, toxoplasmosisRate: 5, cats: 4 }))
