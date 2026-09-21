@@ -19,11 +19,12 @@ import { jevProvider } from '@jev-mice/provider-jev'
 import {
   createSimulation, SPEED, SPEED_CEILING,
   type Allowance, type ChunkAck, type Control, type Coordinator, type Decider,
-  type DecisionLine,
+  type DecisionLine, type Simulation,
   type Extent, type Frame, type LogEntry, type RunStatus, type RunSummary,
   type ViewerMessage,
 } from '@jev-mice/sim'
 import { batchSize } from './batching.js'
+import { mergeProgress } from './progress.js'
 import { httpClient } from './jev.js'
 import type { Env } from './env.js'
 
@@ -47,6 +48,16 @@ interface Stored {
 export class RunDO implements DurableObject {
   readonly #state: DurableObjectState
   readonly #env: Env
+  /**
+   * The simulation currently advancing, while a batch is in flight.
+   *
+   * A batch reads the stored control once when it starts and then runs for up
+   * to 250 ticks, so a pause arriving mid-batch waited for the batch to finish
+   * -- seconds at a watchable pace, which reads as the button not working. The
+   * host has always pushed a control straight into the running simulation; this
+   * is the same thing, and it is why the reference is held here at all.
+   */
+  #sim: Simulation | null = null
 
   constructor(state: DurableObjectState, env: Env) {
     this.#state = state
@@ -105,7 +116,15 @@ export class RunDO implements DurableObject {
     else return
 
     await this.#put('control', next)
-    await this.#put('summary', summary)
+    // Only the status, for the mirror image of the reason a batch merges: a
+    // batch running underneath this knows the tick and the chunks, and this
+    // does not.
+    await this.#put('summary', {
+      ...await this.#current(summary), status: summary.status,
+    })
+    // Straight into the batch in flight, so a pause takes effect on the next
+    // tick rather than at the next chunk boundary.
+    this.#sim?.control({ ...next, speed: summary.speed })
     this.#publish({ t: 'status', run: summary })
     // A paused run still wakes, so a resume is noticed without a viewer poking it.
     await this.#state.storage.setAlarm(Date.now() + 100)
@@ -120,8 +139,12 @@ export class RunDO implements DurableObject {
     const clamped = Math.max(SPEED.slowest,
       Math.min(SPEED_CEILING[summary.decidedBy], Math.round(speed)))
     summary.speed = clamped
-    await this.#put('summary', summary)
-    await this.#put('control', { ...control, speed: clamped, seq: control.seq + 1 })
+    const next = { ...control, speed: clamped, seq: control.seq + 1 }
+    // Only the speed, for the same reason.
+    await this.#put('summary', { ...await this.#current(summary), speed: clamped })
+    await this.#put('control', next)
+    // As above: the batch in flight is the one being paced.
+    this.#sim?.control(next)
     this.#publish({ t: 'status', run: summary })
   }
 
@@ -259,6 +282,7 @@ export class RunDO implements DurableObject {
     })
 
     let finished = false
+    this.#sim = sim
     try {
       const out = await sim.start({
         ...(snapshot ? { snapshot } : {}),
@@ -275,6 +299,8 @@ export class RunDO implements DurableObject {
       finished = true
     }
 
+    this.#sim = null
+
     // Kept alongside R2 so the next batch resumes without a round trip.
     if (engineRef !== null) {
       await this.#put('snapshot', (engineRef as { serialize(): Snapshot }).serialize())
@@ -284,9 +310,9 @@ export class RunDO implements DurableObject {
     await this.#recordUsage(usage)
 
     if (summary.status === 'failed') {
-      await this.#put('summary', summary)
-      await this.#announce(summary)
-      this.#publish({ t: 'status', run: summary })
+      const merged = await this.#persist(summary)
+      await this.#announce(merged)
+      this.#publish({ t: 'status', run: merged })
       return
     }
     if (control.desired === 'stop') { await this.#finishWith(summary, 'cancelled'); return }
@@ -296,10 +322,11 @@ export class RunDO implements DurableObject {
     if (control.desired === 'step') {
       summary.status = 'paused'
       await this.#put('control', { ...control, desired: 'pause', seq: control.seq + 1 })
+      await this.#put('summary', { ...await this.#current(summary), status: 'paused' })
     }
-    await this.#put('summary', summary)
-    await this.#announce(summary)
-    this.#publish({ t: 'status', run: summary })
+    const merged = await this.#persist(summary)
+    await this.#announce(merged)
+    this.#publish({ t: 'status', run: merged })
     await this.#state.storage.setAlarm(Date.now() + 1)
   }
 
@@ -315,12 +342,32 @@ export class RunDO implements DurableObject {
     if (summary) await this.#finishWith(summary, status)
   }
 
+  /**
+   * The batch's progress, merged over whatever is stored now.
+   *
+   * Never the batch's own copy written back whole: a batch is up to a minute of
+   * wall time at a watchable pace, and a speed or a pause set during it lived
+   * in the object that copy would overwrite.
+   */
+  async #persist(batch: RunSummary): Promise<RunSummary> {
+    const merged = mergeProgress(await this.#current(batch), batch)
+    await this.#put('summary', merged)
+    return merged
+  }
+
+  async #current(fallback: RunSummary): Promise<RunSummary> {
+    return await this.#get('summary') ?? fallback
+  }
+
   async #finishWith(summary: RunSummary, status: RunStatus): Promise<void> {
-    summary.status = status
-    summary.queuePosition = null
-    await this.#put('summary', summary)
-    await this.#announce(summary)
-    this.#publish({ t: 'status', run: summary })
+    const merged = {
+      ...mergeProgress(await this.#current(summary), summary),
+      status,
+      queuePosition: null,
+    }
+    await this.#put('summary', merged)
+    await this.#announce(merged)
+    this.#publish({ t: 'status', run: merged })
   }
 
   // ---- requests ------------------------------------------------------------

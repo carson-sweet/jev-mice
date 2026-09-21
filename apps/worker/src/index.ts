@@ -98,16 +98,42 @@ app.get('/api/runs/:id', async (c) => {
   return new Response(r.body, { status: r.status, headers: r.headers })
 })
 
+/**
+ * Playback and pace, both on this one route because that is what the page
+ * sends and what the local host has always accepted.
+ *
+ * A speed change arrives here as action "speed" with a number, and has to be
+ * turned into the run object's own /speed. Forwarding the whole body to
+ * /control was the bug: the object understands only pause, resume, step and
+ * stop there, so a speed change was accepted with a 200 and silently dropped,
+ * and the slider did nothing on the deployment for its entire life. Nothing
+ * caught it because no test exercised these routes at all.
+ *
+ * The validation is here rather than in the object for the same reason the host
+ * does it: an unknown action should be a 400 naming the problem, not a request
+ * an object quietly ignores.
+ */
 app.post('/api/runs/:id/control', async (c) => {
-  const r = await runStub(c.env, c.req.param('id')).fetch('https://run/control', {
-    method: 'POST', body: JSON.stringify(await c.req.json()),
-  })
-  return new Response(r.body, { status: r.status, headers: r.headers })
-})
+  const body = await c.req.json<{ action?: string; speed?: number }>()
+  const run = runStub(c.env, c.req.param('id'))
 
-app.post('/api/runs/:id/speed', async (c) => {
-  const r = await runStub(c.env, c.req.param('id')).fetch('https://run/speed', {
-    method: 'POST', body: JSON.stringify(await c.req.json()),
+  if (body.action === 'speed') {
+    if (!Number.isFinite(body.speed)) {
+      return c.json({ error: 'a speed in ticks a second is required' }, 400)
+    }
+    const r = await run.fetch('https://run/speed', {
+      method: 'POST', body: JSON.stringify({ speed: Number(body.speed) }),
+    })
+    return new Response(r.body, { status: r.status, headers: r.headers })
+  }
+
+  if (body.action !== 'pause' && body.action !== 'resume'
+      && body.action !== 'step' && body.action !== 'stop') {
+    return c.json({ error: 'unknown action' }, 400)
+  }
+
+  const r = await run.fetch('https://run/control', {
+    method: 'POST', body: JSON.stringify({ action: body.action }),
   })
   return new Response(r.body, { status: r.status, headers: r.headers })
 })
