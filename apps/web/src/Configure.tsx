@@ -9,6 +9,9 @@ import { OPENING_PRESET } from './opening'
 
 const PERSONALITIES: Personality[] = ['bold', 'cautious', 'vigilant', 'social']
 
+/** Shared with the hero's Start button, so both submit the same form. */
+export const CONFIG_FORM_ID = 'run-config-form'
+
 /**
  * A hint that opens on hover and on keyboard focus, and closes on Escape.
  * Hover alone would put the explanation out of reach of anyone not using a
@@ -120,6 +123,7 @@ export function Configure({ onStart, busy, jevAvailable, maxTicks }: {
 
   return (
     <form
+      id={CONFIG_FORM_ID}
       className="space-y-2"
       onSubmit={(e) => {
         e.preventDefault()
@@ -140,7 +144,7 @@ export function Configure({ onStart, busy, jevAvailable, maxTicks }: {
         className="w-full rounded bg-sky-600 px-3 py-2 font-medium text-white
                    hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-zinc-700"
       >
-        {busy ? 'Starting' : 'Start a run'}
+        {busy ? 'Starting' : 'Run These Settings'}
       </button>
 
       {errors.length > 0 && (

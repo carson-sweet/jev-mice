@@ -8,7 +8,7 @@ import {
 import { Grid } from './Grid'
 import { Chart } from './Chart'
 import { Inspector } from './Inspector'
-import { Configure } from './Configure'
+import { Configure, CONFIG_FORM_ID } from './Configure'
 import { Legend } from './Legend'
 import { COLOURS } from './glyphs'
 import { Log } from './Log'
@@ -370,10 +370,46 @@ export function App(): React.ReactElement {
                 </div>
                 <Legend />
               </>
-            : <p className="m-auto max-w-sm text-center text-sm text-zinc-500">
-                Set the starting conditions and start a run. The world appears here and
-                keeps going on the server, so closing this page does not stop it.
-              </p>}
+            : <div className="m-auto flex max-w-2xl flex-col items-start gap-5 text-left">
+                <h2 className="text-3xl font-semibold tracking-tight text-zinc-100">
+                  Mice, cats, traps, and food
+                </h2>
+                <p className="text-lg leading-relaxed text-zinc-400">
+                  jev-mice is a browser simulation where mice, cats, traps, and food
+                  play out together, with each animal&rsquo;s next move judged by Jev
+                  or computed by fixed rules.
+                </p>
+                <ul className="list-disc space-y-2 pl-5 text-lg leading-relaxed text-zinc-400">
+                  <li>
+                    Set up a simulation in the panel on the left, then press
+                    &ldquo;Run These Settings&rdquo;.
+                  </li>
+                  <li>
+                    Watch what&rsquo;s happening in the right panel, and control speed
+                    and progress with the playback controls in the upper right.
+                  </li>
+                  <li>
+                    Click anything in the simulation to track it and filter the
+                    activity and decisions down to just that mouse, cat, or whatever
+                    else.
+                  </li>
+                  <li>
+                    The History tab shows every simulation you&rsquo;ve run.
+                  </li>
+                </ul>
+                <p className="text-lg leading-relaxed text-zinc-400">
+                  Or just click the button below to go with defaults.
+                </p>
+                <button
+                  type="submit"
+                  form={CONFIG_FORM_ID}
+                  disabled={busy}
+                  className="rounded bg-sky-600 px-6 py-3 text-base font-medium text-white
+                             hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-zinc-700"
+                >
+                  {busy ? 'Starting' : 'Run With Defaults'}
+                </button>
+              </div>}
         </main>
 
         {/* w-72 is 18rem; a quarter wider is 22.5rem. Named exactly rather than
