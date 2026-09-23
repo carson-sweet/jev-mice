@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="530" viewBox="0 70 1400 530" role="img" aria-labelledby="title desc">
+  <title id="title">How Jev probabilities become mouse movement</title>
+  <desc id="desc">A typed drive distribution weights normalized food, danger, shelter, mate, and exploration fields across nine candidate cells. Deterministic legality checks and seeded jitter choose the next cell.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#111111"/></marker>
+    <style>
+      .bg{fill:#ffffff}.box,.field{fill:#ffffff;stroke:#111111;stroke-width:2}.t{fill:#111111;font:600 22px ui-sans-serif,system-ui,sans-serif}.s{fill:#333333;font:16px ui-sans-serif,system-ui,sans-serif}.mono{fill:#111111;font:16px ui-monospace,SFMono-Regular,monospace}.line{fill:none;stroke:#111111;stroke-width:2;marker-end:url(#arrow)}.cell{fill:#ffffff;stroke:#111111;stroke-width:2}.mouse,.food,.cat{fill:#111111}.hole{fill:#ffffff;stroke:#111111;stroke-width:5}
+    </style>
+  </defs>
+  <rect class="bg" width="1400" height="720" rx="24"/>
+
+  <rect class="box" x="70" y="115" width="300" height="450" rx="18"/>
+  <text class="t" x="105" y="160">Jev drive answer</text>
+  <text class="mono" x="105" y="210">hide     0.52</text>
+  <rect x="210" y="194" width="120" height="20" rx="10" fill="#111111"/>
+  <text class="mono" x="105" y="255">flee     0.28</text>
+  <rect x="210" y="239" width="65" height="20" rx="10" fill="#111111"/>
+  <text class="mono" x="105" y="300">eat      0.14</text>
+  <rect x="210" y="284" width="33" height="20" rx="10" fill="#111111"/>
+  <text class="mono" x="105" y="345">explore  0.06</text>
+  <rect x="210" y="329" width="14" height="20" rx="10" fill="#111111"/>
+  <path d="M105 385H335" stroke="#111111"/>
+  <text class="s" x="105" y="425">Intent: hide</text>
+  <text class="s" x="105" y="455">All four values survive</text>
+  <text class="s" x="105" y="482">as movement weights.</text>
+
+  <rect class="field" x="500" y="115" width="390" height="450" rx="18"/>
+  <text class="t" x="535" y="160">Normalized signal fields</text>
+  <text class="mono" x="535" y="210">+ 0.14 × food</text>
+  <text class="mono" x="535" y="250">− 0.28 × danger</text>
+  <text class="mono" x="535" y="290">+ 0.52 × shelter</text>
+  <text class="mono" x="535" y="330">+ 0.00 × mate</text>
+  <text class="mono" x="535" y="370">+ 0.06 × explore</text>
+  <path d="M535 405H855" stroke="#111111"/>
+  <text class="s" x="535" y="445">Each field is evaluated over</text>
+  <text class="s" x="535" y="472">the current cell and its eight</text>
+  <text class="s" x="535" y="499">neighbors before weighting.</text>
+
+  <rect class="box" x="1020" y="115" width="310" height="450" rx="18"/>
+  <text class="t" x="1055" y="160">Candidate cells</text>
+  <g transform="translate(1070 210)">
+    <rect class="cell" x="0" y="0" width="70" height="70"/><rect class="cell" x="72" y="0" width="70" height="70"/><rect class="cell" x="144" y="0" width="70" height="70"/>
+    <rect class="cell" x="0" y="72" width="70" height="70"/><rect x="72" y="72" width="70" height="70" fill="#ffffff" stroke="#111111" stroke-width="3"/><rect x="144" y="72" width="70" height="70" fill="#ffffff" stroke="#111111" stroke-width="3"/>
+    <rect class="cell" x="0" y="144" width="70" height="70"/><rect class="cell" x="72" y="144" width="70" height="70"/><rect class="cell" x="144" y="144" width="70" height="70"/>
+    <circle class="mouse" cx="107" cy="107" r="16"/><circle class="hole" cx="179" cy="107" r="18"/>
+    <rect class="food" x="168" y="18" width="22" height="22" rx="3"/><path class="cat" d="M18 183l14-26 14 26z"/>
+  </g>
+  <text class="s" x="1055" y="470">Code rejects illegal cells,</text>
+  <text class="s" x="1055" y="497">adds seeded tie-breaking jitter,</text>
+  <text class="s" x="1055" y="524">and moves to the best result.</text>
+
+  <path class="line" d="M370 340H500"/><path class="line" d="M890 340H1020"/>
+</svg>

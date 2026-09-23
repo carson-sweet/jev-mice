@@ -2,7 +2,8 @@
 // Satisfies FR-069 to FR-071, FR-121. Verifies SM-15.
 import { describe, it, expect } from 'vitest'
 import {
-  createEngine, baselineProvider, baselineBatch, type DecisionProvider,
+  createEngine, baselineProvider, baselineBatch,
+  type DecisionProvider, type DecisionRequest, type MouseContext,
 } from '../../src/index.js'
 import { engine, medium, SEED, runTicks, of, comparable } from '../helpers.js'
 
@@ -31,6 +32,25 @@ describe('US-E02-05 Falling back to code-only rules', () => {
     const evs = await runTicks(
       createEngine({ config: medium(), seed: SEED, provider: baselineProvider() }), 60)
     for (const d of of(evs, 'decision_returned')) expect(d.source).toBe('baseline')
+  })
+
+  it('Evaluates memory freshness at the request tick', async () => {
+    const context: MouseContext = {
+      id: 'm0001', sex: 'female', personality: 'cautious', nutrition: 80, age: 100,
+      pregnantPastTerm: false, movingSlowly: false,
+      nearestCat: null, nearestFood: null, nearestMate: null, nearestShelter: null,
+      knownTrap: null, options: ['explore'],
+      memories: [{
+        sentence: 'An old danger.', provenance: 'seen', addedAt: 100,
+        bearing: 'north', at: { x: 1, y: 1 }, kind: 'cat_kill',
+      }],
+    }
+    const req: DecisionRequest = {
+      batchId: 'b1', tick: 250, state: { m0001: {} }, questions: {},
+      contexts: { m0001: context }, agents: ['m0001'],
+    }
+    const result = await baselineProvider().decide([req])
+    expect(result.b1?.subjects[0]?.fear).toBe('unconcerned')
   })
 
   it('A code-only run and a model run diverge only from the first decision', async () => {
@@ -68,7 +88,7 @@ describe('A run that was never going to ask Jev', () => {
     const quotaBound: DecisionProvider = {
       decide: (requests) => Promise.resolve(Object.fromEntries(requests.map((r) => [
         r.batchId,
-        { ...baselineBatch(r, 0), fallbackReason: 'quota' as const },
+        { ...baselineBatch(r, r.tick), fallbackReason: 'quota' as const },
       ]))),
     }
     const e = createEngine({ config: medium({ ticks: 300 }), seed: 1, provider: quotaBound })

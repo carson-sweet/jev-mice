@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
-  baselineProvider, validateConfig, type DecisionProvider, type RunConfig,
+  baselineProvider, fallbackProvider, validateConfig, type DecisionProvider, type RunConfig,
 } from '@jev-mice/engine'
 import { jevProvider, type SystemOneLike } from '@jev-mice/provider-jev'
 
@@ -162,7 +162,8 @@ export function createRunManager(opts: RunManagerOptions): RunManager {
 
   function providerFor(decider: Decider): (a: { degraded: boolean }) => DecisionProvider {
     return (allowance) => {
-      if (decider === 'rules' || allowance.degraded || !jevAvailable) return baselineProvider()
+      if (decider === 'rules' || !jevAvailable) return baselineProvider()
+      if (allowance.degraded) return fallbackProvider('quota')
       const client = opts.client ?? httpClient(opts.apiKey as string)
       return jevProvider(client)
     }

@@ -205,6 +205,8 @@ export interface DecisionSubject {
 
 export interface DecisionRequest {
   batchId: string
+  /** Current simulation tick for code-only rules. Never sent to a model. */
+  tick: Tick
   /** Exactly what a decision model is sent: words only, never a number. */
   state: Record<string, unknown>
   questions: Record<string, unknown>

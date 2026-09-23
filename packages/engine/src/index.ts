@@ -7,7 +7,7 @@ export { createRng, type Rng, type RngState } from './rng.js'
 export {
   bucketNutrition, bucketDistance, bucketAge, catStateWord,
   composeRequests, contextFor, availableDrives, spatialOrder,
-  baselineProvider, baselineDrive, baselineFear, baselineSubjects, baselineBatch, baselineCat, BLOCK, DANGER_FLOOR,
+  baselineProvider, fallbackProvider, baselineDrive, baselineFear, baselineSubjects, baselineBatch, baselineCat, BLOCK, DANGER_FLOOR,
   situationLine,
   type CatContext,
   type MouseContext,

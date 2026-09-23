@@ -12,7 +12,7 @@
 // costs its storage and nothing else.
 
 import {
-  baselineProvider, validateConfig,
+  baselineProvider, fallbackProvider, validateConfig,
   type DecisionProvider, type RunConfig, type Snapshot,
 } from '@jev-mice/engine'
 import { jevProvider } from '@jev-mice/provider-jev'
@@ -336,9 +336,10 @@ export class RunDO implements DurableObject {
   }
 
   #providerFor(decider: Decider, allowance: { degraded: boolean }): DecisionProvider {
-    if (decider === 'rules' || allowance.degraded || !this.#env.TYPESAFE_API_KEY) {
+    if (decider === 'rules' || !this.#env.TYPESAFE_API_KEY) {
       return baselineProvider()
     }
+    if (allowance.degraded) return fallbackProvider('quota')
     return jevProvider(httpClient(this.#env))
   }
 

@@ -712,18 +712,28 @@ function build(
         emit({ kind: 'cat_targeted', id: c.id, target: null, mode: 'prowl' } as never)
         return
       }
-      if (d <= catPounceRange(c) && c.pounceCooldown === 0) {
+      if (c.mode === 'rest') return
+      if (c.mode === 'prowl') {
+        c.target = null
+        c.bestDistance = null
+        c.patience = 0
+        emit({ kind: 'cat_targeted', id: c.id, target: null, mode: 'prowl' } as never)
+      } else if (c.mode === 'pounce' && d <= catPounceRange(c) && c.pounceCooldown === 0) {
         const from = { x: c.x, y: c.y }
         stepToward(c, target.x, target.y, 2)
         c.pounceCooldown = catPounceCooldown(c)
         c.mode = 'pounce'
         emit({ kind: 'cat_pounced', id: c.id, target: target.id, from, to: { x: c.x, y: c.y } } as never)
         return
+      } else {
+        // A requested pounce that is not mechanically possible degrades to a
+        // stalk. The provider chooses the tactic; code retains final authority
+        // over whether that tactic can execute in this world state.
+        c.mode = 'stalk'
+        c.lastSighting = { x: target.x, y: target.y }
+        stepToward(c, target.x, target.y, 1)
+        return
       }
-      c.mode = 'stalk'
-      c.lastSighting = { x: target.x, y: target.y }
-      stepToward(c, target.x, target.y, 1)
-      return
     }
     if (c.mode === 'rest') return
     if (c.lastSighting && tick < c.sightingUntil) {

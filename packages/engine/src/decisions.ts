@@ -195,7 +195,8 @@ export function composeRequests(
       questions[`drive_${m.id}`] = driveQuestion(m.id, ctx.options)
       questions[`fear_${m.id}`] = fearQuestion(m.id)
     }
-    requests.push({ batchId: nextBatchId(), state, questions, contexts, agents: group.map((m) => m.id) })
+    requests.push({ batchId: nextBatchId(), tick: world.tick, state, questions, contexts,
+                    agents: group.map((m) => m.id) })
   }
 
   for (const group of chunk(spatialOrder(cats), BATCH_SIZE)) {
@@ -221,13 +222,14 @@ export function composeRequests(
           doing: c.mode === 'rest' ? 'resting' : `${c.mode}ing`,
           hunger: c.nutrition >= CAT.hungryBelow ? 'well fed'
             : c.nutrition > CAT.hungryBelow / 2 ? 'hungry' : 'starving',
+          pounce: c.pounceCooldown === 0 ? 'ready to pounce' : 'recovering from the last pounce',
         },
         mice: candidates.map((x) => x.description),
       }
       questions[`target_${c.id}`] = catTargetQuestion(c.id, candidates)
       questions[`mode_${c.id}`] = catModeQuestion(c.id)
     }
-    requests.push({ batchId: nextBatchId(), state, questions, contexts,
+    requests.push({ batchId: nextBatchId(), tick: world.tick, state, questions, contexts,
                     agents: group.map((c) => c.id) })
   }
   return requests
@@ -458,7 +460,20 @@ export function baselineProvider(): DecisionProvider {
   return {
     decide: (requests) => {
       const out: Record<string, DecisionBatch> = {}
-      for (const req of requests) out[req.batchId] = baselineBatch(req, 0)
+      for (const req of requests) out[req.batchId] = baselineBatch(req, req.tick)
+      return Promise.resolve(out)
+    },
+  }
+}
+
+/** Rules used because a Jev run could not spend another request. */
+export function fallbackProvider(reason: 'quota' | 'error' | 'timeout'): DecisionProvider {
+  return {
+    decide: (requests) => {
+      const out: Record<string, DecisionBatch> = {}
+      for (const req of requests) {
+        out[req.batchId] = { ...baselineBatch(req, req.tick), fallbackReason: reason }
+      }
       return Promise.resolve(out)
     },
   }

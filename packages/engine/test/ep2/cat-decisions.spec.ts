@@ -16,7 +16,7 @@ function catProvider(choose: (req: DecisionRequest, id: AgentId) => {
     decide: (requests) => {
       const out: Record<string, DecisionBatch> = {}
       for (const req of requests) {
-        const base = baselineBatch(req, 0)
+        const base = baselineBatch(req, req.tick)
         out[req.batchId] = {
           ...base,
           source: 'jev',
@@ -96,6 +96,21 @@ describe('A cat acts on the decision it was given', () => {
     const events = await runTicks(e, 200)
     const rested = of(events, 'cat_targeted').filter((t) => t.mode === 'rest')
     expect(rested.length, 'a cat never took the mode it was given').toBeGreaterThan(0)
+  }, 30_000)
+
+  it('Does not pounce when the provider chose stalk', async () => {
+    const e = createEngine({
+      config,
+      seed: 5,
+      provider: catProvider((req, id) => {
+        const ctx = req.contexts?.[id] as { candidates?: { id: string }[] } | undefined
+        const first = ctx?.candidates?.[0]
+        return first ? { target: first.id, mode: 'stalk' } : null
+      }),
+    })
+    const events = await runTicks(e, 200)
+    expect(of(events, 'cat_targeted').some((event) => event.mode === 'stalk')).toBe(true)
+    expect(of(events, 'cat_pounced')).toHaveLength(0)
   }, 30_000)
 
   it('Chases nothing when told nothing is worth chasing', async () => {

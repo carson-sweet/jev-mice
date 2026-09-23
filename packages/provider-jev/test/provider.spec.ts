@@ -103,6 +103,15 @@ describe('The Jev decision provider', () => {
     expect(mouse!.weights.explore).toBeCloseTo(0.8, 6)
   })
 
+  it('Records a cat mode as its intent rather than its target id', async () => {
+    const out = await jevProvider(fake()).decide(requests())
+    const cat = Object.values(out).flatMap((batch) => batch.subjects)
+      .find((subject) => subject.agentId.startsWith('c'))
+    expect(cat).toBeDefined()
+    expect(cat?.intent).toBe((cat?.answers.mode as { choice?: string } | undefined)?.choice)
+    expect(cat?.intent).not.toMatch(/^m/)
+  })
+
   it('Flags an answer the service is not confident about', async () => {
     const sure = await jevProvider(fake({ confidence: 0.8 })).decide(requests())
     const unsure = await jevProvider(fake({ confidence: 0.4 })).decide(requests())
@@ -156,5 +165,38 @@ describe('The Jev decision provider', () => {
     const sources = reqs.map((r) => out[r.batchId]?.source)
     expect(sources[0]).toBe('baseline')
     expect(sources.slice(1).every((s) => s === 'jev')).toBe(true)
+  })
+
+  it('Falls back the whole batch when one required answer is missing', async () => {
+    const incomplete: SystemOneLike = {
+      async systemOne(req) {
+        const answered = await fake().systemOne(req)
+        const firstFear = Object.keys(answered.answers).find((name) => name.startsWith('fear_'))
+        if (firstFear !== undefined) delete answered.answers[firstFear]
+        return answered
+      },
+    }
+    const out = await jevProvider(incomplete).decide(requests())
+    const mouseBatch = Object.values(out).find((batch) =>
+      batch.subjects.some((subject) => subject.agentId.startsWith('m')))
+    expect(mouseBatch?.source).toBe('baseline')
+    expect(mouseBatch?.fallbackReason).toBe('error')
+  })
+
+  it('Falls back rather than accepting a choice outside the offered labels', async () => {
+    const invented: SystemOneLike = {
+      async systemOne(req) {
+        const answered = await fake().systemOne(req)
+        const firstChoice = Object.keys(answered.answers).find((name) => name.startsWith('drive_'))
+        if (firstChoice !== undefined) {
+          answered.answers[firstChoice] = {
+            type: 'choice', choice: 'teleport', confidence: 1, probabilities: { teleport: 1 },
+          }
+        }
+        return answered
+      },
+    }
+    const out = await jevProvider(invented).decide(requests())
+    expect(Object.values(out).some((batch) => batch.fallbackReason === 'error')).toBe(true)
   })
 })

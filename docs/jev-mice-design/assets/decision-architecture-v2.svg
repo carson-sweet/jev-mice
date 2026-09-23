@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="620" viewBox="0 0 1400 620" role="img" aria-labelledby="title desc">
+  <title id="title">The jev-mice decision architecture</title>
+  <desc id="desc">World state is narrowed and described by deterministic code, then sent to Jev or the fixed rules. The typed result returns to the deterministic engine, which applies the decision, advances the world, emits events, and produces the next world state.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#111111"/></marker>
+    <style>
+      .bg{fill:#ffffff}.box{fill:#ffffff;stroke:#111111;stroke-width:2}.title{fill:#111111;font:600 21px ui-sans-serif,system-ui,sans-serif}.body{fill:#333333;font:15px ui-sans-serif,system-ui,sans-serif}.label{fill:#111111;font:700 14px ui-monospace,SFMono-Regular,monospace}.line{fill:none;stroke:#111111;stroke-width:2;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1400" height="620" rx="24"/>
+
+  <rect class="box" x="60" y="60" width="240" height="170" rx="16"/>
+  <text class="title" x="90" y="105">World state</text>
+  <text class="body" x="90" y="142">positions · nutrition</text>
+  <text class="body" x="90" y="171">memories · pregnancy</text>
+  <text class="body" x="90" y="200">food · cats · shelter</text>
+
+  <rect class="box" x="365" y="60" width="300" height="170" rx="16"/>
+  <text class="label" x="395" y="98">DETERMINISTIC CODE</text>
+  <text class="title" x="395" y="137">Narrow + describe</text>
+  <text class="body" x="395" y="174">compute facts and bound options</text>
+  <text class="body" x="395" y="203">bucket numbers into words</text>
+
+  <rect class="box" x="735" y="45" width="340" height="200" rx="16"/>
+  <text class="label" x="765" y="82">DECISION PROVIDER</text>
+  <text class="title" x="765" y="120">Jev</text>
+  <text class="body" x="765" y="151">Choice + Score distributions</text>
+  <path d="M765 169H1045" stroke="#111111"/>
+  <text class="title" x="765" y="207">Fixed rules</text>
+  <text class="body" x="765" y="234">same request and result contract</text>
+
+  <rect class="box" x="1140" y="60" width="200" height="170" rx="16"/>
+  <text class="label" x="1170" y="98">TYPED RESULT</text>
+  <text class="body" x="1170" y="137">intent · fear</text>
+  <text class="body" x="1170" y="166">probabilities</text>
+  <text class="body" x="1170" y="195">confidence · source</text>
+
+  <path class="line" d="M300 145H365"/>
+  <path class="line" d="M665 145H735"/>
+  <path class="line" d="M1075 145H1140"/>
+
+  <rect class="box" x="690" y="340" width="560" height="210" rx="16"/>
+  <text class="label" x="725" y="380">DETERMINISTIC ENGINE</text>
+  <text class="title" x="725" y="420">Apply decision + advance world</text>
+  <text class="body" x="725" y="457">validate intent · set weights · set fear</text>
+  <text class="body" x="725" y="486">score legal movement · resolve interactions</text>
+  <text class="body" x="725" y="515">timers · hunger · birth · disease · death</text>
+
+  <rect class="box" x="60" y="355" width="300" height="180" rx="16"/>
+  <text class="label" x="90" y="394">EVENT RECORD</text>
+  <text class="title" x="90" y="433">Observe + audit</text>
+  <text class="body" x="90" y="466">requests · answers</text>
+  <text class="body" x="90" y="493">movement · outcomes</text>
+  <text class="body" x="90" y="520">model · latency · usage</text>
+
+  <path class="line" d="M1240 230V340"/>
+  <path class="line" d="M690 445H360"/>
+  <path class="line" d="M900 340V285H180V230"/>
+</svg>

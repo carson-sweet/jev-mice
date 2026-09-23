@@ -53,9 +53,57 @@ interface ScoreAnswer {
 }
 
 const isChoice = (a: unknown): a is ChoiceAnswer =>
-  typeof a === 'object' && a !== null && (a as { type?: unknown }).type === 'choice'
+  typeof a === 'object' && a !== null
+  && (a as { type?: unknown }).type === 'choice'
+  && typeof (a as { choice?: unknown }).choice === 'string'
+  && typeof (a as { confidence?: unknown }).confidence === 'number'
+  && Number.isFinite((a as { confidence: number }).confidence)
+  && (a as { confidence: number }).confidence >= 0
+  && (a as { confidence: number }).confidence <= 1
+  && typeof (a as { probabilities?: unknown }).probabilities === 'object'
+  && (a as { probabilities?: unknown }).probabilities !== null
 const isScore = (a: unknown): a is ScoreAnswer =>
-  typeof a === 'object' && a !== null && (a as { type?: unknown }).type === 'score'
+  typeof a === 'object' && a !== null
+  && (a as { type?: unknown }).type === 'score'
+  && typeof (a as { score?: unknown }).score === 'number'
+  && Number.isFinite((a as { score: number }).score)
+  && typeof (a as { confidence?: unknown }).confidence === 'number'
+  && Number.isFinite((a as { confidence: number }).confidence)
+  && (a as { confidence: number }).confidence >= 0
+  && (a as { confidence: number }).confidence <= 1
+  && typeof (a as { probabilities?: unknown }).probabilities === 'object'
+  && (a as { probabilities?: unknown }).probabilities !== null
+
+const criteriaLabels = (question: unknown): string[] => {
+  if (typeof question !== 'object' || question === null) return []
+  const criteria = (question as { criteria?: unknown }).criteria
+  return typeof criteria === 'object' && criteria !== null && !Array.isArray(criteria)
+    ? Object.keys(criteria)
+    : []
+}
+
+const probabilitiesAreValid = (p: Record<string, number>, labels: readonly string[]): boolean => {
+  if (labels.length === 0) return false
+  const entries = Object.entries(p)
+  return entries.length === labels.length
+    && entries.every(([label, value]) => labels.includes(label) && Number.isFinite(value) && value >= 0)
+    && entries.some(([, value]) => value > 0)
+}
+
+const scoreIsValid = (answer: ScoreAnswer, question: unknown): boolean => {
+  if (typeof question !== 'object' || question === null) return false
+  const criteria = (question as { criteria?: unknown }).criteria
+  if (!Array.isArray(criteria) || criteria.length === 0
+      || answer.score < 0 || answer.score > criteria.length - 1) return false
+  const entries = Object.entries(answer.probabilities)
+  return entries.length === criteria.length
+    && entries.every(([label, value]) => {
+      const level = Number(label)
+      return Number.isInteger(level) && level >= 0 && level < criteria.length
+        && Number.isFinite(value) && value >= 0
+    })
+    && entries.some(([, value]) => value > 0)
+}
 
 /** Renormalized so the weights the engine receives always sum to one. */
 function weightsFrom(probabilities: Record<string, number>): Record<string, number> {
@@ -83,8 +131,15 @@ export function jevProvider(client: SystemOneLike, opts: JevProviderOptions = {}
         { signal: controller.signal, timeout: timeoutMs },
       )
       const subjects = req.agents.map((id) => subjectFor(req, id, result.answers))
+      if (subjects.some((subject) => subject === null)) {
+        return {
+          ...baselineBatch(req, req.tick),
+          latencyMs: Math.max(0, now() - started),
+          fallbackReason: 'error',
+        }
+      }
       const batch: DecisionBatch = {
-        subjects,
+        subjects: subjects as DecisionSubject[],
         source: 'jev',
         latencyMs: Math.max(0, now() - started),
         model: result.model,
@@ -95,7 +150,7 @@ export function jevProvider(client: SystemOneLike, opts: JevProviderOptions = {}
       // A batch the service could not answer is answered by the rules, so a
       // failure costs accuracy for those agents and nothing else.
       return {
-        ...baselineBatch(req, 0),
+        ...baselineBatch(req, req.tick),
         latencyMs: Math.max(0, now() - started),
         fallbackReason: controller.signal.aborted ? 'timeout' : 'error',
       }
@@ -131,7 +186,7 @@ function race(
   return new Promise<DecisionBatch>((resolve) => {
     const timer = setTimeout(() => {
       resolve({
-        ...baselineBatch(req, 0),
+        ...baselineBatch(req, req.tick),
         latencyMs: Math.max(0, now() - started),
         fallbackReason: 'timeout',
       })
@@ -142,26 +197,32 @@ function race(
 
 function subjectFor(
   req: DecisionRequest, id: string, answers: Record<string, unknown>,
-): DecisionSubject {
+): DecisionSubject | null {
   const drive = answers[`drive_${id}`] ?? answers[`target_${id}`]
   const fearAnswer = answers[`fear_${id}`]
+  const modeAnswer = answers[`mode_${id}`]
+  const driveQuestion = req.questions[`drive_${id}`] ?? req.questions[`target_${id}`]
+  const driveLabels = criteriaLabels(driveQuestion)
+  const isCat = req.questions[`target_${id}`] !== undefined
+  const modeLabels = criteriaLabels(req.questions[`mode_${id}`])
   const mine: Record<string, AnswerPayload> = {}
   for (const [name, value] of Object.entries(answers)) {
     if (name.endsWith(`_${id}`)) mine[name.slice(0, name.length - id.length - 1)] =
       value as AnswerPayload
   }
 
-  if (!isChoice(drive)) {
-    // The service answered the batch but not this agent. One missing answer
-    // must not cost the whole batch, so this agent alone falls back.
-    const fallback = baselineBatch(req, 0).subjects.find((s) => s.agentId === id)
-    if (fallback) return fallback
-  }
+  if (!isChoice(drive) || !driveLabels.includes(drive.choice)
+      || !Object.hasOwn(drive.probabilities, drive.choice)
+      || !probabilitiesAreValid(drive.probabilities, driveLabels)) return null
+  if (isCat && (!isChoice(modeAnswer) || !modeLabels.includes(modeAnswer.choice)
+      || !probabilitiesAreValid(modeAnswer.probabilities, modeLabels))) return null
+  if (!isCat && (!isScore(fearAnswer)
+      || !scoreIsValid(fearAnswer, req.questions[`fear_${id}`]))) return null
 
-  const probabilities = isChoice(drive) ? drive.probabilities : { explore: 1 }
+  const probabilities = drive.probabilities
   const weights = weightsFrom(probabilities)
-  const confidence = isChoice(drive) ? drive.confidence : 0
-  const intent = (isChoice(drive) ? drive.choice : 'explore') as Drive
+  const confidence = drive.confidence
+  const intent = (isCat ? (modeAnswer as ChoiceAnswer).choice : drive.choice) as Drive | CatMode
   const fear: FearLevel = isScore(fearAnswer)
     ? FEAR_FROM_SCORE(fearAnswer.score, FEAR_LEVELS)
     : 'unconcerned'
