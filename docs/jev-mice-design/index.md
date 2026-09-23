@@ -359,6 +359,26 @@ At the ecology level, we can compare survival, extinction time, population curve
 
 One run is not evidence. Seeded placement and random events can put a colony on very different trajectories, and Jev adds variation at the decision boundary. Comparisons need repeated seeds, explicit configuration, source-labeled decisions, and separate reporting for local behavioral quality and global ecological outcomes.
 
+Collecting useful evidence requires two kinds of repetition. Running one provider across different seeds measures sensitivity to initial placement and the engine's seeded random events. Repeating a Jev run with the same configuration and seed measures variation at the judgment boundary; repeating a rules run that way adds no information because the rules path is deterministic. The strongest comparison is paired: choose a set of seeds, run each seed once with the fixed rules and one or more times with Jev, then compare both the decision-level measures and the ecological outcomes. Keep the configuration, seed, provider source, fallback count, model, and run length with every result so a provider failure or configuration change cannot masquerade as a behavioral difference.
+
+Readers can collect that data locally rather than one run at a time on the hosted site. After [cloning the open-source repository](https://github.com/carson-sweet/jev-mice), install the dependencies and build it:
+
+```bash
+npm install
+npm run build
+npm start
+```
+
+The local host stores completed runs under `.data`, lists them in the History view, and exposes a machine-readable JSON report and a zipped JSON Lines event record for each run. Supplying `TYPESAFE_API_KEY` in `.env` enables Jev; without it, the same installation runs the fixed-rules control. The host is also deliberately scriptable: a local script can create runs with `POST /api/runs`, poll `GET /api/runs/:id`, then collect `/api/runs/:id/report` and `/api/runs/:id/export`. That makes it practical to iterate over a declared list of seeds and preserve one report and event record per provider and seed.
+
+For larger deterministic studies, the repository includes a [headless survival sweep](https://github.com/carson-sweet/jev-mice/blob/main/scripts/survival-sweep.mjs) that runs the fixed-rules engine across a grid of configurations and seeds without opening the browser:
+
+```bash
+node scripts/survival-sweep.mjs --seeds 16 --ticks 4000 --workers 8
+```
+
+Those arguments select the number of fixed seeds per configuration, the observation horizon, and the number of local worker processes. The sweep records the tick at which the last mouse died, or `null` when the colony survived the horizon, and writes the generated survival table to `packages/engine/src/survival-table.ts`. It exercises the deterministic control only; Jev experiments should go through the local host so their source labels, fallbacks, latency, usage, reports, and full decision records are preserved.
+
 The distinction matters: a provider can make locally plausible decisions and still produce an unstable ecosystem. Conversely, a crude rule can accidentally produce a resilient population for reasons that have little to do with intelligent behavior.
 
 ## What this design teaches

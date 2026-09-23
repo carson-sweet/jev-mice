@@ -329,10 +329,30 @@ export function App(): React.ReactElement {
             shorter than that, not the plan: without it a field below the fold is
             unreachable rather than merely out of sight. Start is first either
             way, so it is never the thing that goes. */}
-        <aside className="w-72 shrink-0 overflow-y-auto border-r border-zinc-800
-                          bg-zinc-950/40 p-4">
+        <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-r
+                          border-zinc-800 bg-zinc-950/40 p-4">
           <Configure onStart={start} busy={busy} jevAvailable={caps.jevAvailable}
                      maxTicks={caps.maxTicks} />
+          <div className="mt-auto border-t border-zinc-700 pt-5 text-sm leading-relaxed">
+            <p className="text-zinc-300">
+              Read how this simulation combines TypeSafe Jev with a deterministic engine.
+            </p>
+            <a
+              href="https://carsonsweet.substack.com/p/what-happens-when-judgment-replaces"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2.5 inline-flex items-center gap-1 font-medium text-sky-300 underline-offset-4
+                         hover:text-sky-200 hover:underline focus:outline-none
+                         focus-visible:rounded-sm focus-visible:ring-1 focus-visible:ring-sky-500"
+            >
+              Read the design article
+              <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                <path d="M6 3h7v7M13 3 6 10M11 9v4H3V5h4" fill="none"
+                      stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"
+                      strokeLinejoin="round" />
+              </svg>
+            </a>
+          </div>
         </aside>
 
         {/* No items-center on the column: it would shrink the grid's wrapper to

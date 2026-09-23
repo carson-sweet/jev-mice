@@ -1,166 +1,113 @@
 # jev-mice
 
-A tick-based ecology of mice, cats, traps, food and mouseholes where each
-animal's next move is a judgment rather than a rule. TypeSafe's Jev arbitrates
-the drives; the code narrows the legal options first and applies whatever comes
-back.
+A tick-based ecology of mice, cats, traps, food, and mouseholes. Animal decisions come from [TypeSafe Jev](https://typesafe.ai/) or a fixed-rules control, while a deterministic engine retains authority over facts, legal actions, movement, interactions, and consequences.
 
-Version 0.1.0 · 2026-09-20
+[Play the live simulation](https://mice.jev.carsonsweet.com/) · [Read the design article](https://carsonsweet.substack.com/p/what-happens-when-judgment-replaces)
 
-## Running it
+## Run it locally
 
 ```bash
 npm install
-cp .env.example .env   # optional; put your key in it
-npm run build          # builds the viewer
-npm start              # serves it on http://localhost:8787
+cp .env.example .env   # optional; add a TypeSafe API key to enable Jev
+npm run build
+npm start              # http://localhost:8787
 ```
 
-With no key the page offers only the fixed rules and says why. With one, each
-run is started on Jev or on the rules from a switch on the configuration panel,
-so the same seed can be run both ways and compared. The key is read by the host
-process and never reaches a browser.
+Without a key, the application offers the fixed rules. With `TYPESAFE_API_KEY` set in `.env`, each run can use either Jev or the rules, so the same configuration and seed can be compared through both decision providers. The local host reads the key; it is never sent to the browser.
 
 `.env` is gitignored. Every setting it holds is listed in `.env.example`.
 
-For viewer work, `npm run dev` serves the page with hot reload and proxies the
-API to a host already running on 8787.
+For viewer development, leave `npm start` running and use `npm run dev` in another terminal. Vite serves the page with hot reload and proxies its API requests to the host on port 8787.
 
 ## What is here
 
 | Path | What it is |
 |---|---|
-| `packages/engine` | The simulation. Pure, seeded, no clock and no network. |
-| `packages/provider-jev` | Turns a batch of decisions into one request and back. |
-| `apps/sim` | The process that runs the loop and writes chunks. |
-| `apps/host` | The local server: runs, sockets, stored objects. |
-| `apps/web` | The viewer. |
+| `packages/engine` | The pure, seeded simulation state machine. It has no clock, network, browser, or storage dependency. |
+| `packages/provider-jev` | The TypeSafe adapter. It validates typed answers, normalizes distributions, records metadata, and falls back by batch. |
+| `apps/sim` | The run loop, event chunking, snapshots, reports, and exports shared by local and deployed execution. |
+| `apps/host` | The local HTTP and WebSocket host with filesystem-backed run storage. |
+| `apps/web` | The configuration, live simulation, inspection, history, report, and playback interface. |
+| `apps/worker` | The Cloudflare Worker, Durable Objects, budget enforcement, registry, and R2-backed production path. |
+| `scripts/survival-sweep.mjs` | A headless fixed-rules sweep across configurations and seeds. |
 
-The engine never reaches for the clock, the network or the document, so a run
-with a given seed and a given provider produces the same event stream every
-time. The determinism suite is what holds that true:
+The engine itself is deterministic: given the same seed and the same decision answers, it produces the same event stream. A rules run is therefore reproducible from its configuration and seed. A Jev run is not guaranteed to receive identical judgments when repeated, so its event record, typed answers, source labels, summaries, and snapshots make the completed run inspectable even when the seed alone cannot reproduce it.
+
+The verification commands are:
 
 ```bash
-npm test                  # everything
-npm run test:determinism  # the seed, replay and snapshot round trip
+npm test
+npm run test:determinism
 npm run typecheck
+npm run build
 ```
 
 ## How a decision is made
 
-Code narrows first. A mouse is only offered drives its situation allows: `eat`
-only when it perceives food, `hide` only when a mousehole is free, `nest` only
-when it is carrying a litter past term. `explore` is always offered, so the
-option set is never empty.
+Code narrows first. A mouse is offered only the drives its situation allows: `eat` when it perceives food, `flee` when danger is visible, `hide` when suitable shelter is available, `seek_mate` when a potential mate is visible, and `nest` when a pregnancy is past term. `explore` is always offered, so the option set cannot be empty. Deterministic checks still decide whether the chosen action is legal when the animal reaches its destination.
 
-What Jev receives is words. A mouse's state has no coordinates, no tick numbers
-and no population counts, because numeric comparison over large states is where
-a System One model is weakest. Distances become "very close" or "nearby",
-nutrition becomes "hungry", and memories are sentences.
+Jev receives a qualitative description rather than raw simulation state. Distances become `very close` or `nearby`, nutrition becomes `hungry`, cat behavior becomes `stalking toward you` or `about to pounce`, and memories are sentences. Code retains coordinates, counters, arithmetic, timers, collision rules, and other facts with deterministic answers.
 
-Up to eight mice that are near one another share one request, which is what
-keeps the request rate inside the published limit. Grouping is by spatial sort
-rather than by map tile; confining a batch to a tile measured at 6.76 requests
-per tick against 1.74 for the sort.
+Up to eight spatially ordered animals share one request, but every animal keeps its own state and independently named questions. Batching reduces transport cost without merging their decisions.
 
-The probabilities come back as movement weights rather than as a single choice.
-A mouse that is 60 percent inclined to eat and 40 percent to flee moves on a
-field weighted 60/40, so the judgment shapes the path instead of switching it.
+For a mouse, Jev returns a `Choice` over the available drives and a `Score` over an ordered fear scale. The provider preserves the full probability distributions. The named choice controls discrete behavior such as whether a mouse may enter a hole, while all drive probabilities become weights over normalized food, danger, shelter, mate, and exploration fields for movement.
 
-Fear scales the distance danger is felt over, not the size of the danger. The
-signal fields are normalized across the nine cells a mouse can step to, so a
-multiplier would be cancelled exactly and do nothing.
+Fear changes the distance over which danger is felt, not merely the size of a danger score. Because the candidate-cell fields are normalized, multiplying the entire danger field by one constant would be canceled. The engine instead reshapes the distance falloff before normalization.
 
-When the service is slow, over budget or unreachable, that batch is answered by
-the fixed rules and the run continues. The record says which decisions were
-judged and which were computed, so the two are never confused.
+Cats use the same boundary with different questions: Jev selects a visible target and a tactic to attempt, while code validates the target, range, cooldown, path, capture, eating, and nutrition effects.
+
+When Jev times out, errors, returns an incomplete answer, or reaches an external budget, only the affected batch falls back to the fixed rules. The event record preserves the source and fallback reason so judged and computed behavior are not conflated.
 
 ## Watching a run
 
-The speed slider paces the run in ticks a second, from one at the left to about
-three hundred and thirty at the right, which is a full-length run in a minute or
-as fast as the machine manages. The server does the pacing, so the slider
-changes the simulation's rate rather than dropping frames on the way to the
-page. How often frames are sent follows the pace, so one tick a second is
-watchable and full speed does not flood the socket.
+The speed slider controls server-side pacing. Jev runs are capped at six ticks per second because inference is the limiting step; rules runs are capped at fifty so the result remains watchable. Frame delivery is also bounded, so a fast run does not flood the browser.
 
-A run starts slow, at a tick a second, because the first thing anyone sees
-should be watchable. Drag the slider right when you want it to get on with it.
+Click any object on the grid to inspect it and filter the activity and decisions to that subject. The population chart and event log show how the ecology changes, while the live decision inspector shows the situation, intent, fear, confidence, source, latency, and fallback status for mouse decisions. Cat decisions remain in the stored event data.
 
-Under the chart, the running log shows every change to the population as it
-happens, and for a death it names the decision the animal was last given and
-who gave it. A colony collapsing and then its cats leaving one by one reads as
-a sequence of lines rather than as a chart going flat.
+The transport controls operate over buffered live frames. Moving backward changes the browser's playhead; it does not rewind the running engine. The History view provides stored turn-by-turn inspection for completed and active runs.
 
-Pointing at anything on the map names it and says how it is doing. Hovering a
-line in the log rings whatever that line is about, where it is still standing.
-
-The transport controls are a video player: jump to the start, step back, play or
-pause, step forward, jump to the end, and a scrubber. Forward is the simulation
-advancing. Backward moves a playhead through the frames this page has already
-received, because the engine runs forwards only and reconstructing an earlier
-turn live would mean replaying from a snapshot. The scrubber therefore covers
-what this page has seen, not the whole run; for the whole run, open it from the
-library.
-
-`/#/runs` lists every run so far, newest first, with its seed, its settings, and
-the highest, lowest and final count of mice and cats. Each row offers a written
-report and the whole record: the report answers the two behavioural measures the
-requirements set, and the record downloads as gzipped JSON lines, one object of
-metadata then one line per event, streamed so a long run need not fit in memory.
-Opening a run reads it turn by turn: what was standing at the end of each turn, how that changed, and
-under each turn every event of it except plain movement. That is assembled on
-request from what the run already stored, so nothing extra is written while a
-run is going.
+The run library lists the seed, configuration, provider, progress, and population extrema for every retained run. Each run exposes a human-readable report, a machine-readable JSON report, and a streamed zip containing newline-delimited JSON metadata and events.
 
 ## Reading the map
 
-Shape carries what a thing is, and colour never changes with its condition. A
-mouse is a blue circle, a cat a red triangle, food a green square, a trap an
-orange diamond and a mousehole a grey ring. A hungry animal keeps its own colour
-and gains one bright yellow dot, the same dot on a mouse and on a cat.
+Shape carries identity independently of color: mice are blue circles, cats are red triangles, food is a green square, traps are orange diamonds, and mouseholes are gray rings. A yellow dot marks hunger. Mouseholes show whether they contain an adult or a brood, and selection and event highlighting use a yellow ring.
 
-The four solid shapes stay distinct down to a few pixels, which is why the same
-glyphs work on the large preset as on the small one. The key under the map and
-the chart's own legend both draw their swatches with the same function the map
-uses, and a test asserts the key names every glyph exactly once, so none of the
-three can drift apart.
+Cats have independent nutrition. Hunger increases their perception and pounce range, reduces their pounce cooldown, and removes resting after lost prey. A cat that catches nothing eventually starves, which is the only way predation pressure leaves the world. A run ends early when both mice and cats are gone.
 
-A mousehole shows what is in it: hollow when free, a small blue dot for an
-adult sheltering, filled blue for a litter.
+## Collecting evidence across runs
 
-Two marks are not in the key because they are not things in the world: a yellow
-ring around the mouse you have selected, and the same ring around whatever a
-hovered log line is about. A mouse inside a mousehole is not drawn; the hole
-shows it instead.
+One run is not evidence. Initial placement and seeded random events can push the same configuration toward different ecological outcomes, while Jev adds variation at the decision boundary.
 
-A cat has its own hunger. It decays slowly, a mouse restores half of it, and a
-cat below half sees further, springs from further away and stops resting after
-losing a mouse. A cat that catches nothing starves to death, on the same terms
-as a mouse, which is the only way predation pressure is ever removed from a run.
+Useful experiments separate three comparison jobs:
 
-When no mouse and no cat is left alive the run stops there rather than counting
-out its remaining turns over an empty map, and the viewer says so in large type
-over the world it ended in.
+- Run one provider across different seeds to measure sensitivity to initial placement and the engine's seeded random events.
+- Repeat Jev with the same configuration and seed to measure variation in model judgment. Repeating the fixed rules with an unchanged seed adds no information because that path is deterministic.
+- Pair providers by running every selected seed through the fixed rules and through Jev. Compare decision-level behavior separately from population-level outcomes.
 
-## What the numbers say
+Keep the configuration, seed, provider source, fallback count, model, run length, and exported event record with every result. Otherwise, a fallback or configuration change can look like a behavioral difference.
 
-The colony is bistable under the fixed rules, and the threshold is sharp.
-Holding food at 50 piles on a 15-tick respawn and decay at 0.3, three cats
-leave a colony alive on all eight seeds tried and four collapse it. This is the
-behaviour the telemetry exists to study, not a defect, but it does mean a
-single run is not evidence of anything.
+The local host stores runs under `.data` and exposes endpoints that can be automated from a script:
 
-**The defaults are one of the settings that collapse.** As the requirements
-specify them, the medium default drives the population to zero well before tick
-1000 on every seed tried. Turn the food up, the decay down, or a cat off, and
-the colony establishes. This is recorded as an open decision rather than
-quietly corrected, because the numbers are ones the requirements state.
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/runs` | Create a run with an explicit configuration, seed, `jev` or `rules` decider, and optional speed. |
+| `GET /api/runs/:id` | Poll status and summary data. |
+| `GET /api/runs/:id/report` | Collect the machine-readable report. |
+| `GET /api/runs/:id/report.md` | Collect the human-readable report. |
+| `GET /api/runs/:id/export` | Download the complete zipped event record. |
 
-## Not built yet
+This makes it practical to write a local script that iterates over a declared seed list, runs matched providers, waits for completion, and saves one report and export per provider and seed. Set `TYPESAFE_API_KEY` in `.env` for Jev runs; rules runs need no external service.
 
-The hosted multi-tenant deployment: Cloudflare Workers, Durable Objects,
-Containers, R2, Neon and Google sign-in. The designs are complete and the
-simulation process already speaks the coordinator protocol that the Run object
-will answer, which is why the local host can stand in for it unchanged. What
-remains is the platform, and it needs accounts and credentials.
+For larger deterministic studies, the included survival sweep runs the fixed-rules engine headlessly across a grid of configurations and seeds:
+
+```bash
+node scripts/survival-sweep.mjs --seeds 16 --ticks 4000 --workers 8
+```
+
+The arguments control the number of fixed seeds per configuration, observation horizon, and local worker processes. The sweep records the tick at which the last mouse died, or `null` when the colony survives the horizon, then regenerates `packages/engine/src/survival-table.ts`. It evaluates only the deterministic rules control; use the local host for Jev experiments so source labels, fallbacks, latency, usage, reports, and full decision records are retained.
+
+## Deployment
+
+The public application runs at [mice.jev.carsonsweet.com](https://mice.jev.carsonsweet.com/). A Cloudflare Worker serves the built viewer and API. Each simulation is owned by a Run Durable Object, a registry tracks run history, a budget object limits aggregate Jev usage, and R2 stores event chunks, summaries, and snapshots. The Worker and local host expose the same browser-facing routes, so the viewer does not need a deployment-specific execution path.
+
+The production API key remains server-side. When a Jev allowance is unavailable or exhausted, affected decisions fall back to the fixed rules and record that source change rather than stopping the simulation.
